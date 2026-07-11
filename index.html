@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BewehrungsCheck</title>
-  <link rel="manifest" href="manifest.webmanifest?v=63">
-  <link rel="stylesheet" href="styles.css?v=63">
+  <link rel="manifest" href="manifest.webmanifest?v=64">
+  <link rel="stylesheet" href="styles.css?v=64">
 </head>
 <body>
   <div id="app" class="shell">
@@ -258,6 +258,17 @@
               </label>
               <label>Name des Prüfers / Abnehmenden<input name="inspectorName" list="personOptions"></label>
               <label>Unterschrift als Text<input name="signatureText" placeholder="gez. Name"></label>
+              <section class="overview-photo-section">
+                <div class="section-head">
+                  <h3>Übersichtsfotos Baustelle</h3>
+                </div>
+                <p class="muted">Allgemeine Fotos zur Abnahme, z. B. Gesamtansicht, Bewehrungsübersicht oder Zustand vor Betonage.</p>
+                <div class="result-actions overview-photo-actions">
+                  <button class="secondary-btn" type="button" data-overview-photo="camera">Foto aufnehmen</button>
+                  <button class="secondary-btn" type="button" data-overview-photo="gallery">Foto aus Galerie auswählen</button>
+                </div>
+                <div id="overviewPhotoList" class="overview-photo-list"></div>
+              </section>
               <section class="signature-section">
                 <div class="section-head">
                   <h3>Unterschriften / Kenntnisnahme</h3>
@@ -507,8 +518,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=63"></script>
-  <script src="app.js?v=63"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=64"></script>
+  <script src="app.js?v=64"></script>
 </body>
 </html>
 
