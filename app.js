@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v61";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=61`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=61`;
+const APP_CACHE = "kai-bewehrungscheck-v62";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=62`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=62`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -4064,10 +4064,11 @@ async function renderMarkPlan() {
   canvas.width = 0;
   canvas.height = 0;
   layer.innerHTML = "";
-  stage.style.width = "100%";
-  stage.style.minWidth = "100%";
-  stage.style.minHeight = "0";
-  stage.style.transform = "translate(0px, 0px) scale(1)";
+  stage.style.width = "1px";
+  stage.style.height = "1px";
+  stage.style.minWidth = "1px";
+  stage.style.minHeight = "1px";
+  stage.style.transform = "none";
   state.mark.naturalWidth = 0;
   state.mark.naturalHeight = 0;
   state.mark.fitScale = 1;
@@ -4145,16 +4146,12 @@ async function renderMarkPlan() {
 function prepareMarkPlanSurface(element, naturalWidth, naturalHeight) {
   state.mark.naturalWidth = Math.max(1, Math.round(naturalWidth || 900));
   state.mark.naturalHeight = Math.max(1, Math.round(naturalHeight || element.naturalHeight || 700));
-  element.style.width = `${state.mark.naturalWidth}px`;
-  element.style.height = "auto";
-  const stage = $("#markStage");
-  stage.style.width = `${state.mark.naturalWidth}px`;
-  stage.style.height = `${state.mark.naturalHeight}px`;
-  stage.style.minWidth = `${state.mark.naturalWidth}px`;
-  stage.style.transformOrigin = "0 0";
-  const pinLayer = $("#markPinLayer");
-  pinLayer.style.width = `${state.mark.naturalWidth}px`;
-  pinLayer.style.height = `${state.mark.naturalHeight}px`;
+  state.mark.zoom = state.mark.zoom || 1;
+  element.style.width = "100%";
+  element.style.height = "100%";
+  element.style.transform = "none";
+  $("#markPinLayer").style.transform = "none";
+  applyMarkStageSize();
   requestAnimationFrame(() => {
     fitMarkPlan();
     renderMarkPins();
@@ -4175,43 +4172,54 @@ function visibleMarkElement() {
   return canvas && canvas.style.display !== "none" ? canvas : image;
 }
 
+function markStageSize(zoom = state.mark.zoom || 1) {
+  return {
+    width: Math.max(1, Math.round((state.mark.naturalWidth || 1) * zoom)),
+    height: Math.max(1, Math.round((state.mark.naturalHeight || 1) * zoom))
+  };
+}
+
+function applyMarkStageSize() {
+  const stage = $("#markStage");
+  const size = markStageSize();
+  stage.style.width = `${size.width}px`;
+  stage.style.height = `${size.height}px`;
+  stage.style.minWidth = `${size.width}px`;
+  stage.style.minHeight = `${size.height}px`;
+  stage.style.transform = "none";
+  $("#markPinLayer").style.width = "100%";
+  $("#markPinLayer").style.height = "100%";
+  const image = visibleMarkElement();
+  if (image) {
+    image.style.width = "100%";
+    image.style.height = "100%";
+    image.style.transform = "none";
+  }
+  return size;
+}
+
 function clampMarkPan() {
-  const viewer = $(".mark-viewer");
-  const viewerWidth = Math.max(1, viewer.clientWidth || 1);
-  const viewerHeight = Math.max(1, viewer.clientHeight || 1);
-  const contentWidth = Math.max(1, (state.mark.naturalWidth || 1) * (state.mark.zoom || 1));
-  const contentHeight = Math.max(1, (state.mark.naturalHeight || 1) * (state.mark.zoom || 1));
-  const minX = contentWidth > viewerWidth ? viewerWidth - contentWidth : (viewerWidth - contentWidth) / 2;
-  const maxX = contentWidth > viewerWidth ? 0 : (viewerWidth - contentWidth) / 2;
-  const minY = contentHeight > viewerHeight ? viewerHeight - contentHeight : (viewerHeight - contentHeight) / 2;
-  const maxY = contentHeight > viewerHeight ? 0 : (viewerHeight - contentHeight) / 2;
-  state.mark.panX = Math.min(maxX, Math.max(minX, Number(state.mark.panX) || 0));
-  state.mark.panY = Math.min(maxY, Math.max(minY, Number(state.mark.panY) || 0));
+  applyMarkStageSize();
 }
 
 function applyMarkTransform() {
-  const x = Number(state.mark.panX) || 0;
-  const y = Number(state.mark.panY) || 0;
-  const scale = Number(state.mark.zoom) || 1;
-  const stage = $("#markStage");
-  stage.style.transformOrigin = "0 0";
-  stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  applyMarkStageSize();
 }
 
 function setMarkZoom(zoom, centerX, centerY) {
   const viewer = $(".mark-viewer");
+  if (!viewer || !state.mark.naturalWidth || !state.mark.naturalHeight) return;
   const rect = viewer.getBoundingClientRect();
-  const oldScale = state.mark.zoom || state.mark.fitScale || 1;
-  const x = centerX ?? (rect.left + rect.width / 2);
-  const y = centerY ?? (rect.top + rect.height / 2);
-  const imageX = (x - rect.left - (state.mark.panX || 0)) / oldScale;
-  const imageY = (y - rect.top - (state.mark.panY || 0)) / oldScale;
-  const minScale = Math.max(0.001, state.mark.fitScale || 0.01);
+  const oldZoom = state.mark.zoom || state.mark.fitScale || 1;
+  const centerInViewerX = centerX === undefined ? viewer.clientWidth / 2 : centerX - rect.left;
+  const centerInViewerY = centerY === undefined ? viewer.clientHeight / 2 : centerY - rect.top;
+  const naturalX = (viewer.scrollLeft + centerInViewerX) / oldZoom;
+  const naturalY = (viewer.scrollTop + centerInViewerY) / oldZoom;
+  const minScale = Math.max(0.02, state.mark.fitScale || 0.02);
   state.mark.zoom = Math.min(6, Math.max(minScale, zoom));
-  state.mark.panX = x - rect.left - imageX * state.mark.zoom;
-  state.mark.panY = y - rect.top - imageY * state.mark.zoom;
-  clampMarkPan();
-  applyMarkTransform();
+  const size = applyMarkStageSize();
+  viewer.scrollLeft = Math.max(0, Math.min(size.width - viewer.clientWidth, naturalX * state.mark.zoom - centerInViewerX));
+  viewer.scrollTop = Math.max(0, Math.min(size.height - viewer.clientHeight, naturalY * state.mark.zoom - centerInViewerY));
   renderMarkSelectors();
 }
 
@@ -4232,9 +4240,9 @@ function fitMarkPlan() {
     const fitScale = Math.min(viewerWidth / imageWidth, viewerHeight / imageHeight);
     state.mark.fitScale = Math.max(0.001, fitScale || 1);
     state.mark.zoom = state.mark.fitScale;
-    state.mark.panX = (viewerWidth - imageWidth * state.mark.zoom) / 2;
-    state.mark.panY = (viewerHeight - imageHeight * state.mark.zoom) / 2;
-    applyMarkTransform();
+    const size = applyMarkStageSize();
+    viewer.scrollLeft = Math.max(0, (size.width - viewerWidth) / 2);
+    viewer.scrollTop = Math.max(0, (size.height - viewerHeight) / 2);
     renderMarkSelectors();
   });
 }
@@ -4349,9 +4357,9 @@ function cancelMarkPinPlacement() {
 
 function moveMarkPinTo(clientX, clientY) {
   const pin = state.current?.pins.find((item) => item.id === state.mark.movePinId);
-  const target = visibleMarkElement();
-  if (!pin || !target) return;
-  const rect = target.getBoundingClientRect();
+  const stage = $("#markStage");
+  if (!pin || !stage) return;
+  const rect = stage.getBoundingClientRect();
   if (rect.width < 20 || rect.height < 20) return;
   if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
     $("#markHint").innerHTML = `Bitte innerhalb des Plans tippen. <button class="small-btn" type="button" data-cancel-mark-pin-move>Abbrechen</button>`;
@@ -4416,10 +4424,11 @@ function placeSamplePin(clientX, clientY) {
   const sample = findSample(state.mark.sampleId);
   const check = sample ? findCheckBySample(sample.id) : null;
   const plan = planById(state.mark.planId);
-  const target = visibleMarkElement();
-  if (!sample || !check || !plan || !target) return;
-  const rect = target.getBoundingClientRect();
+  const stage = $("#markStage");
+  if (!sample || !check || !plan || !stage) return;
+  const rect = stage.getBoundingClientRect();
   if (rect.width < 20 || rect.height < 20) return;
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return;
   const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
   const y = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
   let pin = sample.pinId ? state.current.pins.find((item) => item.id === sample.pinId) : null;
@@ -5590,7 +5599,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v61",
+    appVersion: "v62",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5613,7 +5622,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v61",
+    appVersion: "v62",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6231,8 +6240,9 @@ function bindEvents() {
     renderMarkSelectors();
     renderMarkPins();
   });
-  $("#markZoomOutBtn").addEventListener("click", () => setMarkZoom((state.mark.zoom || 1) - 0.25));
-  $("#markZoomInBtn").addEventListener("click", () => setMarkZoom((state.mark.zoom || 1) + 0.25));
+  $("#markZoomOutBtn").addEventListener("click", () => setMarkZoom((state.mark.zoom || 1) / 1.25));
+  $("#markZoomInBtn").addEventListener("click", () => setMarkZoom((state.mark.zoom || 1) * 1.25));
+  $("#markZoomResetBtn").addEventListener("click", () => setMarkZoom(1));
   $("#markFitBtn").addEventListener("click", fitMarkPlan);
   $("#markPlanSelect").addEventListener("change", (event) => {
     state.mark.planId = event.target.value;
@@ -6875,31 +6885,17 @@ function bindMarkGestures() {
     }
     state.mark.startX = event.clientX;
     state.mark.startY = event.clientY;
-    state.mark.startPanX = Number(state.mark.panX) || 0;
-    state.mark.startPanY = Number(state.mark.panY) || 0;
     state.mark.moved = false;
-    viewer.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
   });
   viewer.addEventListener("pointermove", (event) => {
     if (!state.mark.pointers.has(event.pointerId)) return;
     const dx = event.clientX - state.mark.startX;
     const dy = event.clientY - state.mark.startY;
     if (Math.hypot(dx, dy) > 8) state.mark.moved = true;
-    if (!state.mark.active || state.mark.moved) {
-      state.mark.panX = state.mark.startPanX + dx;
-      state.mark.panY = state.mark.startPanY + dy;
-      clampMarkPan();
-      applyMarkTransform();
-    }
-    event.preventDefault();
   });
   const finish = (event) => {
     const point = state.mark.pointers.get(event.pointerId) || { x: event.clientX, y: event.clientY };
     state.mark.pointers.delete(event.pointerId);
-    try {
-      viewer.releasePointerCapture?.(event.pointerId);
-    } catch (_) {}
     if (state.mark.movePinId && !state.mark.moved && !state.mark.pointers.size) moveMarkPinTo(point.x, point.y);
     else if (state.mark.active && !state.mark.moved && !state.mark.pointers.size) placeSamplePin(point.x, point.y);
     if (!state.mark.pointers.size) state.mark.moved = false;

@@ -1265,44 +1265,71 @@ input:focus, textarea:focus, select:focus, button:focus {
   gap: 8px;
 }
 
+.plan-mark-body .zoom-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0;
+}
+
+.plan-mark-body .zoom-actions .small-btn {
+  flex: 0 0 auto;
+}
+
+.plan-mark-body .zoom-actions #markZoomLabel {
+  flex: 0 0 auto;
+  min-width: 58px;
+}
+
 .mark-viewer {
   flex: 1 1 auto;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
   min-height: 0;
   width: 100%;
   background: #eef3f6;
   border: 1px solid var(--line);
   border-radius: 8px;
-  touch-action: none;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
   user-select: none;
 }
 
 .mark-stage {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: max-content;
+  position: relative;
+  width: 1px;
+  height: 1px;
   max-width: none;
-  transform-origin: 0 0;
-  will-change: transform;
+  margin: auto;
+  transform: none !important;
 }
 
 #markImage,
 #markCanvas {
   display: none;
-  width: auto;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
   max-width: none;
-  height: auto;
+  height: 100%;
+  transform: none !important;
   user-select: none;
   -webkit-user-drag: none;
 }
 
 #markPinLayer {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   z-index: 3;
+  transform: none !important;
 }
 
 #markPinLayer .pin {
