@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v60 stabilisiert die Plananzeige im Check-Markierungsdialog: Viewer, Stage, Planbild und Pin-Overlay liegen in einem festen Koordinatensystem; `Einpassen` zentriert den Plan daraus neu. Plan-Renderer, Bericht, Header, Backup/Restore, Stammdatenlogik und Pin-Koordinatenlogik wurden dabei nicht umgebaut.
+v61 stellt den Check-Markierungsdialog nach dem v60-Notfall wieder funktionsfähig her: vorhandene Pläne werden beim Öffnen sicher ausgewählt und die riskante v60-Dialogstruktur wurde zurückgenommen. Plan-Renderer, Bericht, Header, Backup/Restore, Stammdatenlogik und Pin-Koordinatenlogik wurden dabei nicht umgebaut.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v60`
+- Cache-Version: `kai-bewehrungscheck-v61`
 
 ## Daten und Sicherung
 

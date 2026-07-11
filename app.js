@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v60";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=60`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=60`;
+const APP_CACHE = "kai-bewehrungscheck-v61";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=61`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=61`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -3977,20 +3977,27 @@ function renderPhotoDialog() {
 function openPlanMarkDialog(sampleId) {
   const sample = findSample(sampleId);
   if (!sample) return;
-  if (!state.current.plans.length) {
-    alert("Bitte zuerst im Reiter Plan eine Planunterlage hochladen.");
+  const plans = Array.isArray(state.current?.plans) ? state.current.plans : [];
+  if (!plans.length) {
+    alert("Keine Planunterlagen vorhanden. Bitte im Plan-Reiter zuerst einen Plan hinzufügen.");
     return;
   }
   if (isAndroidFirefox()) {
     alert(androidFirefoxWarningText());
   }
   const pin = sample.pinId ? state.current.pins.find((item) => item.id === sample.pinId) : null;
+  const preferredPlanId = pin?.planId || sample.planId || state.selectedPlanId || state.current.activePlanId || plans[0].id;
+  const selectedMarkPlan = planById(preferredPlanId) || plans[0];
+  if (!selectedMarkPlan) {
+    alert("Keine Planunterlagen vorhanden. Bitte im Plan-Reiter zuerst einen Plan hinzufügen.");
+    return;
+  }
   state.markTarget = { sampleId };
   state.mark = {
     ...state.mark,
     sampleId,
-    planId: pin?.planId || sample.planId || state.selectedPlanId || state.current.activePlanId || state.current.plans[0].id,
-    pageNumber: pin?.pageNumber || sample.pageNumber || 1,
+    planId: selectedMarkPlan.id,
+    pageNumber: Math.max(1, Math.min(pin?.pageNumber || sample.pageNumber || 1, selectedMarkPlan.pageCount || 1)),
     zoom: 1,
     panX: 0,
     panY: 0,
@@ -4013,10 +4020,13 @@ function closePlanMarkDialog() {
 }
 
 function renderMarkSelectors() {
-  const plan = planById(state.mark.planId) || state.current.plans[0];
+  const plans = Array.isArray(state.current?.plans) ? state.current.plans : [];
+  const plan = planById(state.mark.planId) || plans[0];
   state.mark.planId = plan?.id || "";
   const planSelect = $("#markPlanSelect");
-  planSelect.innerHTML = state.current.plans.map((item) => `<option value="${item.id}">${escapeHtml(planDisplayName(item))}</option>`).join("");
+  planSelect.innerHTML = plans.length
+    ? plans.map((item) => `<option value="${item.id}">${escapeHtml(planDisplayName(item))}</option>`).join("")
+    : `<option value="">Keine Planunterlagen vorhanden</option>`;
   planSelect.value = state.mark.planId;
   const pageCount = Math.max(1, plan?.pageCount || 1);
   state.mark.pageNumber = Math.min(Math.max(1, Number(state.mark.pageNumber) || 1), pageCount);
@@ -4055,12 +4065,9 @@ async function renderMarkPlan() {
   canvas.height = 0;
   layer.innerHTML = "";
   stage.style.width = "100%";
-  stage.style.height = "100%";
   stage.style.minWidth = "100%";
   stage.style.minHeight = "0";
   stage.style.transform = "translate(0px, 0px) scale(1)";
-  $("#markPinLayer").style.width = "100%";
-  $("#markPinLayer").style.height = "100%";
   state.mark.naturalWidth = 0;
   state.mark.naturalHeight = 0;
   state.mark.fitScale = 1;
@@ -4139,8 +4146,7 @@ function prepareMarkPlanSurface(element, naturalWidth, naturalHeight) {
   state.mark.naturalWidth = Math.max(1, Math.round(naturalWidth || 900));
   state.mark.naturalHeight = Math.max(1, Math.round(naturalHeight || element.naturalHeight || 700));
   element.style.width = `${state.mark.naturalWidth}px`;
-  element.style.height = `${state.mark.naturalHeight}px`;
-  element.style.transform = "none";
+  element.style.height = "auto";
   const stage = $("#markStage");
   stage.style.width = `${state.mark.naturalWidth}px`;
   stage.style.height = `${state.mark.naturalHeight}px`;
@@ -4149,7 +4155,6 @@ function prepareMarkPlanSurface(element, naturalWidth, naturalHeight) {
   const pinLayer = $("#markPinLayer");
   pinLayer.style.width = `${state.mark.naturalWidth}px`;
   pinLayer.style.height = `${state.mark.naturalHeight}px`;
-  pinLayer.style.transform = "none";
   requestAnimationFrame(() => {
     fitMarkPlan();
     renderMarkPins();
@@ -4170,34 +4175,12 @@ function visibleMarkElement() {
   return canvas && canvas.style.display !== "none" ? canvas : image;
 }
 
-function markPlanDimensions(target = visibleMarkElement()) {
-  return {
-    width: Math.max(1, state.mark.naturalWidth || target?.naturalWidth || target?.width || 1),
-    height: Math.max(1, state.mark.naturalHeight || target?.naturalHeight || target?.height || 1)
-  };
-}
-
-function ensureSingleVisibleMarkPlan() {
-  const image = $("#markImage");
-  const canvas = $("#markCanvas");
-  const pinLayer = $("#markPinLayer");
-  if (image?.style.display !== "none") {
-    canvas.style.display = "none";
-    canvas.style.visibility = "hidden";
-  }
-  [image, canvas, pinLayer].forEach((element) => {
-    if (element) element.style.transform = "none";
-  });
-}
-
 function clampMarkPan() {
   const viewer = $(".mark-viewer");
-  const viewerRect = viewer.getBoundingClientRect();
-  const viewerWidth = Math.max(1, viewerRect.width || viewer.clientWidth || 1);
-  const viewerHeight = Math.max(1, viewerRect.height || viewer.clientHeight || 1);
-  const dimensions = markPlanDimensions();
-  const contentWidth = Math.max(1, dimensions.width * (state.mark.zoom || 1));
-  const contentHeight = Math.max(1, dimensions.height * (state.mark.zoom || 1));
+  const viewerWidth = Math.max(1, viewer.clientWidth || 1);
+  const viewerHeight = Math.max(1, viewer.clientHeight || 1);
+  const contentWidth = Math.max(1, (state.mark.naturalWidth || 1) * (state.mark.zoom || 1));
+  const contentHeight = Math.max(1, (state.mark.naturalHeight || 1) * (state.mark.zoom || 1));
   const minX = contentWidth > viewerWidth ? viewerWidth - contentWidth : (viewerWidth - contentWidth) / 2;
   const maxX = contentWidth > viewerWidth ? 0 : (viewerWidth - contentWidth) / 2;
   const minY = contentHeight > viewerHeight ? viewerHeight - contentHeight : (viewerHeight - contentHeight) / 2;
@@ -4212,7 +4195,7 @@ function applyMarkTransform() {
   const scale = Number(state.mark.zoom) || 1;
   const stage = $("#markStage");
   stage.style.transformOrigin = "0 0";
-  stage.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+  stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
 }
 
 function setMarkZoom(zoom, centerX, centerY) {
@@ -4240,14 +4223,12 @@ function fitMarkPlan() {
     target.addEventListener("load", () => requestAnimationFrame(fitMarkPlan), { once: true });
     return;
   }
-  ensureSingleVisibleMarkPlan();
   requestAnimationFrame(() => {
     const viewerRect = viewer.getBoundingClientRect();
     const viewerWidth = Math.max(1, viewerRect.width || viewer.clientWidth || 1);
     const viewerHeight = Math.max(1, viewerRect.height || viewer.clientHeight || 1);
-    const dimensions = markPlanDimensions(target);
-    const imageWidth = dimensions.width;
-    const imageHeight = dimensions.height;
+    const imageWidth = Math.max(1, state.mark.naturalWidth || target.naturalWidth || target.width || 1);
+    const imageHeight = Math.max(1, state.mark.naturalHeight || target.naturalHeight || target.height || 1);
     const fitScale = Math.min(viewerWidth / imageWidth, viewerHeight / imageHeight);
     state.mark.fitScale = Math.max(0.001, fitScale || 1);
     state.mark.zoom = state.mark.fitScale;
@@ -5609,7 +5590,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v60",
+    appVersion: "v61",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5632,7 +5613,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v60",
+    appVersion: "v61",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
