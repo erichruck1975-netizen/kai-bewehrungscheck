@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v62 vereinfacht die Plananzeige im Check-Markierungsdialog robust: Zoom läuft über echte Stage-/Bildgröße, Verschieben über natives Scrollen im Viewer, Pins bleiben prozentual auf dem Plan. Plan-Renderer, Bericht, Header, Backup/Restore, Stammdatenlogik und Pin-Datenstruktur wurden dabei nicht umgebaut.
+v63 ergänzt Pinch-Zoom im Check-Markierungsdialog auf Basis des v62-Scrollviewers. Zoom ändert weiterhin echte Stage-/Bildgröße; Plan-Renderer, Bericht, Header, Backup/Restore, Stammdatenlogik und Pin-Datenstruktur wurden dabei nicht umgebaut.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v62`
+- Cache-Version: `kai-bewehrungscheck-v63`
 
 ## Daten und Sicherung
 

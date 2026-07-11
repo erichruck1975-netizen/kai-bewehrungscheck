@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v62";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=62`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=62`;
+const APP_CACHE = "kai-bewehrungscheck-v63";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=63`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=63`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -168,6 +168,10 @@ const state = {
     startPanX: 0,
     startPanY: 0,
     moved: false,
+    isPinching: false,
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    pinchCenter: null,
     movePinId: ""
   },
   pdfDocs: new Map(),
@@ -4003,6 +4007,10 @@ function openPlanMarkDialog(sampleId) {
     panY: 0,
     active: false,
     movePinId: "",
+    isPinching: false,
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    pinchCenter: null,
     pointers: new Map(),
     moved: false
   };
@@ -4014,6 +4022,8 @@ function openPlanMarkDialog(sampleId) {
 function closePlanMarkDialog() {
   state.mark.active = false;
   state.mark.movePinId = "";
+  state.mark.isPinching = false;
+  state.mark.pointers.clear();
   state.markTarget = null;
   renderMarkPinSheet("");
   $("#planMarkDialog").close();
@@ -5599,7 +5609,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v62",
+    appVersion: "v63",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5622,7 +5632,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v62",
+    appVersion: "v63",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6878,9 +6888,13 @@ function bindMarkGestures() {
     if (!state.markTarget || event.target.closest("button, input, textarea, select, summary, label")) return;
     state.mark.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (state.mark.pointers.size > 1) {
-      state.mark.active = false;
-      state.mark.pointers.clear();
-      renderMarkSelectors();
+      const points = Array.from(state.mark.pointers.values());
+      state.mark.isPinching = true;
+      state.mark.moved = true;
+      state.mark.pinchStartDistance = pointerDistance(points[0], points[1]);
+      state.mark.pinchStartZoom = state.mark.zoom || 1;
+      state.mark.pinchCenter = pointerCenter(points[0], points[1]);
+      event.preventDefault();
       return;
     }
     state.mark.startX = event.clientX;
@@ -6889,15 +6903,36 @@ function bindMarkGestures() {
   });
   viewer.addEventListener("pointermove", (event) => {
     if (!state.mark.pointers.has(event.pointerId)) return;
+    state.mark.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (state.mark.pointers.size > 1) {
+      const points = Array.from(state.mark.pointers.values());
+      const distance = pointerDistance(points[0], points[1]);
+      const center = pointerCenter(points[0], points[1]);
+      if (state.mark.pinchStartDistance > 0) {
+        const nextZoom = state.mark.pinchStartZoom * (distance / state.mark.pinchStartDistance);
+        state.mark.isPinching = true;
+        state.mark.moved = true;
+        setMarkZoom(nextZoom, center.x, center.y);
+      }
+      event.preventDefault();
+      return;
+    }
     const dx = event.clientX - state.mark.startX;
     const dy = event.clientY - state.mark.startY;
     if (Math.hypot(dx, dy) > 8) state.mark.moved = true;
   });
   const finish = (event) => {
     const point = state.mark.pointers.get(event.pointerId) || { x: event.clientX, y: event.clientY };
+    const wasPinching = state.mark.isPinching;
+    const cancelled = event.type === "pointercancel";
     state.mark.pointers.delete(event.pointerId);
-    if (state.mark.movePinId && !state.mark.moved && !state.mark.pointers.size) moveMarkPinTo(point.x, point.y);
-    else if (state.mark.active && !state.mark.moved && !state.mark.pointers.size) placeSamplePin(point.x, point.y);
+    if (state.mark.pointers.size < 2) {
+      state.mark.isPinching = false;
+      state.mark.pinchStartDistance = 0;
+      state.mark.pinchCenter = null;
+    }
+    if (!cancelled && !wasPinching && state.mark.movePinId && !state.mark.moved && !state.mark.pointers.size) moveMarkPinTo(point.x, point.y);
+    else if (!cancelled && !wasPinching && state.mark.active && !state.mark.moved && !state.mark.pointers.size) placeSamplePin(point.x, point.y);
     if (!state.mark.pointers.size) state.mark.moved = false;
   };
   viewer.addEventListener("pointerup", finish);
