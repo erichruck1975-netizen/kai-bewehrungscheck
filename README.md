@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v63 ergänzt Pinch-Zoom im Check-Markierungsdialog auf Basis des v62-Scrollviewers. Zoom ändert weiterhin echte Stage-/Bildgröße; Plan-Renderer, Bericht, Header, Backup/Restore, Stammdatenlogik und Pin-Datenstruktur wurden dabei nicht umgebaut.
+v65 behebt den Übersichtsfoto-Hotfix: Foto aufnehmen und Foto aus Galerie auswählen nutzen eigene File-Inputs im Ergebnis-Reiter, speichern direkt in IndexedDB und zeigen die Fotos sofort an. Plan-Renderer, Check-Markierungsdialog, Pinch-Zoom, Header, Stammdatenlogik und bestehende Pin-/Prüfstellen-Fotos bleiben unverändert.
 
 ## Production-PWA
 
@@ -73,11 +73,15 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v63`
+- Cache-Version: `kai-bewehrungscheck-v65`
 
 ## Daten und Sicherung
 
 Große Dateien werden in IndexedDB gespeichert:
+
+- Pläne/PDFs
+- Fotos zu Pins und Prüfstellen
+- Übersichtsfotos der Baustelle
 
 - Datenbank: `kai-bewehrungscheck-db`
 - Stores: `projects`, `protocols`, `masterData`, `plans`, `photos`, `settings`

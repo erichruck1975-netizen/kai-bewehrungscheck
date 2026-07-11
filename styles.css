@@ -758,6 +758,76 @@ input:focus, textarea:focus, select:focus, button:focus {
   margin: 18px 0;
 }
 
+.overview-photo-section {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.overview-photo-list {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-photo-empty,
+.overview-photo-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.overview-photo-empty {
+  padding: 14px;
+}
+
+.overview-photo-card {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) 1fr;
+  gap: 12px;
+  padding: 12px;
+}
+
+.overview-photo-preview {
+  position: relative;
+  min-height: 140px;
+  background: #f3f6f9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.overview-photo-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 140px;
+  object-fit: cover;
+}
+
+.cover-badge {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.overview-photo-fields {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.overview-photo-tools {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .signature-list {
   display: grid;
   gap: 14px;
@@ -1681,6 +1751,21 @@ dialog button {
   .danger-zone .danger-btn {
     min-height: 44px;
     white-space: normal;
+  }
+
+  .overview-photo-card {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-photo-tools,
+  .overview-photo-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-photo-tools > *,
+  .overview-photo-actions > * {
+    width: 100%;
+    min-width: 0;
   }
 
   dialog {

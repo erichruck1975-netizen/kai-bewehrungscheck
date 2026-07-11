@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v63";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=63`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=63`;
+const APP_CACHE = "kai-bewehrungscheck-v65";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=65`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=65`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -789,6 +789,7 @@ function blankProtocol(project = null, seed = {}) {
       signatureText: ""
     },
     signatures: [],
+    overviewPhotos: [],
     photos: []
   });
 }
@@ -835,6 +836,7 @@ function normalizeProtocol(protocol) {
   protocol.plans = protocol.plans || [];
   protocol.pins = protocol.pins || [];
   protocol.signatures = (protocol.signatures || []).map(normalizeSignature);
+  protocol.overviewPhotos = normalizeOverviewPhotos(protocol.overviewPhotos || [], protocol.id);
   if (protocol.plan && !protocol.plans.length) {
     const planId = uid("plan");
     protocol.plans.push({
@@ -1560,7 +1562,84 @@ function fillForm() {
     const field = $(`[name="${key}"]`);
     if (field) field.value = value || "";
   });
+  renderOverviewPhotos();
   renderSignatures();
+}
+
+function renderOverviewPhotos() {
+  const list = $("#overviewPhotoList");
+  if (!list || !state.current) return;
+  state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
+  const photos = state.current.overviewPhotos;
+  if (!photos.length) {
+    list.innerHTML = `<div class="overview-photo-empty"><p class="muted">Noch keine Übersichtsfotos zur Baustelle erfasst.</p></div>`;
+    return;
+  }
+  list.innerHTML = photos.map((item, index) => `
+    <article class="overview-photo-card" data-overview-photo-id="${item.id}">
+      <div class="overview-photo-preview">
+        <img data-photo-thumb="${item.photoId}" alt="${escapeAttr(item.caption || "Übersichtsfoto Baustelle")}">
+        ${item.isCover ? `<span class="cover-badge">Titelbild</span>` : ""}
+      </div>
+      <div class="overview-photo-fields">
+        <label>Bildbeschreibung / Kommentar
+          <textarea data-overview-caption="${item.id}" rows="2" placeholder="z. B. Bodenplatte Übersicht">${escapeHtml(item.caption)}</textarea>
+        </label>
+        <div class="overview-photo-tools">
+          <button class="small-btn" type="button" data-overview-up="${item.id}" ${index === 0 ? "disabled" : ""}>Nach oben</button>
+          <button class="small-btn" type="button" data-overview-down="${item.id}" ${index === photos.length - 1 ? "disabled" : ""}>Nach unten</button>
+          <button class="small-btn" type="button" data-overview-cover="${item.id}">${item.isCover ? "Titelbild entfernen" : "Als Titelbild"}</button>
+          <button class="danger-btn" type="button" data-overview-delete="${item.id}">Foto löschen</button>
+        </div>
+      </div>
+    </article>
+  `).join("");
+  hydratePhotoThumbs(list);
+}
+
+function overviewPhotoById(id) {
+  return state.current?.overviewPhotos?.find((item) => item.id === id) || null;
+}
+
+function reorderOverviewPhotos() {
+  state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
+}
+
+function moveOverviewPhoto(id, direction) {
+  reorderOverviewPhotos();
+  const photos = state.current?.overviewPhotos || [];
+  const index = photos.findIndex((item) => item.id === id);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= photos.length) return;
+  [photos[index], photos[nextIndex]] = [photos[nextIndex], photos[index]];
+  photos.forEach((item, orderIndex) => {
+    item.order = orderIndex + 1;
+    item.updatedAt = new Date().toISOString();
+  });
+  persist();
+  renderOverviewPhotos();
+}
+
+async function deleteOverviewPhoto(id) {
+  const photo = overviewPhotoById(id);
+  if (!photo) return;
+  state.current.overviewPhotos = (state.current.overviewPhotos || []).filter((item) => item.id !== id);
+  reorderOverviewPhotos();
+  if (photo.photoId) await idbDelete("photos", photo.photoId);
+  persist();
+  renderOverviewPhotos();
+}
+
+function toggleOverviewCover(id) {
+  const target = overviewPhotoById(id);
+  if (!target) return;
+  const nextValue = !target.isCover;
+  (state.current.overviewPhotos || []).forEach((item) => {
+    item.isCover = nextValue && item.id === id;
+    item.updatedAt = new Date().toISOString();
+  });
+  persist();
+  renderOverviewPhotos();
 }
 
 function renderSignatures() {
@@ -3857,6 +3936,7 @@ async function addPhotos(files) {
   const target = state.photoTarget;
   if (!target || !files.length) return;
   const photos = [];
+  const overviewEntries = [];
   for (const file of files) {
     const photo = { id: uid("photo"), name: file.name, type: file.type || "image/jpeg", createdAt: new Date().toISOString(), barCountAnalysis: null };
     await idbPut("photos", {
@@ -3875,6 +3955,21 @@ async function addPhotos(files) {
       createdAt: photo.createdAt
     });
     photos.push(photo);
+    if (target.kind === "overview") {
+      overviewEntries.push({
+        id: uid("overview"),
+        protocolId: state.current.id,
+        photoId: photo.id,
+        caption: "",
+        order: (state.current.overviewPhotos || []).length + overviewEntries.length + 1,
+        isCover: !(state.current.overviewPhotos || []).some((item) => item.isCover) && overviewEntries.length === 0,
+        createdAt: photo.createdAt,
+        updatedAt: photo.createdAt
+      });
+    }
+  }
+  if (target.kind === "overview") {
+    state.current.overviewPhotos = normalizeOverviewPhotos([...(state.current.overviewPhotos || []), ...overviewEntries], state.current.id);
   }
   if (target.kind === "pin") {
     const pin = state.current.pins.find((item) => item.id === target.id);
@@ -3905,6 +4000,7 @@ async function addPhotos(files) {
   saveFromForm();
   renderPinEditor();
   renderChecklist();
+  renderOverviewPhotos();
   renderPhotoDialog();
   renderMarkPinSheet(state.selectedPinId);
 }
@@ -3914,6 +4010,21 @@ function triggerPhotoPicker(kind, id, source) {
   renderPhotoDialog();
   const input = source === "gallery" ? $("#photoGalleryInput") : $("#photoCameraInput");
   if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+function triggerOverviewPhotoPicker(source) {
+  if (!state.current) {
+    alert("Bitte zuerst eine Abnahme öffnen.");
+    return;
+  }
+  state.photoTarget = { kind: "overview", id: state.current.id };
+  const input = source === "gallery" ? $("#overviewGalleryInput") : $("#overviewCameraInput");
+  if (!input) {
+    alert("Foto konnte nicht geöffnet oder gespeichert werden.");
+    return;
+  }
   input.value = "";
   input.click();
 }
@@ -4186,6 +4297,28 @@ function markStageSize(zoom = state.mark.zoom || 1) {
   return {
     width: Math.max(1, Math.round((state.mark.naturalWidth || 1) * zoom)),
     height: Math.max(1, Math.round((state.mark.naturalHeight || 1) * zoom))
+  };
+}
+
+function normalizeOverviewPhotos(items = [], protocolId = state.current?.id || "") {
+  return (items || [])
+    .map((item, index) => normalizeOverviewPhotoRef(item, protocolId, index + 1))
+    .filter((item) => item.photoId)
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .map((item, index) => ({ ...item, order: index + 1 }));
+}
+
+function normalizeOverviewPhotoRef(item = {}, protocolId = state.current?.id || "", order = 1) {
+  const now = new Date().toISOString();
+  return {
+    id: item.id || uid("overview"),
+    protocolId: item.protocolId || protocolId || "",
+    photoId: item.photoId || item.photo?.id || item.id || "",
+    caption: item.caption || item.note || "",
+    order: numberOrDefault(item.order, order),
+    isCover: !!item.isCover,
+    createdAt: item.createdAt || now,
+    updatedAt: item.updatedAt || item.createdAt || now
   };
 }
 
@@ -4741,6 +4874,7 @@ async function buildReportParts() {
   const defaultInspectorPerson = projectDefaultInspectorRecord(project, p);
   p.checkpoints.forEach(updateCheckStatus);
   const issues = sampleIssues(p);
+  const overviewPhotosHtml = await overviewPhotoReport(p);
   const planAppendixHtml = planAppendixReport(p);
   const photoReportHtml = await photoReport(p);
   const css = `
@@ -4786,6 +4920,7 @@ async function buildReportParts() {
     .appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.pin-table{font-size:11px}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
+    .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:165px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
     .signature-report{break-inside:avoid;page-break-inside:avoid;margin:14px 0 22px;border:1px solid #d8dee6;border-radius:8px;padding:12px}.signature-image{display:block;width:100%;max-width:620px;height:170px;object-fit:contain;border:1px solid #cfd6dd;border-bottom:3px solid #25313d;background:#fff}.signature-empty{height:120px;border:1px dashed #9aa5b1;display:grid;place-items:center;color:#6b7280}
     .footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}
     .page-break,.page-break-before{break-before:page;page-break-before:always}.avoid-break{break-inside:avoid;page-break-inside:avoid}
@@ -4831,6 +4966,9 @@ async function buildReportParts() {
 
         <h2>Wetterdaten</h2>
         ${weatherReport(p)}
+
+        <h2>Übersichtsfotos Baustelle</h2>
+        ${overviewPhotosHtml}
 
         <h2>Ergebnis</h2>
         <section class="result-box ${resultClass(p.result.resultStatus)}">
@@ -4911,6 +5049,7 @@ async function openReportDialog({ printHint = false } = {}) {
       :host(.read-mode) .report-header,
       :host(.read-mode) .info-grid,
       :host(.read-mode) .photo-grid,
+      :host(.read-mode) .overview-report-grid,
       :host(.read-mode) .signature-grid{display:block!important;grid-template-columns:none!important}
       :host(.read-mode) .report-header{padding:16px!important;margin-bottom:12px!important}
       :host(.read-mode) section,
@@ -4925,6 +5064,7 @@ async function openReportDialog({ printHint = false } = {}) {
       :host(.read-mode) .check-card,
       :host(.read-mode) .sample-card,
       :host(.read-mode) .photo-card,
+      :host(.read-mode) .overview-report-photo,
       :host(.read-mode) .signature-report{width:100%!important;max-width:100%!important;margin-bottom:10px!important}
       :host(.read-mode) .report-card,
       :host(.read-mode) .check-card,
@@ -4940,6 +5080,7 @@ async function openReportDialog({ printHint = false } = {}) {
       :host(.read-mode) h2{font-size:18px!important;line-height:1.25!important}
       :host(.read-mode) h3{font-size:15px!important;line-height:1.3!important}
       :host(.read-mode) .report-plan-image,
+      :host(.read-mode) .overview-report-photo img,
       :host(.read-mode) .photo-card img,
       :host(.read-mode) .signature-image{max-width:100%!important;height:auto!important}
       :host(.a4-mode) .report-export,
@@ -5393,6 +5534,35 @@ function planAppendixReport(p) {
   }).join("");
 }
 
+async function overviewPhotoReport(p) {
+  const photos = normalizeOverviewPhotos(p.overviewPhotos || [], p.id);
+  if (!photos.length) return "<p>Keine Übersichtsfotos zur Baustelle hinterlegt.</p>";
+  const items = [];
+  for (const item of photos) {
+    const record = await idbGet("photos", item.photoId);
+    if (!record?.blob) continue;
+    items.push({
+      ...item,
+      fileName: record.fileName || record.name || "Übersichtsfoto",
+      src: await getPhotoObjectUrl(item.photoId)
+    });
+  }
+  if (!items.length) return "<p>Übersichtsfotos konnten nicht geladen werden.</p>";
+  return `
+    <div class="overview-report-grid">
+      ${items.map((item, index) => `
+        <figure class="overview-report-photo">
+          <img src="${item.src}" alt="${escapeAttr(item.caption || item.fileName)}">
+          <figcaption>
+            <strong>${item.isCover ? "Titelbild · " : ""}Übersichtsfoto ${index + 1}</strong>
+            ${escapeHtml(item.caption || item.fileName)}
+          </figcaption>
+        </figure>
+      `).join("")}
+    </div>
+  `;
+}
+
 async function photoReport(p) {
   const groups = [];
   p.plans.forEach((plan) => {
@@ -5609,7 +5779,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v63",
+    appVersion: "v65",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5632,7 +5802,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v63",
+    appVersion: "v65",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5783,7 +5953,10 @@ function bindEvents() {
     $$(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === btn.dataset.tab));
     if (btn.dataset.tab === "checkTab") renderChecklist();
     if (btn.dataset.tab === "planTab") renderPlan();
-    if (btn.dataset.tab === "resultTab") renderSignatures();
+    if (btn.dataset.tab === "resultTab") {
+      renderOverviewPhotos();
+      renderSignatures();
+    }
   }));
   $("#protocolForm").addEventListener("input", (event) => {
     if (event.target.matches("[data-plan-field]")) {
@@ -5846,6 +6019,14 @@ function bindEvents() {
       schedulePersist();
       return;
     }
+    if (event.target.matches("[data-overview-caption]")) {
+      const overviewPhoto = overviewPhotoById(event.target.dataset.overviewCaption);
+      if (!overviewPhoto) return;
+      overviewPhoto.caption = event.target.value || "";
+      overviewPhoto.updatedAt = new Date().toISOString();
+      schedulePersist();
+      return;
+    }
     saveFromForm({ persistNow: false });
   });
   $("#protocolForm").addEventListener("change", (event) => {
@@ -5874,6 +6055,10 @@ function bindEvents() {
       applySignatureMasterSelection(signature, event.target.dataset.signatureField, event.target.value || "");
       persist();
       if (["name", "company"].includes(event.target.dataset.signatureField)) renderSignatures();
+      return;
+    }
+    if (event.target.matches("[data-overview-caption]")) {
+      persist();
       return;
     }
     if (event.target.matches('[name="component"]')) {
@@ -6108,6 +6293,16 @@ function bindEvents() {
     if (photoSample) openPhotoDialog("sample", photoSample.dataset.photoSample);
     const barCountPhoto = event.target.closest("[data-bar-count-photo]");
     if (barCountPhoto) openBarCountDialog(barCountPhoto.dataset.barCountPhoto);
+    const overviewPhotoButton = event.target.closest("[data-overview-photo]");
+    if (overviewPhotoButton) triggerOverviewPhotoPicker(overviewPhotoButton.dataset.overviewPhoto);
+    const overviewUp = event.target.closest("[data-overview-up]");
+    if (overviewUp) moveOverviewPhoto(overviewUp.dataset.overviewUp, -1);
+    const overviewDown = event.target.closest("[data-overview-down]");
+    if (overviewDown) moveOverviewPhoto(overviewDown.dataset.overviewDown, 1);
+    const overviewCover = event.target.closest("[data-overview-cover]");
+    if (overviewCover) toggleOverviewCover(overviewCover.dataset.overviewCover);
+    const overviewDelete = event.target.closest("[data-overview-delete]");
+    if (overviewDelete && confirm("Dieses Übersichtsfoto löschen?")) deleteOverviewPhoto(overviewDelete.dataset.overviewDelete);
     const deleteSamplePhoto = event.target.closest("[data-delete-sample-photo]");
     if (deleteSamplePhoto && confirm("Dieses Foto aus der Prüfstelle löschen?")) {
       const sample = findSample(deleteSamplePhoto.dataset.deleteSamplePhoto);
@@ -6326,6 +6521,28 @@ function bindEvents() {
   $("#photoGalleryInput").addEventListener("change", async (event) => {
     await addPhotos(Array.from(event.target.files));
     event.target.value = "";
+  });
+  $("#overviewCameraInput").addEventListener("change", async (event) => {
+    try {
+      state.photoTarget = { kind: "overview", id: state.current?.id || "" };
+      await addPhotos(Array.from(event.target.files || []));
+    } catch (error) {
+      console.error(error);
+      alert("Foto konnte nicht geöffnet oder gespeichert werden.");
+    } finally {
+      event.target.value = "";
+    }
+  });
+  $("#overviewGalleryInput").addEventListener("change", async (event) => {
+    try {
+      state.photoTarget = { kind: "overview", id: state.current?.id || "" };
+      await addPhotos(Array.from(event.target.files || []));
+    } catch (error) {
+      console.error(error);
+      alert("Foto konnte nicht geöffnet oder gespeichert werden.");
+    } finally {
+      event.target.value = "";
+    }
   });
   $("#cancelBarCountBtn").addEventListener("click", () => $("#barCountDialog").close());
   $("#saveBarCountBtn").addEventListener("click", saveBarCountAnalysis);
