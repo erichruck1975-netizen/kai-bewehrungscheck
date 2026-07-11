@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v59 repariert den Button `Einpassen` im Check-Markierungsdialog: Der sichtbare Plan wird frisch auf den Viewer eingepasst und zentriert. Plan-Renderer, Bericht, Header, Backup/Restore, Stammdatenlogik und Pin-Koordinatenlogik wurden dabei nicht umgebaut.
+v60 stabilisiert die Plananzeige im Check-Markierungsdialog: Viewer, Stage, Planbild und Pin-Overlay liegen in einem festen Koordinatensystem; `Einpassen` zentriert den Plan daraus neu. Plan-Renderer, Bericht, Header, Backup/Restore, Stammdatenlogik und Pin-Koordinatenlogik wurden dabei nicht umgebaut.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v59`
+- Cache-Version: `kai-bewehrungscheck-v60`
 
 ## Daten und Sicherung
 
