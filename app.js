@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v70";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=70`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=70`;
+const APP_CACHE = "kai-bewehrungscheck-v71";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=71`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=71`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -5063,9 +5063,6 @@ function reportDocumentHtml(parts, { printButton = false, saveHint = false } = {
 
 function reportPrintOverrides() {
   return `
-    @media screen{
-      #printReportMount{display:none!important}
-    }
     @page{size:A4 portrait;margin:12mm}
     @media print{
       html,body{width:auto!important;min-width:0!important;min-height:auto!important;margin:0!important;background:#fff!important;overflow:visible!important}
@@ -5119,15 +5116,39 @@ function preparePrintReportMount(parts) {
 
 async function printReportA4() {
   const parts = state.reportView.parts || await buildReportParts();
-  const reportElement = preparePrintReportMount(parts);
+  const frame = $("#reportPrintFrame") || document.createElement("iframe");
+  if (!frame.id) {
+    frame.id = "reportPrintFrame";
+    frame.className = "report-print-frame";
+    frame.title = "Bericht Druckansicht";
+    document.body.appendChild(frame);
+  }
+  frame.srcdoc = reportPrintDocumentHtml(parts);
+  await new Promise((resolve) => {
+    const done = () => resolve();
+    frame.addEventListener("load", done, { once: true });
+    window.setTimeout(done, 1500);
+  });
+  const doc = frame.contentDocument;
+  const reportElement = doc?.querySelector(".report-export");
   try {
-    validateReportElement(reportElement.matches?.(".report-export") ? reportElement : reportElement.querySelector?.(".report-export"));
+    if (!reportElement) throw new Error("Bericht enthält keine druckbaren Inhalte.");
+    const textLength = (reportElement.innerText || "").trim().length;
+    if (textLength < 100 || !reportElement.querySelector(".report-header") || !reportElement.querySelector(".result-box")) {
+      throw new Error("Bericht enthält keine druckbaren Inhalte.");
+    }
   } catch (error) {
     alert(error?.message || "Bericht enthält keine druckbaren Inhalte.");
     return;
   }
   await waitForReportReady(reportElement);
-  requestAnimationFrame(() => window.print());
+  const printTarget = frame.contentWindow;
+  if (!printTarget?.print) {
+    alert("Druckdialog konnte nicht geöffnet werden. Bitte über Browser-Menü Drucken / Als PDF speichern verwenden.");
+    return;
+  }
+  printTarget.focus();
+  printTarget.print();
 }
 async function openReportWindow({ print = false, saveHint = false } = {}) {
   return openReportDialog({ printHint: print || saveHint });
@@ -5210,7 +5231,7 @@ async function openReportDialog({ printHint = false } = {}) {
 
 async function saveReportHtml() {
   const parts = state.reportView.parts || await buildReportParts();
-  const html = reportDocumentHtml(parts, { printButton: false, saveHint: true });
+  const html = reportDocumentHtml(parts, { printButton: false, saveHint: false });
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -5224,7 +5245,7 @@ async function shareReportFile() {
   const parts = state.reportView.parts || await buildReportParts();
   const text = buildReportShareText();
   const title = reportShareTitle();
-  const html = reportDocumentHtml(parts, { printButton: false, saveHint: true });
+  const html = reportDocumentHtml(parts, { printButton: false, saveHint: false });
   const fileName = sanitizeFileName((parts.fileName || "bewehrungsbericht.pdf").replace(/\.pdf$/i, ".html"));
   try {
     if (typeof File === "undefined") throw new Error("File API nicht verfügbar");
@@ -5344,55 +5365,7 @@ function updateReportPreviewModeButtons() {
 }
 
 async function saveReportPdfDirectExperimental() {
-  const parts = await buildReportParts();
-  if (!window.html2pdf) {
-    if (confirm("PDF-Erzeugung ist nicht verfügbar. Berichtsvorschau öffnen?")) openReportDialog({ printHint: true });
-    return;
-  }
-  const { host, reportElement } = createPdfExportHost(parts);
-  document.body.appendChild(host);
-  try {
-    validateReportElement(reportElement);
-    await waitForReportReady(reportElement);
-    const metrics = reportExportMetrics(reportElement);
-    console.log("Kai BewehrungsCheck PDF export metrics", metrics);
-    if (metrics.scrollWidth > metrics.offsetWidth + 4) {
-      console.warn("PDF-Inhalt ist breiter als A4 und wird möglicherweise abgeschnitten.", metrics);
-      alert("PDF-Inhalt ist breiter als A4 und wird möglicherweise abgeschnitten.");
-    }
-    await window.html2pdf()
-      .set({
-        margin: [8, 8, 10, 8],
-        filename: parts.fileName,
-        image: { type: "jpeg", quality: 0.95 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-          windowWidth: Math.ceil(reportElement.scrollWidth || reportElement.offsetWidth || 718),
-          scrollX: 0,
-          scrollY: 0
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: {
-          mode: ["css", "legacy"],
-          before: ".page-break",
-          avoid: [".avoid-break", ".report-card", ".signature-block", ".check-card", ".sample-card", ".photo-group", ".signature-report", ".appendix-block"]
-        }
-      })
-      .from(reportElement)
-      .save();
-    if (/iPad|iPhone|iPod|Android/i.test(navigator.userAgent)) {
-      alert("PDF wurde erzeugt. Bitte über Teilen/Speichern im Browser sichern, falls der Download nicht automatisch angezeigt wird.");
-    }
-  } catch (error) {
-    console.error(error);
-    const message = error?.message || "PDF konnte nicht automatisch gespeichert werden.";
-    if (confirm(`${message}\n\nBerichtsvorschau öffnen?`)) openReportDialog({ printHint: true });
-  } finally {
-    host.remove();
-  }
+  alert("Direkter PDF-Download ist in v71 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
 }
 
 function saveReportPdf() {
@@ -5982,7 +5955,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v70",
+    appVersion: "v71",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6005,7 +5978,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v70",
+    appVersion: "v71",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6559,11 +6532,11 @@ function bindEvents() {
     const deleteSig = event.target.closest("[data-delete-signature]");
     if (deleteSig && confirm("Diese Unterschrift wirklich löschen?")) deleteSignature(deleteSig.dataset.deleteSignature);
     const pdfSave = event.target.closest("#pdfSaveBtn");
-    if (pdfSave) saveReportPdf();
+    if (pdfSave) printReportA4();
     const pdfPrint = event.target.closest("#pdfPrintBtn");
-    if (pdfPrint) openReportDialog({ printHint: true });
+    if (pdfPrint) openReportDialog({ printHint: false });
     const pdfPreview = event.target.closest("#pdfPreviewBtn");
-    if (pdfPreview) openReportDialog({ printHint: false });
+    if (pdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
     const deletePlanButton = event.target.closest("[data-delete-plan]");
     if (deletePlanButton && confirm("Plan wirklich löschen? Zugeordnete Pins auf diesem Plan werden ebenfalls entfernt.")) deletePlanById(deletePlanButton.dataset.deletePlan);
   });
@@ -7418,6 +7391,9 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
 
 
 
