@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v73";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=73`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=73`;
+const APP_CACHE = "kai-bewehrungscheck-v74";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=74`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=74`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -3853,10 +3853,10 @@ function parsePlanMetadataText(text) {
   const compact = text.replace(/\s+/g, " ").trim();
   const dateMatches = extractPlanDateCandidates(compact);
   const indexMatch = compact.match(/\b(?:Index|Revision|Rev\.?|Änderung)\s*[:\-]?\s*([A-Za-zÄÖÜäöü]|\d{1,3})\b/i);
-  const planNumberMatch = compact.match(/\b(?:Plan[-\s]?Nr\.?|Plan\s*Nr\.?|Plannummer)\s*[:\-]?\s*([A-ZÄÖÜ]{1,4}[-\s]?\d{2,4}[A-Z]?|\d{2,6})\b/i)
+  const planNumberMatch = compact.match(/\b(?:Plan[-\s]?Nr\.?|Plan\s*Nr\.?|Plannummer)\s*[:\-]?\s*([A-ZÄÖÜ]{1,3}[-\s]\d{2,4}[A-Z]?)\b/i)
     || compact.match(/\b([A-ZÄÖÜ]{1,4}[-\s]?\d{2,4}[A-Z]?)\b/i);
   return {
-    planNumber: planNumberMatch ? String(planNumberMatch[1]).replace(/\s+/g, "-").toUpperCase() : "",
+    planNumber: planNumberMatch ? safePlanNumberCandidate(planNumberMatch[1]) : "",
     planDate: dateMatches[0]?.value || "",
     planIndex: indexMatch ? indexMatch[1] : "",
     dateCandidates: dateMatches.map((item) => item.value),
@@ -3904,11 +3904,18 @@ function showPlanImportMessage(message, isError = false) {
   target.classList.toggle("field-warning", !!isError);
 }
 
+function safePlanNumberCandidate(value) {
+  const candidate = String(value || "").replace(/\s+/g, "-").toUpperCase();
+  if (!candidate) return "";
+  const prefix = candidate.split("-")[0];
+  if (["DIN", "EN", "ISO", "EC", "EC2"].includes(prefix)) return "";
+  return /^[A-ZÄÖÜ]{1,3}-\d{2,4}[A-Z]?$/.test(candidate) ? candidate : "";
+}
 function derivePlanMeta(fileName, defaultPlanDate = "") {
   const base = fileName.replace(/\.[^.]+$/, "");
   const normalized = base.replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
-  const planNumberMatch = normalized.match(/\b[A-ZÄÖÜ]{1,4}[-\s]?\d{2,4}[A-Z]?\b/i);
-  const planNumber = planNumberMatch ? planNumberMatch[0].replace(/\s+/g, "-").toUpperCase() : "";
+  const planNumberMatch = normalized.match(/\b[A-ZÄÖÜ]{1,3}[-\s]\d{2,4}[A-Z]?\b/i);
+  const planNumber = planNumberMatch ? safePlanNumberCandidate(planNumberMatch[0]) : "";
   let title = normalized;
   if (planNumber) title = title.replace(planNumberMatch[0], "");
   title = title
@@ -4955,7 +4962,7 @@ async function buildReportParts() {
     .sample-grid{display:grid;grid-template-columns:120px 1fr;gap:0}.sample-grid div{padding:7px 10px;border-bottom:1px solid #edf0f3}.sample-grid div:nth-child(odd){background:#fafbfc;color:#52606d;font-weight:700}
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
-    .pin-anchor{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-line{position:absolute;left:0;top:0;width:var(--line,24px);height:1.5px;background:rgba(31,41,51,.7);transform-origin:0 0;transform:rotate(var(--angle,-45deg));box-shadow:0 0 0 1px rgba(255,255,255,.65)}.pin-label{position:absolute;left:var(--dx,0);top:var(--dy,-24px);transform:translate(-50%,-100%);min-width:24px;height:24px;padding:0 5px;border-radius:14px 14px 14px 3px;background:#4f6f8f;color:#fff;border:2px solid #fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;line-height:1;box-shadow:0 1px 5px rgba(0,0,0,.35);white-space:nowrap}.pin-label:after{content:"";position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid currentColor;filter:drop-shadow(0 1px 0 #fff)}.pin-label.ok{background:#168451;color:#168451}.pin-label.ok span,.pin-label.partial span,.pin-label.bad span,.pin-label.neutral span{color:#fff}.pin-label.partial{background:#c47a00;color:#c47a00}.pin-label.bad{background:#c93c37;color:#c93c37}.pin-label.neutral{background:#4f6f8f;color:#4f6f8f}
+    .pin-anchor{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-anchor-dot{position:absolute;left:0;top:0;width:6px;height:6px;border-radius:50%;background:#1f2933;border:1.5px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(31,41,51,.35);z-index:2}.pin-line{position:absolute;left:0;top:0;width:var(--line,18px);height:1px;background:rgba(31,41,51,.55);transform-origin:0 0;transform:rotate(var(--angle,-45deg));z-index:1}.pin-label{position:absolute;left:var(--dx,0);top:var(--dy,-18px);transform:translate(-50%,-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:2px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.22);white-space:nowrap}.pin-label.ok{border-color:#168451}.pin-label.partial{border-color:#c47a00}.pin-label.bad{border-color:#c93c37}.pin-label.neutral{border-color:#4f6f8f}
     .appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.pin-table{font-size:11px}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
@@ -4977,7 +4984,7 @@ async function buildReportParts() {
           <aside class="doc-meta">
             <div><span>Datum</span><strong>${escapeHtml(formatDate(p.head.createdAt))}</strong></div>
             <div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div>
-            <div><span>Umfang</span><strong><span class="report-total-pages">wird berechnet</span></strong></div>
+            
           </aside>
         </header>
 
@@ -5119,28 +5126,14 @@ function preparePrintReportMount(parts) {
 
 function applyPrintPageMetadata(doc) {
   const mount = doc?.getElementById("printReportMount");
-  const report = doc?.querySelector(".report-export");
-  if (!mount || !report) return { totalPages: 1 };
+  if (!mount) return { totalPages: null };
   mount.querySelectorAll(".manual-page-footer").forEach((item) => item.remove());
-  const probe = doc.createElement("div");
-  probe.style.cssText = "position:absolute;left:-9999px;top:0;height:273mm;width:1px;";
-  doc.body.appendChild(probe);
-  const pageHeight = Math.max(1, probe.getBoundingClientRect().height || 1000);
-  probe.remove();
-  const height = Math.max(report.scrollHeight, report.getBoundingClientRect().height, pageHeight);
-  const totalPages = Math.max(1, Math.ceil(height / pageHeight));
   doc.querySelectorAll(".report-total-pages").forEach((item) => {
-    item.textContent = `Dokument umfasst insgesamt ${totalPages} Seite${totalPages === 1 ? "" : "n"}`;
+    const row = item.closest("div");
+    if (row) row.style.display = "none";
+    item.textContent = "";
   });
-  mount.style.position = "relative";
-  for (let index = 0; index < totalPages; index += 1) {
-    const footer = doc.createElement("div");
-    footer.className = "manual-page-footer";
-    footer.textContent = `Seite ${index + 1}`;
-    footer.style.top = `${Math.max(0, (index + 1) * pageHeight - 22)}px`;
-    mount.appendChild(footer);
-  }
-  return { totalPages };
+  return { totalPages: null };
 }
 async function printReportA4() {
   const parts = state.reportView.parts || await buildReportParts();
@@ -5394,7 +5387,7 @@ function updateReportPreviewModeButtons() {
 }
 
 async function saveReportPdfDirectExperimental() {
-  alert("Direkter PDF-Download ist in v73 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
+  alert("Direkter PDF-Download ist in v74 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
 }
 
 function saveReportPdf() {
@@ -5697,13 +5690,16 @@ async function ensureReportPlanImages() {
   persist();
 }
 
+function displayPlanNumber(plan) {
+  return safePlanNumberCandidate(plan?.planNumber || "");
+}
 function planOverviewReport(p) {
   if (!p.plans.length) return "<p>Es wurden keine Planunterlagen hochgeladen.</p>";
   return `<table>
     <thead><tr><th>Plan-Nr.</th><th>Planbezeichnung</th><th>Status</th><th>Planstand</th><th>Index</th><th>Seite(n)</th><th>Datei</th></tr></thead>
     <tbody>
       ${p.plans.map((plan) => `<tr>
-        <td><strong>${escapeHtml(plan.planNumber || "ohne Plan-Nr.")}</strong></td>
+        <td><strong>${escapeHtml(displayPlanNumber(plan) || "ohne Angabe")}</strong></td>
         <td>${escapeHtml(plan.title || plan.fileName)}${plan.remark ? `<br><span class="small">${escapeHtml(plan.remark)}</span>` : ""}</td>
         <td>${escapeHtml(plan.documentStatus || "verwendet")}</td>
         <td>${escapeHtml(plan.planDate || "ohne Angabe")}</td>
@@ -5720,21 +5716,20 @@ function reportPinCallouts(pins, planId, pageNumber) {
     .map((pin) => ({ pin, placement: pinPlacements(pin).find((item) => item.planId === planId && item.pageNumber === pageNumber) }))
     .filter((item) => item.placement)
     .sort((a, b) => (a.pin.number || 0) - (b.pin.number || 0));
-  const offsets = [
-    { x: 0, y: -28 }, { x: 24, y: -24 }, { x: -24, y: -24 }, { x: 30, y: 0 },
-    { x: -30, y: 0 }, { x: 24, y: 24 }, { x: -24, y: 24 }, { x: 0, y: 30 }
-  ];
   const assigned = [];
   return items.map((item) => {
     const x = item.placement.x ?? item.pin.x;
     const y = item.placement.y ?? item.pin.y;
     const nearCount = assigned.filter((other) => Math.hypot((other.x - x) * 100, (other.y - y) * 100) < 3.5).length;
     assigned.push({ x, y });
-    const offset = offsets[nearCount % offsets.length];
-    const line = Math.max(12, Math.hypot(offset.x, offset.y));
+    const hasCollision = nearCount > 0;
+    const offset = hasCollision
+      ? { x: 34, y: -24 + (nearCount - 1) * 22 }
+      : { x: 18, y: -18 };
+    const line = Math.max(10, Math.hypot(offset.x, offset.y));
     const angle = Math.atan2(offset.y, offset.x) * 180 / Math.PI;
     const statusClass = statusClassName(item.pin.status || "");
-    return `<span class="pin-anchor" style="left:${x * 100}%;top:${y * 100}%;--dx:${offset.x}px;--dy:${offset.y}px;--line:${line}px;--angle:${angle}deg"><span class="pin-line"></span><span class="pin-label ${statusClass}"><span>${pinLabel(item.pin)}</span></span></span>`;
+    return `<span class="pin-anchor" style="left:${x * 100}%;top:${y * 100}%;--dx:${offset.x}px;--dy:${offset.y}px;--line:${line}px;--angle:${angle}deg"><span class="pin-anchor-dot"></span><span class="pin-line"></span><span class="pin-label ${statusClass}">${pinLabel(item.pin)}</span></span>`;
   }).join("");
 }
 function planAppendixReport(p) {
@@ -5747,7 +5742,7 @@ function planAppendixReport(p) {
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
       return `
         <section class="appendix-block page-break">
-          <h2>Anlage ${planIndex + 1} – Plan ${escapeHtml(plan.planNumber || plan.fileName)} – ${escapeHtml(plan.title || "Plananlage")} – Seite ${pageNumber}</h2>
+          <h2>Anlage ${planIndex + 1} – Plan ${escapeHtml(displayPlanNumber(plan) || plan.fileName)} – ${escapeHtml(plan.title || "Plananlage")} – Seite ${pageNumber}</h2>
           ${image ? `<div class="plan"><img class="report-plan-image" src="${image}" alt="Plan">${reportPinCallouts(pins, plan.id, pageNumber)}</div>` : `<p>${escapeHtml(plan.renderError || "Planbild nicht verfügbar.")}</p>`}
           <table class="pin-table"><thead><tr><th>Pin</th><th>Zuordnung</th><th>Titel / Bereich</th><th>Status</th><th>Bemerkung</th></tr></thead><tbody>
           ${pins.map((pin) => `<tr><td><strong>${pinLabel(pin)}</strong></td><td>${escapeHtml(pinContextLabel(pin))}</td><td>${escapeHtml(pin.title || "")}</td><td>${statusBadge(pin.status)}</td><td>${escapeHtml(pin.note || "")}</td></tr>`).join("") || `<tr><td colspan="5">Keine Pins auf dieser Seite.</td></tr>`}
@@ -5797,7 +5792,7 @@ async function photoReport(p) {
         const placement = pinPlacements(pin).find((item) => item.planId === plan.id);
         let group = groups.find((item) => item.key === `pin:${pin.id}`);
         if (!group) {
-          group = { key: `pin:${pin.id}`, title: `${pinLabel(pin)} – ${pin.title || "Pin"}`, status: pin.status, note: pin.note, meta: `Plan ${plan.planNumber || plan.fileName} / Seite ${placement?.pageNumber || pin.pageNumber || 1}`, photos: [] };
+          group = { key: `pin:${pin.id}`, title: `${pinLabel(pin)} – ${pin.title || "Pin"}`, status: pin.status, note: pin.note, meta: `Plan ${displayPlanNumber(plan) || plan.fileName} / Seite ${placement?.pageNumber || pin.pageNumber || 1}`, photos: [] };
           groups.push(group);
         }
         group.photos.push({ label: `Foto ${index + 1}`, photo });
@@ -5971,7 +5966,7 @@ function pinName(id) {
   if (!pin) return "";
   const placement = pinPlacements(pin).find((item) => item.isPrimary) || pinPlacements(pin)[0];
   const plan = planById(placement?.planId || pin.planId);
-  return `${pinLabel(pin)} · ${plan?.planNumber || plan?.fileName || "Plan"} / S.${placement?.pageNumber || pin.pageNumber || 1}`;
+  return `${pinLabel(pin)} · ${displayPlanNumber(plan) || plan?.fileName || "Plan"} / S.${placement?.pageNumber || pin.pageNumber || 1}`;
 }
 
 function pinContextLabel(pin) {
@@ -6007,7 +6002,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v73",
+    appVersion: "v74",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6030,7 +6025,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v73",
+    appVersion: "v74",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -7443,6 +7438,9 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
 
 
 
