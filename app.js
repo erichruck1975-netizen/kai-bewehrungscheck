@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v71";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=71`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=71`;
+const APP_CACHE = "kai-bewehrungscheck-v72";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=72`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=72`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -4960,10 +4960,10 @@ async function buildReportParts() {
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
     .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:165px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
-    .signature-report{break-inside:avoid;page-break-inside:avoid;margin:14px 0 22px;border:1px solid #d8dee6;border-radius:8px;padding:12px}.signature-image{display:block;width:100%;max-width:620px;height:170px;object-fit:contain;border:1px solid #cfd6dd;border-bottom:3px solid #25313d;background:#fff}.signature-empty{height:120px;border:1px dashed #9aa5b1;display:grid;place-items:center;color:#6b7280}
+    .signature-report{break-inside:avoid;page-break-inside:avoid;margin:10px 0 14px;border:1px solid #d8dee6;border-radius:8px;padding:10px}.signature-print-box{width:90mm;max-width:100%;height:35mm;border-bottom:1px solid #25313d;display:flex;align-items:center;justify-content:center;background:#fff;margin-top:8px}.signature-image{display:block;max-width:80mm;max-height:28mm;width:auto;height:auto;object-fit:contain;background:#fff}.signature-empty{width:90mm;max-width:100%;height:35mm;border:1px dashed #9aa5b1;border-bottom:1px solid #25313d;display:grid;place-items:center;color:#6b7280;background:#fff;margin-top:8px}
     .footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}
     .page-break,.page-break-before{break-before:page;page-break-before:always}.avoid-break{break-inside:avoid;page-break-inside:avoid}
-    @media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0;padding:0}.footer-note{position:fixed;bottom:-12mm;left:0;right:0}.page-number:after{content:counter(page)}}
+    @media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0;padding:0}.signature-print-box{width:90mm;height:35mm}.signature-image{max-width:80mm!important;max-height:28mm!important;width:auto!important;height:auto!important;object-fit:contain!important}.signature-empty{width:90mm;height:35mm}.footer-note{position:static;bottom:auto;left:auto;right:auto}.page-number:after{content:"1"}}
   `;
   const body = `
       <div class="report-export">
@@ -5033,7 +5033,7 @@ async function buildReportParts() {
         <h2>Schlussformulierung</h2>
         <section class="info-card avoid-break">
           ${infoRow("Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName))}
-          ${infoRow("Unterschrift als Text", p.result.signatureText)}
+          ${hasDrawnSignatures(p) ? "" : infoRow("Unterschrift als Text", p.result.signatureText)}
         </section>
 
         <h2>Unterschriften / Kenntnisnahme</h2>
@@ -5077,12 +5077,15 @@ function reportPrintOverrides() {
       #printReportMount tr{break-inside:avoid;page-break-inside:avoid}
       #printReportMount td,#printReportMount th{overflow-wrap:anywhere!important;word-break:break-word!important}
       #printReportMount img{max-width:100%!important;height:auto!important;break-inside:avoid;page-break-inside:avoid}
+      #printReportMount .signature-print-box{width:90mm!important;height:35mm!important;max-width:100%!important}
+      #printReportMount .signature-image{max-width:80mm!important;max-height:28mm!important;width:auto!important;height:auto!important;object-fit:contain!important}
+      #printReportMount .signature-empty{width:90mm!important;height:35mm!important;max-width:100%!important}
       #printReportMount .check-card{break-inside:auto!important;page-break-inside:auto!important}
       #printReportMount .sample-card,#printReportMount .photo-card,#printReportMount .overview-report-photo,#printReportMount .signature-block,#printReportMount .signature-report,#printReportMount .plan,#printReportMount .plan-sheet{break-inside:avoid!important;page-break-inside:avoid!important}
       #printReportMount .appendix-block{break-before:page;page-break-before:always;break-inside:auto!important;page-break-inside:auto!important}
       #printReportMount .photo-group{break-inside:avoid!important;page-break-inside:avoid!important}
       #printReportMount .footer-note{position:static!important;bottom:auto!important;left:auto!important;right:auto!important;break-inside:avoid!important;page-break-inside:avoid!important}
-      #printReportMount .page-number:after{content:counter(page)}
+      #printReportMount .page-number:after{content:"1"}
     }
   `;
 }
@@ -5365,7 +5368,7 @@ function updateReportPreviewModeButtons() {
 }
 
 async function saveReportPdfDirectExperimental() {
-  alert("Direkter PDF-Download ist in v71 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
+  alert("Direkter PDF-Download ist in v72 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
 }
 
 function saveReportPdf() {
@@ -5802,6 +5805,10 @@ function barCountReportHtml(photo) {
   `;
 }
 
+function hasDrawnSignatures(p) {
+  return !!(p?.signatures || []).some((signature) => !!signature.signatureData);
+}
+
 function signatureReport(p) {
   const signatures = p.signatures || [];
   const notice = "Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.";
@@ -5822,7 +5829,7 @@ function signatureReport(p) {
             ${signature.note ? `<tr><td>Bemerkung</td><td>${escapeHtml(signature.note)}</td></tr>` : ""}
           </tbody>
         </table>
-        ${signature.signatureData ? `<img class="signature-image" src="${signature.signatureData}" alt="Unterschrift ${escapeAttr(signature.name || "")}">` : `<div class="signature-empty">Keine Unterschriftsgrafik erfasst.</div>`}
+        ${signature.signatureData ? `<div class="signature-print-box"><img class="signature-image" src="${signature.signatureData}" alt="Unterschrift ${escapeAttr(signature.name || "")}"></div>` : `<div class="signature-empty">Keine Unterschriftsgrafik erfasst.</div>`}
       </div>
     `).join("")}
   `;
@@ -5955,7 +5962,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v71",
+    appVersion: "v72",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5978,7 +5985,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v71",
+    appVersion: "v72",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -7391,6 +7398,8 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
 
 
 

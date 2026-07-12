@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v71 trennt den Druck endgültig von der mobilen Berichtsvorschau: „Druckdialog öffnen“ druckt ein reines DIN-A4-Report-Dokument in einem separaten Druck-iframe. Der direkte HTML-/Teilen-Fallback enthält keinen gelben Druckhinweis mehr; ein riskanter direkter PDF-Blob-Export bleibt nicht der Hauptweg.
+v72 poliert den A4-Bericht: Signaturen werden im PDF auf ein normales Unterschriftenfeld begrenzt, der fehlerhafte Seitenzähler „0“ wird nicht mehr ausgegeben, und HTML-Bericht speichern/teilen ist klar als Fallback beschriftet.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v71`
+- Cache-Version: `kai-bewehrungscheck-v72`
 
 ## Daten und Sicherung
 
@@ -163,6 +163,7 @@ http://localhost:4173/index.html
 ```
 
 Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll die App als gehostete HTTPS-PWA auf dem Handy installiert werden.
+
 
 
 
