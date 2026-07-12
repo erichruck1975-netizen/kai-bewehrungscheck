@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v67";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=67`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=67`;
+const APP_CACHE = "kai-bewehrungscheck-v69";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=69`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=69`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -1703,6 +1703,10 @@ function initSignaturePad(canvas) {
   let last = null;
   const drawTo = (event) => {
     if (!drawing) return;
+    if (state.signatureEditId !== id) {
+      drawing = false;
+      return;
+    }
     const point = signatureCanvasPoint(canvas, event);
     ctx.strokeStyle = "#111827";
     ctx.lineWidth = 3;
@@ -1726,6 +1730,10 @@ function initSignaturePad(canvas) {
   canvas.addEventListener("pointermove", drawTo);
   const finish = (event) => {
     if (!drawing) return;
+    if (state.signatureEditId !== id) {
+      drawing = false;
+      return;
+    }
     drawing = false;
     signature.signatureData = canvas.toDataURL("image/png");
     signature.signedAt = signature.signedAt || nowLocalInput();
@@ -1791,7 +1799,7 @@ function saveSignature(id) {
   const card = $(`[data-signature="${id}"]`);
   const signature = findSignature(id);
   if (!card || !signature) return;
-  $('[data-signature-field]', card).forEach((field) => {
+  $$('[data-signature-field]', card).forEach((field) => {
     signature[field.dataset.signatureField] = field.value || "";
   });
   syncSignatureSnapshots(signature);
@@ -4445,12 +4453,14 @@ function renderMarkPinSheet(pinId = state.selectedPinId) {
           ${STATUSES.map((status) => `<option value="${escapeAttr(status)}" ${pin.status === status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
         </select>
       </label>
-      <label>Titel / Bereich
+      <label class="voice-field">Titel / Bereich
         <input data-mark-pin-field="title" value="${escapeAttr(pin.title || "")}">
+        <button class="mic-btn" type="button" data-voice-mark-pin="${pin.id}" data-voice-mark-field="title">Sprache</button>
       </label>
     </div>
-    <label>Bemerkung
+    <label class="voice-field">Bemerkung
       <textarea data-mark-pin-field="note">${escapeHtml(pin.note || "")}</textarea>
+      <button class="mic-btn" type="button" data-voice-mark-pin="${pin.id}" data-voice-mark-field="note">Sprache</button>
     </label>
     <p class="muted">${escapeHtml(check?.title || "Allgemeine Feststellung")}${sample ? ` · Prüfstelle ${sample.number}${sample.location ? ` · ${escapeHtml(sample.location)}` : ""}` : ""}</p>
     <div class="sheet-photo-actions">
@@ -4826,6 +4836,22 @@ function insertVoiceText(btn, text) {
     saveFromForm();
     renderChecklist();
   }
+  if (btn.dataset.voiceMarkPin) {
+    const pin = state.current?.pins.find((item) => item.id === btn.dataset.voiceMarkPin);
+    if (!pin) return;
+    const fieldName = btn.dataset.voiceMarkField || "note";
+    const field = $(`[data-mark-pin-field="${fieldName}"]`, btn.closest("#markPinSheet") || document);
+    pin[fieldName] = `${pin[fieldName] || ""}${pin[fieldName] ? " " : ""}${text}`;
+    pin.updatedAt = new Date().toISOString();
+    if (field) field.value = pin[fieldName];
+    const sample = pin.sampleId ? findSample(pin.sampleId) : null;
+    if (sample && fieldName === "note") {
+      sample.note = pin.note;
+      sample.updatedAt = pin.updatedAt;
+    }
+    persist();
+    renderMarkPins();
+  }
   if (btn.dataset.voiceSample) {
     const sample = findSample(btn.dataset.voiceSample);
     if (!sample) return;
@@ -5109,6 +5135,7 @@ async function openReportDialog({ printHint = false } = {}) {
   $(".report-browser-hint").textContent = printHint
     ? "Zum Speichern bitte auf „Druckdialog öffnen“ tippen und im Druckdialog als Ziel „Als PDF speichern“ wählen."
     : "Lesemodus ist für das Handy optimiert. Die A4-Ansicht dient zur Kontrolle des Ausdrucks.";
+  document.body.classList.add("report-open");
   $("#reportDialog").showModal();
   requestAnimationFrame(updateReportPreviewFrame);
 }
@@ -5125,26 +5152,24 @@ async function saveReportHtml() {
   URL.revokeObjectURL(url);
 }
 
-async function shareReportText() {
+async function shareReportFile() {
+  const parts = state.reportView.parts || await buildReportParts();
   const text = buildReportShareText();
   const title = reportShareTitle();
+  const html = reportDocumentHtml(parts, { printButton: false, saveHint: true });
+  const fileName = sanitizeFileName((parts.fileName || "bewehrungsbericht.pdf").replace(/\.pdf$/i, ".html"));
   try {
-    if (navigator.share) {
-      await navigator.share({ title, text });
+    if (typeof File === "undefined") throw new Error("File API nicht verfügbar");
+    const file = new File([html], fileName, { type: "text/html" });
+    if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) {
+      alert("Berichtsdatei kann auf diesem Gerät nicht direkt geteilt werden. Bitte 'Bericht als HTML speichern' verwenden oder den WhatsApp-Text kopieren.");
       return;
     }
-    await copyTextToClipboard(text);
-    alert("Berichtstext wurde kopiert. Bitte in WhatsApp einfügen.");
+    await navigator.share({ title, text, files: [file] });
   } catch (error) {
     if (error?.name === "AbortError") return;
     console.error(error);
-    try {
-      await copyTextToClipboard(text);
-      alert("Berichtstext wurde kopiert. Bitte in WhatsApp einfügen.");
-    } catch (copyError) {
-      console.error(copyError);
-      alert("Bericht konnte nicht geteilt werden. Bitte Text manuell kopieren.");
-    }
+    alert("Berichtsdatei konnte nicht geteilt werden. Bitte 'Bericht als HTML speichern' verwenden oder den WhatsApp-Text kopieren.");
   }
 }
 
@@ -5889,7 +5914,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v67",
+    appVersion: "v69",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5912,7 +5937,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v67",
+    appVersion: "v69",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6586,9 +6611,10 @@ function bindEvents() {
     closePlanMarkDialog();
   });
   $("#closeReportBtn").addEventListener("click", () => $("#reportDialog").close());
+  $("#reportDialog").addEventListener("close", () => document.body.classList.remove("report-open"));
   $("#reportReadModeBtn").addEventListener("click", () => setReportPreviewMode("read"));
   $("#reportA4ModeBtn").addEventListener("click", () => setReportPreviewMode("a4"));
-  $("#shareReportBtn").addEventListener("click", shareReportText);
+  $("#shareReportBtn").addEventListener("click", shareReportFile);
   $("#copyWhatsappTextBtn").addEventListener("click", copyWhatsappReportText);
   $("#saveReportHtmlBtn").addEventListener("click", saveReportHtml);
   $("#printReportBtn").addEventListener("click", () => {
@@ -7329,6 +7355,16 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
+
+
+
+
+
+
+
 
 
 
