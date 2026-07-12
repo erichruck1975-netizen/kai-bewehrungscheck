@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v76 behält die v75-Bildkomprimierung bei und ergänzt einen direkten PDF-Download sowie PDF-Teilen per Web Share API. Die Seitenzahlen werden nur im echten PDF-Export gesetzt. Nahe Pins werden im Plananhang als ruhige Cluster dargestellt.
+v77 repariert den direkten PDF-Download/Teilen ohne tainted-canvas-Export. Der PDF-Export nutzt strukturierte A4-Seiten, sichere Reportbilder und behält die v75-Bildkomprimierung bei. Seitenzahlen werden nur im echten PDF-Export gesetzt.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v76`
+- Cache-Version: `kai-bewehrungscheck-v77`
 
 ## Daten und Sicherung
 
@@ -163,6 +163,7 @@ http://localhost:4173/index.html
 ```
 
 Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll die App als gehostete HTTPS-PWA auf dem Handy installiert werden.
+
 
 
 
