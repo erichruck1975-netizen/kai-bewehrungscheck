@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v74";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=74`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=74`;
+const APP_CACHE = "kai-bewehrungscheck-v75";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=75`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=75`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -4766,6 +4766,44 @@ function imageFromDataUrl(dataUrl) {
   });
 }
 
+async function prepareImageForReport(srcOrBlob, options = {}) {
+  const {
+    maxWidth = 1600,
+    maxHeight = 1600,
+    quality = 0.78,
+    mimeType = "image/jpeg",
+    background = "#ffffff"
+  } = options;
+  const source = typeof srcOrBlob === "string" ? srcOrBlob : await blobToDataUrl(srcOrBlob);
+  const image = await imageFromDataUrl(source);
+  const sourceWidth = image.naturalWidth || image.width || 1;
+  const sourceHeight = image.naturalHeight || image.height || 1;
+  const scale = Math.min(1, maxWidth / sourceWidth, maxHeight / sourceHeight);
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (mimeType === "image/jpeg") {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, width, height);
+  }
+  ctx.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL(mimeType, quality);
+}
+
+async function reportPhotoDataUrl(photoId, options) {
+  const key = `report-photo:${photoId}:${options?.maxWidth || 0}:${options?.maxHeight || 0}:${options?.quality || 0}`;
+  state.reportImageCache ||= new Map();
+  if (state.reportImageCache.has(key)) return state.reportImageCache.get(key);
+  const record = await idbGet("photos", photoId);
+  if (!record?.blob) return "";
+  const dataUrl = await prepareImageForReport(record.blob, options);
+  state.reportImageCache.set(key, dataUrl);
+  return dataUrl;
+}
+
 async function getPlanObjectUrl(plan) {
   const key = `plan:${plan.id}`;
   if (state.objectUrls.has(key)) return state.objectUrls.get(key);
@@ -5387,7 +5425,7 @@ function updateReportPreviewModeButtons() {
 }
 
 async function saveReportPdfDirectExperimental() {
-  alert("Direkter PDF-Download ist in v74 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
+  alert("Direkter PDF-Download ist in v75 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
 }
 
 function saveReportPdf() {
@@ -5664,13 +5702,15 @@ function overlapPdfRows(sample) {
 
 async function ensureReportPlanImages() {
   state.reportPlanImages = new Map();
+  state.reportImageCache ||= new Map();
   for (const plan of state.current.plans) {
     const pages = [...new Set(state.current.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
     if (!pages.length) pages.push(plan.currentPage || 1);
     if (plan.type === "application/pdf") {
       for (const pageNumber of pages) {
         try {
-          state.reportPlanImages.set(`${plan.id}:${pageNumber}`, await renderPdfPageToDataUrl(plan, pageNumber));
+          const dataUrl = await renderPdfPageToDataUrl(plan, pageNumber);
+          state.reportPlanImages.set(`${plan.id}:${pageNumber}`, await prepareImageForReport(dataUrl, { maxWidth: 2200, maxHeight: 2200, quality: 0.82, mimeType: "image/jpeg" }));
         } catch {
           plan.renderError = "PDF konnte nicht gerendert werden. Bitte Planseite als JPG/PNG hochladen.";
         }
@@ -5679,7 +5719,7 @@ async function ensureReportPlanImages() {
       try {
         const record = await idbGet("plans", plan.id);
         if (record?.blob) {
-          const dataUrl = await blobToDataUrl(record.blob);
+          const dataUrl = await prepareImageForReport(record.blob, { maxWidth: 2200, maxHeight: 2200, quality: 0.82, mimeType: "image/jpeg" });
           pages.forEach((pageNumber) => state.reportPlanImages.set(`${plan.id}:${pageNumber}`, dataUrl));
         }
       } catch {
@@ -5724,8 +5764,8 @@ function reportPinCallouts(pins, planId, pageNumber) {
     assigned.push({ x, y });
     const hasCollision = nearCount > 0;
     const offset = hasCollision
-      ? { x: 34, y: -24 + (nearCount - 1) * 22 }
-      : { x: 18, y: -18 };
+      ? { x: 22, y: -16 + (nearCount - 1) * 16 }
+      : { x: 12, y: -14 };
     const line = Math.max(10, Math.hypot(offset.x, offset.y));
     const angle = Math.atan2(offset.y, offset.x) * 180 / Math.PI;
     const statusClass = statusClassName(item.pin.status || "");
@@ -5763,7 +5803,7 @@ async function overviewPhotoReport(p) {
     items.push({
       ...item,
       fileName: record.fileName || record.name || "Übersichtsfoto",
-      src: await getPhotoObjectUrl(item.photoId)
+      src: await reportPhotoDataUrl(item.photoId, { maxWidth: 1400, maxHeight: 1400, quality: 0.75, mimeType: "image/jpeg" })
     });
   }
   if (!items.length) return "<p>Übersichtsfotos konnten nicht geladen werden.</p>";
@@ -5820,7 +5860,7 @@ async function photoReport(p) {
   }));
   if (!groups.length) return "<p>Keine Fotos hinterlegt.</p>";
   for (const group of groups) {
-    for (const item of group.photos) item.src = await getPhotoObjectUrl(item.photo.id);
+    for (const item of group.photos) item.src = await reportPhotoDataUrl(item.photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
   }
   return groups.map((group) => `
     <section class="photo-group">
@@ -6002,7 +6042,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v74",
+    appVersion: "v75",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6025,7 +6065,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v74",
+    appVersion: "v75",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -7438,6 +7478,8 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
 
 
 

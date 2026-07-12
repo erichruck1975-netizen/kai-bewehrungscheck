@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v74 entschärft die Berichtsausgabe: unzuverlässige Gesamtseitenzahl und manuelle Seitenzahlen werden entfernt, Pin-Callouts wirken ruhiger, und die automatische Plan-Nr.-Erkennung ist konservativer und ignoriert Normkennungen wie DIN-277.
+v75 reduziert die PDF-/Druckbericht-Größe durch reportoptimierte Bilder: Baustellenfotos max. 1600 px, Übersichtsfotos max. 1400 px, Plananlagen max. 2200 px jeweils als komprimiertes JPEG. Die konservative Plan-Nr.-Erkennung bleibt erhalten; Browserdruck-Seitenzahlen bleiben bewusst entfernt, bis ein echter PDF-Renderer verfügbar ist.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v74`
+- Cache-Version: `kai-bewehrungscheck-v75`
 
 ## Daten und Sicherung
 
