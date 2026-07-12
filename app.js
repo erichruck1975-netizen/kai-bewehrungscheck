@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v77";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=77`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=77`;
+const APP_CACHE = "kai-bewehrungscheck-v78";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=78`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=78`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -3340,6 +3340,7 @@ function getOverlapDiameter(check) {
 function overlapValidation(check) {
   const errors = [];
   const warnings = [];
+  const logPdfStep = typeof logStep === "function" ? logStep : () => {};
   const diameter = getOverlapDiameter(check);
   const measured = asNumber(check.measuredMm);
   const requiredPlan = asNumber(check.requiredFromPlanMm);
@@ -5002,7 +5003,7 @@ async function buildReportParts() {
     .sample-grid{display:grid;grid-template-columns:120px 1fr;gap:0}.sample-grid div{padding:7px 10px;border-bottom:1px solid #edf0f3}.sample-grid div:nth-child(odd){background:#fafbfc;color:#52606d;font-weight:700}
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
-    .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-chip{position:absolute;left:8px;top:-22px;transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-cluster{position:absolute;width:0;height:0;overflow:visible;z-index:6}.pin-cluster-dot{position:absolute;left:0;top:0;width:8px;height:8px;border-radius:50%;background:#1f2933;border:1.5px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(31,41,51,.35)}.pin-cluster-line{position:absolute;left:0;top:0;width:var(--line,18px);height:1px;background:rgba(31,41,51,.5);transform-origin:0 0;transform:rotate(var(--angle,-38deg))}.pin-cluster-label{position:absolute;left:var(--dx,18px);top:var(--dy,-18px);transform:translateY(-50%);display:inline-flex;gap:3px;align-items:center;max-width:120px;padding:3px 6px;border-radius:6px;background:rgba(255,255,255,.96);border:1.5px solid #4f6f8f;color:#1f2933;font-size:9px;font-weight:800;line-height:1.1;box-shadow:0 1px 5px rgba(0,0,0,.22);white-space:normal}.pin-cluster-label span{display:inline-block}.pin-chip.ok,.pin-cluster-label.ok{border-color:#168451}.pin-chip.partial,.pin-cluster-label.partial{border-color:#c47a00}.pin-chip.bad,.pin-cluster-label.bad{border-color:#c93c37}.pin-chip.neutral,.pin-cluster-label.neutral{border-color:#4f6f8f}
+    .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}
     .appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.pin-table{font-size:11px}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
@@ -5553,7 +5554,7 @@ function collectReportPhotoGroups(p) {
   return groups;
 }
 
-async function buildStructuredReportPdfModel(parts) {
+async function buildStructuredReportPdfModel(parts, logStep = null) {
   const p = state.current;
   const project = projectById(p.projectId);
   p.checkpoints.forEach(updateCheckStatus);
@@ -5568,6 +5569,7 @@ async function buildStructuredReportPdfModel(parts) {
   let page;
   let y;
   const warnings = [];
+  const logPdfStep = typeof logStep === "function" ? logStep : () => {};
   const newPage = () => {
     page = { ops: [] };
     pages.push(page);
@@ -5646,25 +5648,19 @@ async function buildStructuredReportPdfModel(parts) {
       .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y }))
       .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
       .sort((a, b) => (a.pin.number || 0) - (b.pin.number || 0));
-    const groups = [];
+    const placed = [];
     items.forEach((item) => {
-      let group = groups.find((candidate) => Math.hypot((candidate.x - item.x) * 100, (candidate.y - item.y) * 100) < 3.2);
-      if (!group) {
-        group = { x: item.x, y: item.y, items: [] };
-        groups.push(group);
-      }
-      group.items.push(item);
-      group.x = group.items.reduce((sum, entry) => sum + entry.x, 0) / group.items.length;
-      group.y = group.items.reduce((sum, entry) => sum + entry.y, 0) / group.items.length;
-    });
-    groups.forEach((group, index) => {
-      const labels = group.items.map((item) => pinLabel(item.pin)).join(" / ");
-      const anchorX = box.x + group.x * box.width;
-      const anchorY = box.y + group.y * box.height;
-      const labelX = Math.min(box.x + box.width - 70, Math.max(box.x + 4, anchorX + (group.items.length > 1 ? 14 : 8)));
-      const labelY = Math.min(box.y + box.height - 14, Math.max(box.y + 12, anchorY - 18 - (index % 2) * 8));
-      const labelWidth = Math.max(24, Math.min(78, labels.length * 5 + 12));
-      addOp({ type: "pin", text: labels, anchorX, anchorY, labelX, labelY, labelWidth, cluster: group.items.length > 1 });
+      const nearCount = placed.filter((other) => Math.hypot((other.x - item.x) * 100, (other.y - item.y) * 100) < 3.2).length;
+      placed.push({ x: item.x, y: item.y });
+      const label = pinLabel(item.pin);
+      const anchorX = box.x + item.x * box.width;
+      const anchorY = box.y + item.y * box.height;
+      const dx = item.x > 0.82 ? -38 : 10 + Math.min(nearCount, 3) * 12;
+      const dy = -18 + (nearCount % 4) * 12;
+      const labelX = Math.min(box.x + box.width - 34, Math.max(box.x + 3, anchorX + dx));
+      const labelY = Math.min(box.y + box.height - 12, Math.max(box.y + 12, anchorY + dy));
+      const labelWidth = Math.max(22, Math.min(34, label.length * 5 + 12));
+      addOp({ type: "pin", text: label, anchorX, anchorY, labelX, labelY, labelWidth, cluster: false });
     });
   };
 
@@ -5688,12 +5684,20 @@ async function buildStructuredReportPdfModel(parts) {
   addKeyValue("Niederschlag", p.weather.precipitation);
 
   addHeading("Übersichtsfotos Baustelle");
+  logPdfStep("section:overview:start", { count: normalizeOverviewPhotos(p.overviewPhotos || [], p.id).length });
   const overview = normalizeOverviewPhotos(p.overviewPhotos || [], p.id);
   if (!overview.length) addText("Keine Übersichtsfotos zur Baustelle hinterlegt.");
   for (let index = 0; index < overview.length; index += 1) {
     const item = overview[index];
-    const src = await reportPhotoDataUrl(item.photoId, { maxWidth: 1400, maxHeight: 1400, quality: 0.75, mimeType: "image/jpeg" });
-    await addImage(src, `${item.isCover ? "Titelbild - " : ""}Übersichtsfoto ${index + 1}: ${item.caption || ""}`.trim(), { maxHeight: 210 });
+    try {
+      const src = await reportPhotoDataUrl(item.photoId, { maxWidth: 1400, maxHeight: 1400, quality: 0.75, mimeType: "image/jpeg" });
+      await addImage(src, `${item.isCover ? "Titelbild - " : ""}Übersichtsfoto ${index + 1}: ${item.caption || ""}`.trim(), { maxHeight: 210 });
+    } catch (error) {
+      const message = `Übersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
+      warnings.push(message);
+      logPdfStep("section:overview:image-error", { index: index + 1, photoId: item.photoId, message });
+      addText("Übersichtsfoto konnte nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
+    }
   }
 
   addHeading("Ergebnis");
@@ -5738,19 +5742,27 @@ async function buildStructuredReportPdfModel(parts) {
 
   addHeading("Fotodokumentation");
   const photoGroups = collectReportPhotoGroups(p);
+  logPdfStep("section:photos:start", { groups: photoGroups.length });
   if (!photoGroups.length) addText("Keine Fotos hinterlegt.");
   for (const group of photoGroups) {
     addText(group.title, { size: 10, bold: true });
     if (group.note || group.meta) addText(`${group.meta || ""}${group.note ? " - " + group.note : ""}`, { size: 8.5, color: "#52606d" });
     for (const item of group.photos) {
-      const src = await reportPhotoDataUrl(item.photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
-      await addImage(src, `${item.label} - ${item.photo.name || "Foto"}`, { maxHeight: 210 });
+      try {
+        const src = await reportPhotoDataUrl(item.photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
+        await addImage(src, `${item.label} - ${item.photo.name || "Foto"}`, { maxHeight: 210 });
+      } catch (error) {
+        const message = `${group.title} / ${item.label} konnte nicht eingebettet werden: ${error?.message || error}`;
+        warnings.push(message);
+        logPdfStep("section:photos:image-error", { group: group.title, photoId: item.photo?.id, message });
+        addText("Foto konnte nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
+      }
     }
   }
 
   addHeading("Unterschriften / Kenntnisnahme");
   addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
-  const signatures = normalizeSignatures(p.signatures || [], p.id);
+  const signatures = p.signatures || [];
   if (!signatures.length) addText("Keine digitale Unterschrift erfasst.");
   for (const signature of signatures) {
     addText(`${signature.name || "ohne Name"} - ${signature.company || ""} - ${signature.role || ""} - ${formatDate(signature.signedAt)}`, { size: 9, bold: true });
@@ -5828,15 +5840,32 @@ function buildPdfBlobFromModel(model) {
 }
 
 async function createReportPdfBlob() {
+  const debug = [];
+  state.lastPdfExportDebug = debug;
+  const logStep = (step, detail = {}) => {
+    const entry = { step, ...detail };
+    debug.push(entry);
+    console.info("PDF-Export", entry);
+  };
   try {
-    const parts = state.reportView.parts || await buildReportParts();
-    const model = await buildStructuredReportPdfModel(parts);
+    if (!state.current) throw new Error("Keine Abnahme geöffnet.");
+    logStep("start", { protocolId: state.current.id });
+    saveFromForm();
+    logStep("plan-images:start");
+    await ensureReportPlanImages();
+    logStep("plan-images:done", { count: state.reportPlanImages?.size || 0 });
+    const parts = { fileName: reportFileName(state.current) };
+    const model = await buildStructuredReportPdfModel(parts, logStep);
+    logStep("model:done", { pages: model.pages.length, images: model.images.length, warnings: model.warnings.length });
     if (!model.pages.length) throw new Error("PDF konnte nicht erzeugt werden, Bericht enthält keine Seiten.");
     const blob = buildPdfBlobFromModel(model);
-    return { blob, fileName: sanitizeFileName(parts.fileName || reportFileName(state.current)), totalPages: model.totalPages, warnings: model.warnings, parts };
+    if (!blob || blob.type !== "application/pdf" || blob.size < 1000) throw new Error("PDF-Blob ist leer oder ungültig.");
+    logStep("blob:done", { size: blob.size, type: blob.type });
+    return { blob, fileName: sanitizeFileName(parts.fileName || reportFileName(state.current)), totalPages: model.totalPages, warnings: model.warnings, debug, parts };
   } catch (error) {
-    console.error("PDF-Erzeugung fehlgeschlagen", error);
-    throw new Error("PDF konnte nicht erstellt werden. Bitte Druckdialog als Fallback nutzen.");
+    logStep("error", { message: error?.message || String(error), stack: error?.stack || "" });
+    console.error("PDF-Erzeugung fehlgeschlagen", { error, debug });
+    throw new Error(`PDF konnte nicht erstellt werden. Bitte Druckdialog als Fallback nutzen. Ursache: ${error?.message || "unbekannt"}`);
   }
 }
 
@@ -5908,6 +5937,7 @@ function hasAddressContent(address) {
 
 function masterDataWarnings(masterData) {
   const warnings = [];
+  const logPdfStep = typeof logStep === "function" ? logStep : () => {};
   masterData.companies.forEach((company, index) => {
     const hasContent = !!(company.role || company.contact || company.phone || company.email || company.note || hasAddressContent(company.address));
     if (!company.name && hasContent) warnings.push(`Firma ${index + 1}: Firmenname fehlt.`);
@@ -6227,33 +6257,21 @@ function reportPinCallouts(pins, planId, pageNumber) {
     .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y }))
     .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
     .sort((a, b) => (a.pin.number || 0) - (b.pin.number || 0));
-  const groups = [];
-  items.forEach((item) => {
-    let group = groups.find((candidate) => Math.hypot((candidate.x - item.x) * 100, (candidate.y - item.y) * 100) < 3.2);
-    if (!group) {
-      group = { x: item.x, y: item.y, items: [] };
-      groups.push(group);
-    }
-    group.items.push(item);
-    group.x = group.items.reduce((sum, entry) => sum + entry.x, 0) / group.items.length;
-    group.y = group.items.reduce((sum, entry) => sum + entry.y, 0) / group.items.length;
-  });
-  return groups.map((group, index) => {
-    const labels = group.items.map((item) => pinLabel(item.pin));
-    const severity = group.items.find((item) => item.pin.status === "nicht_ok") || group.items.find((item) => item.pin.status === "teilweise") || group.items[0];
-    const statusClass = statusClassName(severity?.pin.status || "");
-    const x = Math.min(0.985, Math.max(0.015, group.x));
-    const y = Math.min(0.985, Math.max(0.015, group.y));
-    if (group.items.length === 1) {
-      return `<span class="pin-marker" style="left:${x * 100}%;top:${y * 100}%"><span class="pin-point"></span><span class="pin-chip ${statusClass}">${escapeHtml(labels[0])}</span></span>`;
-    }
-    const offset = { x: x > 0.78 ? -72 : 18, y: y < 0.18 ? 22 : -22 - (index % 2) * 8 };
-    const line = Math.max(12, Math.hypot(offset.x, offset.y));
-    const angle = Math.atan2(offset.y, offset.x) * 180 / Math.PI;
-    const clusterText = labels.map((label) => `<span>${escapeHtml(label)}</span>`).join("<span>/</span>");
-    return `<span class="pin-cluster" style="left:${x * 100}%;top:${y * 100}%;--dx:${offset.x}px;--dy:${offset.y}px;--line:${line}px;--angle:${angle}deg"><span class="pin-cluster-dot"></span><span class="pin-cluster-line"></span><span class="pin-cluster-label ${statusClass}">${clusterText}</span></span>`;
+  const placed = [];
+  return items.map((item) => {
+    const nearCount = placed.filter((other) => Math.hypot((other.x - item.x) * 100, (other.y - item.y) * 100) < 3.2).length;
+    placed.push({ x: item.x, y: item.y });
+    const statusClass = statusClassName(item.pin.status || "");
+    const x = Math.min(0.985, Math.max(0.015, item.x));
+    const y = Math.min(0.985, Math.max(0.015, item.y));
+    const dx = x > 0.82 ? -34 : 8 + Math.min(nearCount, 3) * 11;
+    const dy = -22 + (nearCount % 4) * 12;
+    const line = Math.max(8, Math.hypot(dx, dy + 6));
+    const angle = Math.atan2(dy + 6, dx) * 180 / Math.PI;
+    return `<span class="pin-marker" style="left:${x * 100}%;top:${y * 100}%;--dx:${dx}px;--dy:${dy}px;--line:${line}px;--angle:${angle}deg"><span class="pin-point"></span><span class="pin-leader"></span><span class="pin-chip ${statusClass}">${escapeHtml(pinLabel(item.pin))}</span></span>`;
   }).join("");
-}function planAppendixReport(p) {
+}
+function planAppendixReport(p) {
   if (!p.plans.length) return `<h2 class="page-break">Plananhang</h2><p>Keine Pläne hinterlegt.</p>`;
   return p.plans.map((plan, planIndex) => {
     const pages = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
@@ -6523,7 +6541,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v77",
+    appVersion: "v78",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6546,7 +6564,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v77",
+    appVersion: "v78",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -7962,6 +7980,13 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
+
+
+
+
 
 
 
