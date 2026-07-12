@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BewehrungsCheck</title>
-  <link rel="manifest" href="manifest.webmanifest?v=75">
-  <link rel="stylesheet" href="styles.css?v=75">
+  <link rel="manifest" href="manifest.webmanifest?v=76">
+  <link rel="stylesheet" href="styles.css?v=76">
 </head>
 <body>
   <div id="app" class="shell">
@@ -280,8 +280,9 @@
                 <div id="signatureList" class="signature-list"></div>
               </section>
               <div class="result-actions">
-                <button class="primary-btn" id="pdfSaveBtn" type="button">Druckdialog öffnen</button>
-                <button class="secondary-btn" id="pdfPrintBtn" type="button">PDF-Vorschau</button>
+                <button class="primary-btn" id="pdfSaveBtn" type="button">PDF herunterladen</button>
+                <button class="secondary-btn" id="pdfShareBtn" type="button">PDF teilen</button>
+                <button class="secondary-btn" id="pdfPrintBtn" type="button">Druckdialog öffnen</button>
                 <button class="secondary-btn" id="pdfPreviewBtn" type="button">A4-Vorschau</button>
                 <button class="secondary-btn" id="exportJsonBtn" type="button">JSON exportieren</button>
               </div>
@@ -349,7 +350,8 @@
         <strong>PDF-/Berichtsvorschau</strong>
         <button class="small-btn" id="reportReadModeBtn" type="button">Lesemodus</button>
         <button class="small-btn" id="reportA4ModeBtn" type="button">A4-Ansicht</button>
-        <button class="secondary-btn" id="shareReportBtn" type="button">HTML-Bericht teilen (Fallback)</button>
+        <button class="primary-btn" id="downloadReportPdfBtn" type="button">PDF herunterladen</button>
+        <button class="secondary-btn" id="shareReportBtn" type="button">PDF teilen</button>
         <button class="secondary-btn" id="copyWhatsappTextBtn" type="button">WhatsApp-Text kopieren</button>
 
         <button class="primary-btn" id="printReportBtn" type="button">Druckdialog öffnen</button>
@@ -524,10 +526,12 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=75"></script>
-  <script src="app.js?v=75"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=76"></script>
+  <script src="app.js?v=76"></script>
 </body>
 </html>
+
+
 
 
 

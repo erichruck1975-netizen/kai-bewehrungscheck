@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v75 reduziert die PDF-/Druckbericht-Größe durch reportoptimierte Bilder: Baustellenfotos max. 1600 px, Übersichtsfotos max. 1400 px, Plananlagen max. 2200 px jeweils als komprimiertes JPEG. Die konservative Plan-Nr.-Erkennung bleibt erhalten; Browserdruck-Seitenzahlen bleiben bewusst entfernt, bis ein echter PDF-Renderer verfügbar ist.
+v76 behält die v75-Bildkomprimierung bei und ergänzt einen direkten PDF-Download sowie PDF-Teilen per Web Share API. Die Seitenzahlen werden nur im echten PDF-Export gesetzt. Nahe Pins werden im Plananhang als ruhige Cluster dargestellt.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v75`
+- Cache-Version: `kai-bewehrungscheck-v76`
 
 ## Daten und Sicherung
 
@@ -163,6 +163,7 @@ http://localhost:4173/index.html
 ```
 
 Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll die App als gehostete HTTPS-PWA auf dem Handy installiert werden.
+
 
 
 

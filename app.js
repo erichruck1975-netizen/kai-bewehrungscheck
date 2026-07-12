@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v75";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=75`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=75`;
+const APP_CACHE = "kai-bewehrungscheck-v76";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=76`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=76`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -5000,7 +5000,7 @@ async function buildReportParts() {
     .sample-grid{display:grid;grid-template-columns:120px 1fr;gap:0}.sample-grid div{padding:7px 10px;border-bottom:1px solid #edf0f3}.sample-grid div:nth-child(odd){background:#fafbfc;color:#52606d;font-weight:700}
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
-    .pin-anchor{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-anchor-dot{position:absolute;left:0;top:0;width:6px;height:6px;border-radius:50%;background:#1f2933;border:1.5px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(31,41,51,.35);z-index:2}.pin-line{position:absolute;left:0;top:0;width:var(--line,18px);height:1px;background:rgba(31,41,51,.55);transform-origin:0 0;transform:rotate(var(--angle,-45deg));z-index:1}.pin-label{position:absolute;left:var(--dx,0);top:var(--dy,-18px);transform:translate(-50%,-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:2px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.22);white-space:nowrap}.pin-label.ok{border-color:#168451}.pin-label.partial{border-color:#c47a00}.pin-label.bad{border-color:#c93c37}.pin-label.neutral{border-color:#4f6f8f}
+    .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-chip{position:absolute;left:8px;top:-22px;transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-cluster{position:absolute;width:0;height:0;overflow:visible;z-index:6}.pin-cluster-dot{position:absolute;left:0;top:0;width:8px;height:8px;border-radius:50%;background:#1f2933;border:1.5px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(31,41,51,.35)}.pin-cluster-line{position:absolute;left:0;top:0;width:var(--line,18px);height:1px;background:rgba(31,41,51,.5);transform-origin:0 0;transform:rotate(var(--angle,-38deg))}.pin-cluster-label{position:absolute;left:var(--dx,18px);top:var(--dy,-18px);transform:translateY(-50%);display:inline-flex;gap:3px;align-items:center;max-width:120px;padding:3px 6px;border-radius:6px;background:rgba(255,255,255,.96);border:1.5px solid #4f6f8f;color:#1f2933;font-size:9px;font-weight:800;line-height:1.1;box-shadow:0 1px 5px rgba(0,0,0,.22);white-space:normal}.pin-cluster-label span{display:inline-block}.pin-chip.ok,.pin-cluster-label.ok{border-color:#168451}.pin-chip.partial,.pin-cluster-label.partial{border-color:#c47a00}.pin-chip.bad,.pin-cluster-label.bad{border-color:#c93c37}.pin-chip.neutral,.pin-cluster-label.neutral{border-color:#4f6f8f}
     .appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.pin-table{font-size:11px}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
@@ -5424,12 +5424,203 @@ function updateReportPreviewModeButtons() {
   $("#reportA4ModeBtn")?.classList.toggle("active", !readMode);
 }
 
+function pdfEscape(text) {
+  return String(text || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)")
+    .replace(/[\r\n]+/g, " ");
+}
+
+function dataUrlToBytes(dataUrl) {
+  const base64 = String(dataUrl || "").split(",")[1] || "";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function imageFromObjectUrl(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("PDF-Seite konnte nicht gerendert werden."));
+    img.src = url;
+  });
+}
+
+async function renderHtmlPageToJpeg(wrapper, width, height, scale = 1.45) {
+  const serialized = new XMLSerializer().serializeToString(wrapper);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
+  const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const img = await imageFromObjectUrl(svgUrl);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return { dataUrl: canvas.toDataURL("image/jpeg", 0.82), width: canvas.width, height: canvas.height };
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
+async function renderReportPdfPages(parts) {
+  const frame = document.createElement("iframe");
+  frame.className = "report-pdf-render-frame";
+  frame.style.cssText = "position:fixed;left:0;top:0;width:850px;height:1200px;opacity:0.01;pointer-events:none;z-index:-1;border:0;";
+  document.body.appendChild(frame);
+  try {
+    frame.srcdoc = reportPrintDocumentHtml(parts);
+    await new Promise((resolve) => {
+      const done = () => resolve();
+      frame.addEventListener("load", done, { once: true });
+      window.setTimeout(done, 1600);
+    });
+    const doc = frame.contentDocument;
+    const source = doc?.querySelector(".report-export");
+    validateReportElement(source);
+    await waitForReportReady(source);
+    const pageWidth = 794;
+    const pageHeight = 1123;
+    const footerHeight = 34;
+    const contentStep = pageHeight - footerHeight;
+    const sourceWidth = Math.ceil(source.getBoundingClientRect().width || source.scrollWidth || 718);
+    const sourceHeight = Math.ceil(source.scrollHeight || source.getBoundingClientRect().height || pageHeight);
+    const totalPages = Math.max(1, Math.ceil(sourceHeight / contentStep));
+    const images = [];
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+      const wrapper = doc.createElement("div");
+      wrapper.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+      wrapper.style.cssText = `position:relative;width:${pageWidth}px;height:${pageHeight}px;overflow:hidden;background:#fff;color:#1f2933;font-family:Arial,Helvetica,sans-serif;`;
+      const style = doc.createElement("style");
+      style.textContent = `${parts.css}\n${reportPrintOverrides()}`;
+      const clone = source.cloneNode(true);
+      clone.style.position = "absolute";
+      clone.style.left = `${Math.max(0, Math.round((pageWidth - sourceWidth) / 2))}px`;
+      clone.style.top = `-${pageIndex * contentStep}px`;
+      clone.style.width = `${sourceWidth}px`;
+      clone.style.maxWidth = `${sourceWidth}px`;
+      clone.style.margin = "0";
+      clone.style.transform = "none";
+      const footerMask = doc.createElement("div");
+      footerMask.style.cssText = "position:absolute;left:0;right:0;bottom:0;height:34px;background:#fff;border-top:1px solid #d8dee6;";
+      wrapper.appendChild(style);
+      wrapper.appendChild(clone);
+      wrapper.appendChild(footerMask);
+      images.push(await renderHtmlPageToJpeg(wrapper, pageWidth, pageHeight));
+    }
+    return { images, totalPages };
+  } finally {
+    frame.remove();
+  }
+}
+
+function buildPdfBlobFromJpegPages(pages) {
+  const encoder = new TextEncoder();
+  const parts = [];
+  const offsets = [0];
+  let byteOffset = 0;
+  const add = (part) => {
+    const bytes = typeof part === "string" ? encoder.encode(part) : part;
+    parts.push(bytes);
+    byteOffset += bytes.length;
+  };
+  const addObject = (id, bodyParts) => {
+    offsets[id] = byteOffset;
+    add(`${id} 0 obj\n`);
+    bodyParts.forEach(add);
+    add("\nendobj\n");
+  };
+  const pageCount = pages.length;
+  const fontId = 3;
+  const pageIds = pages.map((_, index) => 4 + index * 3);
+  add("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  addObject(1, ["<< /Type /Catalog /Pages 2 0 R >>"]);
+  addObject(2, [`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageCount} >>`]);
+  addObject(fontId, ["<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]);
+  pages.forEach((page, index) => {
+    const pageId = pageIds[index];
+    const contentId = pageId + 1;
+    const imageId = pageId + 2;
+    const imageName = `Im${index + 1}`;
+    const imageBytes = dataUrlToBytes(page.dataUrl);
+    const pageText = `Seite ${index + 1} von ${pageCount}`;
+    const content = `q\n595.28 0 0 841.89 0 0 cm\n/${imageName} Do\nQ\nBT\n/F1 8 Tf\n0.42 0.45 0.50 rg\n1 0 0 1 270 14 Tm\n(${pdfEscape(pageText)}) Tj\nET`;
+    const contentBytes = encoder.encode(content);
+    addObject(pageId, [`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /${imageName} ${imageId} 0 R >> /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`]);
+    addObject(contentId, [`<< /Length ${contentBytes.length} >>\nstream\n`, contentBytes, "\nendstream"]);
+    addObject(imageId, [`<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`, imageBytes, "\nendstream"]);
+  });
+  const xrefOffset = byteOffset;
+  const size = 4 + pageCount * 3;
+  add(`xref\n0 ${size}\n0000000000 65535 f \n`);
+  for (let id = 1; id < size; id += 1) add(`${String(offsets[id]).padStart(10, "0")} 00000 n \n`);
+  add(`trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  return new Blob(parts, { type: "application/pdf" });
+}
+
+async function createReportPdfBlob() {
+  const parts = state.reportView.parts || await buildReportParts();
+  const { images, totalPages } = await renderReportPdfPages(parts);
+  if (!images.length) throw new Error("PDF konnte nicht erzeugt werden, Bericht enthält keine Seiten.");
+  const blob = buildPdfBlobFromJpegPages(images);
+  return { blob, fileName: sanitizeFileName(parts.fileName || reportFileName(state.current)), totalPages, parts };
+}
+
+async function downloadReportPdf() {
+  try {
+    const { blob, fileName } = await createReportPdfBlob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || "PDF konnte nicht erzeugt werden.");
+  }
+}
+
+async function shareReportPdf() {
+  try {
+    const { blob, fileName } = await createReportPdfBlob();
+    if (typeof File === "undefined") throw new Error("File API nicht verfügbar");
+    const file = new File([blob], fileName, { type: "application/pdf" });
+    const text = buildReportShareText();
+    const title = reportShareTitle();
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ title, text, files: [file] });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    alert("PDF-Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde stattdessen heruntergeladen.");
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    console.error(error);
+    alert(error?.message || "PDF konnte nicht geteilt werden.");
+  }
+}
+
 async function saveReportPdfDirectExperimental() {
-  alert("Direkter PDF-Download ist in v75 deaktiviert, weil der bisherige html2pdf-Pfad Endlosseiten erzeugen konnte. Bitte 'Druckdialog öffnen' verwenden und dort 'Als PDF speichern' wählen.");
+  return downloadReportPdf();
 }
 
 function saveReportPdf() {
-  return openReportDialog({ printHint: true });
+  return downloadReportPdf();
 }
 
 function hasAddressContent(address) {
@@ -5755,24 +5946,36 @@ function reportPinCallouts(pins, planId, pageNumber) {
   const items = pins
     .map((pin) => ({ pin, placement: pinPlacements(pin).find((item) => item.planId === planId && item.pageNumber === pageNumber) }))
     .filter((item) => item.placement)
+    .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y }))
+    .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
     .sort((a, b) => (a.pin.number || 0) - (b.pin.number || 0));
-  const assigned = [];
-  return items.map((item) => {
-    const x = item.placement.x ?? item.pin.x;
-    const y = item.placement.y ?? item.pin.y;
-    const nearCount = assigned.filter((other) => Math.hypot((other.x - x) * 100, (other.y - y) * 100) < 3.5).length;
-    assigned.push({ x, y });
-    const hasCollision = nearCount > 0;
-    const offset = hasCollision
-      ? { x: 22, y: -16 + (nearCount - 1) * 16 }
-      : { x: 12, y: -14 };
-    const line = Math.max(10, Math.hypot(offset.x, offset.y));
+  const groups = [];
+  items.forEach((item) => {
+    let group = groups.find((candidate) => Math.hypot((candidate.x - item.x) * 100, (candidate.y - item.y) * 100) < 3.2);
+    if (!group) {
+      group = { x: item.x, y: item.y, items: [] };
+      groups.push(group);
+    }
+    group.items.push(item);
+    group.x = group.items.reduce((sum, entry) => sum + entry.x, 0) / group.items.length;
+    group.y = group.items.reduce((sum, entry) => sum + entry.y, 0) / group.items.length;
+  });
+  return groups.map((group, index) => {
+    const labels = group.items.map((item) => pinLabel(item.pin));
+    const severity = group.items.find((item) => item.pin.status === "nicht_ok") || group.items.find((item) => item.pin.status === "teilweise") || group.items[0];
+    const statusClass = statusClassName(severity?.pin.status || "");
+    const x = Math.min(0.985, Math.max(0.015, group.x));
+    const y = Math.min(0.985, Math.max(0.015, group.y));
+    if (group.items.length === 1) {
+      return `<span class="pin-marker" style="left:${x * 100}%;top:${y * 100}%"><span class="pin-point"></span><span class="pin-chip ${statusClass}">${escapeHtml(labels[0])}</span></span>`;
+    }
+    const offset = { x: x > 0.78 ? -72 : 18, y: y < 0.18 ? 22 : -22 - (index % 2) * 8 };
+    const line = Math.max(12, Math.hypot(offset.x, offset.y));
     const angle = Math.atan2(offset.y, offset.x) * 180 / Math.PI;
-    const statusClass = statusClassName(item.pin.status || "");
-    return `<span class="pin-anchor" style="left:${x * 100}%;top:${y * 100}%;--dx:${offset.x}px;--dy:${offset.y}px;--line:${line}px;--angle:${angle}deg"><span class="pin-anchor-dot"></span><span class="pin-line"></span><span class="pin-label ${statusClass}">${pinLabel(item.pin)}</span></span>`;
+    const clusterText = labels.map((label) => `<span>${escapeHtml(label)}</span>`).join("<span>/</span>");
+    return `<span class="pin-cluster" style="left:${x * 100}%;top:${y * 100}%;--dx:${offset.x}px;--dy:${offset.y}px;--line:${line}px;--angle:${angle}deg"><span class="pin-cluster-dot"></span><span class="pin-cluster-line"></span><span class="pin-cluster-label ${statusClass}">${clusterText}</span></span>`;
   }).join("");
-}
-function planAppendixReport(p) {
+}function planAppendixReport(p) {
   if (!p.plans.length) return `<h2 class="page-break">Plananhang</h2><p>Keine Pläne hinterlegt.</p>`;
   return p.plans.map((plan, planIndex) => {
     const pages = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
@@ -6042,7 +6245,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v75",
+    appVersion: "v76",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6065,7 +6268,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v75",
+    appVersion: "v76",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6619,9 +6822,11 @@ function bindEvents() {
     const deleteSig = event.target.closest("[data-delete-signature]");
     if (deleteSig && confirm("Diese Unterschrift wirklich löschen?")) deleteSignature(deleteSig.dataset.deleteSignature);
     const pdfSave = event.target.closest("#pdfSaveBtn");
-    if (pdfSave) printReportA4();
+    if (pdfSave) downloadReportPdf();
+    const pdfShare = event.target.closest("#pdfShareBtn");
+    if (pdfShare) shareReportPdf();
     const pdfPrint = event.target.closest("#pdfPrintBtn");
-    if (pdfPrint) openReportDialog({ printHint: false });
+    if (pdfPrint) printReportA4();
     const pdfPreview = event.target.closest("#pdfPreviewBtn");
     if (pdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
     const deletePlanButton = event.target.closest("[data-delete-plan]");
@@ -6742,7 +6947,8 @@ function bindEvents() {
   $("#reportDialog").addEventListener("close", () => document.body.classList.remove("report-open"));
   $("#reportReadModeBtn").addEventListener("click", () => setReportPreviewMode("read"));
   $("#reportA4ModeBtn").addEventListener("click", () => setReportPreviewMode("a4"));
-  $("#shareReportBtn").addEventListener("click", shareReportFile);
+  $("#downloadReportPdfBtn").addEventListener("click", downloadReportPdf);
+  $("#shareReportBtn").addEventListener("click", shareReportPdf);
   $("#copyWhatsappTextBtn").addEventListener("click", copyWhatsappReportText);
   $("#saveReportHtmlBtn").addEventListener("click", saveReportHtml);
   $("#printReportBtn").addEventListener("click", () => {
@@ -7478,6 +7684,11 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
+
+
 
 
 
