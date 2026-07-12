@@ -10,7 +10,7 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v65 behebt den Übersichtsfoto-Hotfix: Foto aufnehmen und Foto aus Galerie auswählen nutzen eigene File-Inputs im Ergebnis-Reiter, speichern direkt in IndexedDB und zeigen die Fotos sofort an. Plan-Renderer, Check-Markierungsdialog, Pinch-Zoom, Header, Stammdatenlogik und bestehende Pin-/Prüfstellen-Fotos bleiben unverändert.
+v67 ergänzt in der Berichtsvorschau das Teilen über den nativen Android-Teilen-Dialog per Web Share API. Wenn Teilen nicht verfügbar ist, wird der Berichtstext zum Einfügen in WhatsApp kopiert. Planviewer, Pins, Check-Markierungsdialog, Stammdaten, Spracheingabe, Backup/Restore und Berichtslayout bleiben unverändert.
 
 ## Production-PWA
 
@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v65`
+- Cache-Version: `kai-bewehrungscheck-v67`
 
 ## Daten und Sicherung
 
@@ -163,6 +163,7 @@ http://localhost:4173/index.html
 ```
 
 Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll die App als gehostete HTTPS-PWA auf dem Handy installiert werden.
+
 
 
 

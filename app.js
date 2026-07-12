@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v65";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=65`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=65`;
+const APP_CACHE = "kai-bewehrungscheck-v67";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=67`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=67`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -146,6 +146,7 @@ const state = {
   selectedPlanId: "",
   selectedPinId: "",
   checkScopeOnlyActive: false,
+  signatureEditId: "",
   photoTarget: null,
   pinMode: false,
   placementModePinId: "",
@@ -1655,11 +1656,13 @@ function renderSignatures() {
 }
 
 function signatureCard(signature) {
+  const isEditing = state.signatureEditId === signature.id;
+  const hasSignature = !!signature.signatureData;
   return `
     <article class="signature-card" data-signature="${signature.id}">
       <div class="section-head">
         <h4>${escapeHtml(signature.name || "Neue Unterschrift")}</h4>
-        <button class="danger-btn" type="button" data-delete-signature="${signature.id}">Unterschrift löschen</button>
+        <button class="danger-btn" type="button" data-delete-signature="${signature.id}">Eintrag löschen</button>
       </div>
       <div class="grid compact-grid">
         ${comboField({ label: "Name", field: "name", list: "personOptions", value: signature.name, placeholder: "Name" })}
@@ -1669,19 +1672,22 @@ function signatureCard(signature) {
         ${comboField({ label: "Datum / Uhrzeit", field: "signedAt", type: "datetime-local", value: signature.signedAt })}
         ${comboField({ label: "Bemerkung", field: "note", rows: 2, value: signature.note, placeholder: "optional" })}
       </div>
-      <div class="signature-pad-wrap ${signature.signatureData ? "signed" : ""}">
+      <div class="signature-pad-wrap ${hasSignature ? "signed" : ""} ${isEditing ? "editing" : "locked"}">
         <canvas class="signature-pad" data-signature-pad="${signature.id}" aria-label="Unterschriftsfeld"></canvas>
-        <div class="signature-placeholder">Hier mit Finger oder Stift unterschreiben</div>
+        <div class="signature-placeholder">${isEditing ? "Unterschriftsmodus aktiv - bitte unterschreiben" : (hasSignature ? "" : "Noch keine Unterschrift")}</div>
         <div class="signature-line"></div>
       </div>
+      <p class="muted signature-mode-hint">${isEditing ? "Unterschriftsmodus aktiv. Beim Zeichnen wird das Scrollen im Feld blockiert." : "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche."}</p>
       <div class="result-actions">
-        <button class="small-btn" type="button" data-reset-signature="${signature.id}">Unterschrift zurücksetzen</button>
-        <button class="primary-btn" type="button" data-save-signature="${signature.id}">Übernehmen</button>
+        ${isEditing
+          ? `<button class="primary-btn" type="button" data-save-signature="${signature.id}">Fertig</button>
+             <button class="small-btn" type="button" data-reset-signature="${signature.id}">Zurücksetzen</button>`
+          : `<button class="primary-btn" type="button" data-edit-signature="${signature.id}">${hasSignature ? "Unterschrift bearbeiten" : "Unterschreiben"}</button>
+             ${hasSignature ? `<button class="small-btn" type="button" data-reset-signature="${signature.id}">Unterschrift löschen</button>` : ""}`}
       </div>
     </article>
   `;
 }
-
 function initSignaturePads(root = document) {
   $$("[data-signature-pad]", root).forEach((canvas) => initSignaturePad(canvas));
 }
@@ -1710,6 +1716,7 @@ function initSignaturePad(canvas) {
     event.preventDefault();
   };
   canvas.addEventListener("pointerdown", (event) => {
+    if (state.signatureEditId !== id) return;
     canvas.setPointerCapture(event.pointerId);
     canvas.closest(".signature-pad-wrap")?.classList.add("signed");
     drawing = true;
@@ -1774,21 +1781,27 @@ function resetSignature(id) {
   renderSignatures();
 }
 
+function editSignature(id) {
+  if (!findSignature(id)) return;
+  state.signatureEditId = id;
+  renderSignatures();
+}
+
 function saveSignature(id) {
   const card = $(`[data-signature="${id}"]`);
   const signature = findSignature(id);
   if (!card || !signature) return;
-  $$("[data-signature-field]", card).forEach((field) => {
+  $('[data-signature-field]', card).forEach((field) => {
     signature[field.dataset.signatureField] = field.value || "";
   });
   syncSignatureSnapshots(signature);
   const canvas = $(`[data-signature-pad="${id}"]`, card);
-  if (canvas) signature.signatureData = canvas.toDataURL("image/png");
+  if (canvas && state.signatureEditId === id) signature.signatureData = canvas.toDataURL("image/png");
   signature.signedAt = signature.signedAt || nowLocalInput();
+  if (state.signatureEditId === id) state.signatureEditId = "";
   persist();
   renderSignatures();
 }
-
 function syncSignatureSnapshots(signature) {
   const person = ownPersonSelection(signature.name || "");
   const company = companySelection(signature.company || person.snapshot?.company || "");
@@ -5091,14 +5104,111 @@ async function openReportDialog({ printHint = false } = {}) {
   `;
   const printFrame = $("#reportPrintFrame");
   printFrame.srcdoc = reportDocumentHtml(parts, { printButton: false, saveHint: false });
+  state.reportView.parts = parts;
   updateReportPreviewModeButtons();
   $(".report-browser-hint").textContent = printHint
-    ? "Zum Speichern bitte auf „Drucken / Als PDF speichern“ tippen und im Druckdialog „Als PDF speichern“ wählen."
+    ? "Zum Speichern bitte auf „Druckdialog öffnen“ tippen und im Druckdialog als Ziel „Als PDF speichern“ wählen."
     : "Lesemodus ist für das Handy optimiert. Die A4-Ansicht dient zur Kontrolle des Ausdrucks.";
   $("#reportDialog").showModal();
   requestAnimationFrame(updateReportPreviewFrame);
 }
 
+async function saveReportHtml() {
+  const parts = state.reportView.parts || await buildReportParts();
+  const html = reportDocumentHtml(parts, { printButton: false, saveHint: true });
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = sanitizeFileName((parts.fileName || "bewehrungsbericht.pdf").replace(/\.pdf$/i, ".html"));
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function shareReportText() {
+  const text = buildReportShareText();
+  const title = reportShareTitle();
+  try {
+    if (navigator.share) {
+      await navigator.share({ title, text });
+      return;
+    }
+    await copyTextToClipboard(text);
+    alert("Berichtstext wurde kopiert. Bitte in WhatsApp einfügen.");
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    console.error(error);
+    try {
+      await copyTextToClipboard(text);
+      alert("Berichtstext wurde kopiert. Bitte in WhatsApp einfügen.");
+    } catch (copyError) {
+      console.error(copyError);
+      alert("Bericht konnte nicht geteilt werden. Bitte Text manuell kopieren.");
+    }
+  }
+}
+
+async function copyWhatsappReportText() {
+  try {
+    await copyTextToClipboard(buildReportShareText({ compact: true }));
+    alert("WhatsApp-Text wurde kopiert. Bitte in WhatsApp einfügen.");
+  } catch (error) {
+    console.error(error);
+    alert("WhatsApp-Text konnte nicht kopiert werden.");
+  }
+}
+
+function reportShareTitle() {
+  const p = state.current;
+  return `Bewehrungsbericht ${p?.head?.projectName || "Kai BewehrungsCheck"}`.trim();
+}
+
+function buildReportShareText({ compact = false } = {}) {
+  const p = state.current;
+  if (!p) return "Bewehrungsbericht Kai BewehrungsCheck";
+  p.checkpoints?.forEach(updateCheckStatus);
+  const issues = sampleIssues(p).length;
+  const title = p.head.acceptanceTitle || p.head.acceptanceType || "Bewehrungsabnahme";
+  const project = p.head.projectName || "ohne Projektangabe";
+  const component = [p.head.component, p.head.floor].filter(Boolean).join(" / ") || "ohne Angabe";
+  const area = p.head.areaAxes || "ohne Angabe";
+  const date = formatDate(p.head.createdAt || p.createdAt || new Date().toISOString());
+  const result = p.result?.resultStatus || "ohne Ergebnis";
+  const lines = compact ? [
+    `Bewehrungsabnahme – ${project}`,
+    `Abnahme: ${title}`,
+    `Bauteil: ${component}`,
+    `Bereich: ${area}`,
+    `Ergebnis: ${result}`,
+    `Offene Punkte: ${issues}`,
+    "Bitte Bericht beachten."
+  ] : [
+    `Bewehrungsbericht – ${project}`,
+    `Abnahme: ${title}`,
+    `Datum: ${date}`,
+    `Bauteil / Bereich: ${component} · ${area}`,
+    `Ergebnis: ${result}`,
+    `Offene Auflagen/Mängel: ${issues}`,
+    "Bericht/PDF siehe Anlage bzw. separat."
+  ];
+  return lines.join("\n");
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
 function updateReportPreviewFrame() {
   const content = $("#reportPreviewContent");
   const scaler = $("#reportPreviewScaler");
@@ -5779,7 +5889,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v65",
+    appVersion: "v67",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5802,7 +5912,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v65",
+    appVersion: "v67",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6347,6 +6457,8 @@ function bindEvents() {
     if (removePlacement && confirm("Diese Platzierung entfernen?")) removePinPlacement(removePlacement.dataset.removePlacement, removePlacement.dataset.placementId);
     const primaryPlacement = event.target.closest("[data-primary-placement]");
     if (primaryPlacement) makePrimaryPlacement(primaryPlacement.dataset.primaryPlacement, primaryPlacement.dataset.placementId);
+    const editSig = event.target.closest("[data-edit-signature]");
+    if (editSig) editSignature(editSig.dataset.editSignature);
     const resetSig = event.target.closest("[data-reset-signature]");
     if (resetSig) resetSignature(resetSig.dataset.resetSignature);
     const saveSig = event.target.closest("[data-save-signature]");
@@ -6476,6 +6588,9 @@ function bindEvents() {
   $("#closeReportBtn").addEventListener("click", () => $("#reportDialog").close());
   $("#reportReadModeBtn").addEventListener("click", () => setReportPreviewMode("read"));
   $("#reportA4ModeBtn").addEventListener("click", () => setReportPreviewMode("a4"));
+  $("#shareReportBtn").addEventListener("click", shareReportText);
+  $("#copyWhatsappTextBtn").addEventListener("click", copyWhatsappReportText);
+  $("#saveReportHtmlBtn").addEventListener("click", saveReportHtml);
   $("#printReportBtn").addEventListener("click", () => {
     const frame = $("#reportPrintFrame");
     const printTarget = frame?.contentWindow;
@@ -7214,5 +7329,10 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
+
+
 
 

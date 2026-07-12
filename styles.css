@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --ink: #1d252d;
   --muted: #66717d;
@@ -875,6 +875,30 @@ input:focus, textarea:focus, select:focus, button:focus {
 }
 
 .signature-pad-wrap.signed .signature-placeholder { display: none; }
+.signature-pad-wrap.locked .signature-pad {
+  pointer-events: none;
+  touch-action: auto;
+  cursor: default;
+}
+
+.signature-pad-wrap.editing .signature-pad {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.signature-pad-wrap.locked {
+  background: #f7f9fb;
+}
+
+.signature-pad-wrap.editing {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(244, 197, 66, 0.22);
+}
+
+.signature-mode-hint {
+  margin: -4px 0 0;
+}
 
 .signature-line {
   position: absolute;
@@ -1492,7 +1516,7 @@ input:focus, textarea:focus, select:focus, button:focus {
 .report-dialog-toolbar {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) repeat(5, auto);
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -1622,6 +1646,9 @@ input:focus, textarea:focus, select:focus, button:focus {
     white-space: nowrap;
   }
 
+  #shareReportBtn,
+  #copyWhatsappTextBtn,
+  #saveReportHtmlBtn,
   #printReportBtn {
     grid-column: 1 / -1;
     min-height: 40px;
@@ -1908,3 +1935,6 @@ dialog button {
   .appbar, .tabs, .result-actions, .back-btn, #saveBtn { display: none !important; }
   main { padding: 0; }
 }
+
+
+
