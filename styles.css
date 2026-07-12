@@ -1600,36 +1600,36 @@ body.report-open #resultTab .result-actions {
 }
 
 @media print {
-  body > *:not(#reportDialog) {
+  body > *:not(#printReportMount) {
     display: none !important;
   }
-  #reportDialog {
-    position: static !important;
+
+  #printReportMount {
     display: block !important;
+    position: static !important;
     width: auto !important;
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
     background: #fff !important;
+    transform: none !important;
   }
+
+  #reportDialog,
   .report-dialog-toolbar,
   .report-preview-actions,
-  .report-browser-hint {
+  .report-browser-hint,
+  .result-actions,
+  .bottom-actions,
+  .app-nav {
     display: none !important;
   }
-  .report-dialog-shell,
-  .report-preview-content,
-  .report-preview-scaler {
-    display: block !important;
-    height: auto !important;
-    overflow: visible !important;
-    padding: 0 !important;
-    background: #fff !important;
-    transform: none !important;
-    width: auto !important;
-  }
-  .report-preview-scaler .report-page {
+
+  #printReportMount .report-export,
+  #printReportMount .report-page {
     box-shadow: none !important;
+    transform: none !important;
+    overflow: visible !important;
   }
 }
 
@@ -1957,6 +1957,7 @@ dialog button {
   .appbar, .tabs, .result-actions, .back-btn, #saveBtn { display: none !important; }
   main { padding: 0; }
 }
+
 
 
 

@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v69";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=69`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=69`;
+const APP_CACHE = "kai-bewehrungscheck-v70";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=70`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=70`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -5061,6 +5061,74 @@ function reportDocumentHtml(parts, { printButton = false, saveHint = false } = {
   `;
 }
 
+function reportPrintOverrides() {
+  return `
+    @media screen{
+      #printReportMount{display:none!important}
+    }
+    @page{size:A4 portrait;margin:12mm}
+    @media print{
+      html,body{width:auto!important;min-width:0!important;min-height:auto!important;margin:0!important;background:#fff!important;overflow:visible!important}
+      body{font-size:12px!important;color:#1f2933!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      body > *:not(#printReportMount){display:none!important}
+      #printReportMount{display:block!important;position:static!important;inset:auto!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;max-height:none!important;margin:0!important;padding:0!important;background:#fff!important;overflow:visible!important;transform:none!important;opacity:1!important;visibility:visible!important}
+      #printReportMount .no-print,#printReportMount .report-toolbar,#printReportMount .report-actions,#printReportMount .report-hint,#printReportMount .result-actions,#printReportMount .bottom-actions,#printReportMount .app-nav,#printReportMount .print-btn,#printReportMount .save-hint{display:none!important}
+      #printReportMount .report-export,#printReportMount .report-page{display:block!important;position:static!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;max-height:none!important;margin:0!important;padding:0!important;background:#fff!important;color:#111!important;overflow:visible!important;transform:none!important;zoom:1!important;box-shadow:none!important}
+      #printReportMount .report-header{break-inside:avoid;page-break-inside:avoid}
+      #printReportMount h1,#printReportMount h2,#printReportMount h3{break-after:avoid;page-break-after:avoid}
+      #printReportMount table{width:100%!important;max-width:100%!important;table-layout:fixed!important;break-inside:auto!important;page-break-inside:auto!important}
+      #printReportMount tr{break-inside:avoid;page-break-inside:avoid}
+      #printReportMount td,#printReportMount th{overflow-wrap:anywhere!important;word-break:break-word!important}
+      #printReportMount img{max-width:100%!important;height:auto!important;break-inside:avoid;page-break-inside:avoid}
+      #printReportMount .check-card{break-inside:auto!important;page-break-inside:auto!important}
+      #printReportMount .sample-card,#printReportMount .photo-card,#printReportMount .overview-report-photo,#printReportMount .signature-block,#printReportMount .signature-report,#printReportMount .plan,#printReportMount .plan-sheet{break-inside:avoid!important;page-break-inside:avoid!important}
+      #printReportMount .appendix-block{break-before:page;page-break-before:always;break-inside:auto!important;page-break-inside:auto!important}
+      #printReportMount .photo-group{break-inside:avoid!important;page-break-inside:avoid!important}
+      #printReportMount .footer-note{position:static!important;bottom:auto!important;left:auto!important;right:auto!important;break-inside:avoid!important;page-break-inside:avoid!important}
+      #printReportMount .page-number:after{content:counter(page)}
+    }
+  `;
+}
+
+function reportPrintDocumentHtml(parts) {
+  return `
+    <!doctype html><html lang="de"><head><meta charset="UTF-8"><title>${escapeHtml(parts.title)}</title><style>${parts.css}\n${reportPrintOverrides()}</style></head>
+    <body class="print-document">
+      <div id="printReportMount">${parts.body}</div>
+    </body></html>
+  `;
+}
+
+function preparePrintReportMount(parts) {
+  let style = document.getElementById("reportPrintStyle");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "reportPrintStyle";
+    document.head.appendChild(style);
+  }
+  style.textContent = `${parts.css}\n${reportPrintOverrides()}`;
+  let mount = document.getElementById("printReportMount");
+  if (!mount) {
+    mount = document.createElement("div");
+    mount.id = "printReportMount";
+    document.body.appendChild(mount);
+  }
+  mount.innerHTML = parts.body;
+  return mount.querySelector(".report-export") || mount;
+}
+
+async function printReportA4() {
+  const parts = state.reportView.parts || await buildReportParts();
+  const reportElement = preparePrintReportMount(parts);
+  try {
+    validateReportElement(reportElement.matches?.(".report-export") ? reportElement : reportElement.querySelector?.(".report-export"));
+  } catch (error) {
+    alert(error?.message || "Bericht enthält keine druckbaren Inhalte.");
+    return;
+  }
+  await waitForReportReady(reportElement);
+  requestAnimationFrame(() => window.print());
+}
 async function openReportWindow({ print = false, saveHint = false } = {}) {
   return openReportDialog({ printHint: print || saveHint });
 }
@@ -5129,7 +5197,7 @@ async function openReportDialog({ printHint = false } = {}) {
     ${parts.body}
   `;
   const printFrame = $("#reportPrintFrame");
-  printFrame.srcdoc = reportDocumentHtml(parts, { printButton: false, saveHint: false });
+  printFrame.srcdoc = reportPrintDocumentHtml(parts);
   state.reportView.parts = parts;
   updateReportPreviewModeButtons();
   $(".report-browser-hint").textContent = printHint
@@ -5914,7 +5982,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v69",
+    appVersion: "v70",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -5937,7 +6005,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v69",
+    appVersion: "v70",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6618,13 +6686,8 @@ function bindEvents() {
   $("#copyWhatsappTextBtn").addEventListener("click", copyWhatsappReportText);
   $("#saveReportHtmlBtn").addEventListener("click", saveReportHtml);
   $("#printReportBtn").addEventListener("click", () => {
-    const frame = $("#reportPrintFrame");
-    const printTarget = frame?.contentWindow;
-    if (printTarget?.print) {
-      printTarget.focus();
-      printTarget.print();
-    } else if (typeof window.print === "function") {
-      window.print();
+    if (typeof window.print === "function") {
+      printReportA4();
     } else {
       alert("Bitte über Browser-Menü Drucken / Als PDF speichern verwenden.");
     }
@@ -7355,6 +7418,9 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
 
 
 
