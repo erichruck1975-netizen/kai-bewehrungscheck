@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v80";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=80`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=80`;
+const APP_CACHE = "kai-bewehrungscheck-v81";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=81`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=81`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -5727,7 +5727,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const info = await pdfImageInfo(dataUrl, caption || "Bild");
     if (!info) {
       warnings.push(caption || "Bild");
-      addText("Bild konnte aus Browser-Sicherheitsgr?nden nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
+      addText("Bild konnte aus Browser-Sicherheitsgründen nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
       return null;
     }
     const imageIndex = images.push(info) - 1;
@@ -5805,9 +5805,9 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   };
 
   newPage();
-  addTextLine("Kai BewehrungsCheck ? LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
+  addTextLine("Kai BewehrungsCheck · LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
   addTextLine("Bewehrungskontrolle / Bewehrungsabnahme", margin, 22, { bold: true, color: "#17212b", gap: 7 });
-  addText("?rtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausf?hrungs- und Bewehrungspl?ne. Die Betonagefreigabe erfolgt unter Ber?cksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 10, color: "#52606d", maxWidth: contentWidth - 95 });
+  addText("Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 10, color: "#52606d", maxWidth: contentWidth - 95 });
   addRule(y + 4, "#1f4e79", 2.2);
   y += 18;
   addInfoGrid("Projektinformationen", [
@@ -5817,14 +5817,14 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     ["Abnahme-ID", p.id],
     ["Baustellenadresse", formatAddress(project?.address || p.head.siteAddress)],
     ["Auftraggeber", companyReportText(clientCompany, project?.client || "")],
-    ["Pr?fingenieur", inspectorReportText(projectInspector, project?.inspector || "")],
+    ["Prüfingenieur", inspectorReportText(projectInspector, project?.inspector || "")],
     ["Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim()],
     ["Bereich / Achsen", p.head.areaAxes]
-  ], "Pr?fung", [
+  ], "Prüfung", [
     ["Datum / Uhrzeit", formatDate(p.head.createdAt)],
-    ["Pr?fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
-    ["Ausf?hrende Firma", companyReportText(contractorCompany, p.head.contractor)],
-    ["Allgemeiner Planstand / Pr?fstand", p.head.planDate],
+    ["Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
+    ["Ausführende Firma", companyReportText(contractorCompany, p.head.contractor)],
+    ["Allgemeiner Planstand / Prüfstand", p.head.planDate],
     ["Protokoll", p.id.slice(-8).toUpperCase()]
   ]);
 
@@ -5837,18 +5837,18 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "humidity", title: "Luftfeuchte", weight: 1 }
   ], [{ condition: p.weather.condition || "-", temperature: p.weather.temperature || "-", wind: p.weather.wind || "-", precipitation: p.weather.precipitation || "-", humidity: p.weather.humidity || "-" }], { size: 8.2 });
 
-  addHeading("?bersichtsfotos Baustelle");
+  addHeading("Übersichtsfotos Baustelle");
   logPdfStep("section:overview:start", { count: normalizeOverviewPhotos(p.overviewPhotos || [], p.id).length });
   const overview = normalizeOverviewPhotos(p.overviewPhotos || [], p.id);
-  if (!overview.length) addText("Keine ?bersichtsfotos zur Baustelle hinterlegt.");
+  if (!overview.length) addText("Keine Übersichtsfotos zur Baustelle hinterlegt.");
   const overviewItems = [];
   for (let index = 0; index < overview.length; index += 1) {
     const item = overview[index];
     try {
       const src = await reportPhotoDataUrl(item.photoId, { maxWidth: 1400, maxHeight: 1400, quality: 0.75, mimeType: "image/jpeg" });
-      overviewItems.push({ src, caption: `${item.isCover ? "Titelbild ? " : ""}?bersichtsfoto ${index + 1}${item.caption ? " ? " + item.caption : ""}`, boldCaption: true });
+      overviewItems.push({ src, caption: `${item.isCover ? "Titelbild · " : ""}Übersichtsfoto ${index + 1}${item.caption ? " · " + item.caption : ""}`, boldCaption: true });
     } catch (error) {
-      const message = `?bersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
+      const message = `Übersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
       warnings.push(message);
       logPdfStep("section:overview:image-error", { index: index + 1, photoId: item.photoId, message });
     }
@@ -5862,7 +5862,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   addRect(margin, resultStart, contentWidth, 58, { fill: resultStyle.fill, stroke: resultStyle.stroke, lineWidth: 1.1 });
   addBadge(p.result.resultStatus || "offen", margin + 12, resultStart + 20, resultStyle);
   y = resultStart + 34;
-  addText(resultClause(p.result.resultStatus) || "Ergebnis gem?? Auswahl dokumentiert.", { x: margin + 12, maxWidth: contentWidth - 24, size: 9.5, bold: true, blank: false });
+  addText(resultClause(p.result.resultStatus) || "Ergebnis gemäß Auswahl dokumentiert.", { x: margin + 12, maxWidth: contentWidth - 24, size: 9.5, bold: true, blank: false });
   if (p.result.finalNote) addText(`Schlussbemerkung: ${p.result.finalNote}`, { x: margin + 12, maxWidth: contentWidth - 24, size: 8.8, blank: false });
   y = Math.max(y, resultStart + 66);
 
@@ -5877,16 +5877,28 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "file", title: "Datei", weight: 1.5 }
   ], p.plans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.planName || plan.fileName || "Plan", status: plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.4 });
 
-  addHeading("Auflagen / M?ngel");
+  addHeading("Auflagen / Mängel");
   addTable([
     { key: "nr", title: "Nr.", weight: 0.35, bold: true },
-    { key: "topic", title: "Pr?fpunkt", weight: 1.5, bold: true },
-    { key: "location", title: "Bereich", weight: 1.2 },
+    { key: "topic", title: "Prüfpunkt / Prüfstelle", weight: 1.7, bold: true },
     { key: "status", title: "Status", weight: 0.9 },
-    { key: "note", title: "Bemerkung / Auflage", weight: 2.5 }
-  ], issues.map((issue, index) => ({ nr: String(index + 1), topic: issue.title || issue.checkTitle || "Pr?fstelle", location: issue.location || "-", status: issue.status || "-", note: issue.note || "-" })), { emptyText: "Keine Auflagen / M?ngel dokumentiert.", size: 7.8 });
+    { key: "pin", title: "Pin / Plan", weight: 1.3 },
+    { key: "note", title: "Bemerkung / Auflage", weight: 2.4 }
+  ], issues.map((issue, index) => {
+    const sample = issue.sample || {};
+    const pin = sample.pinId ? p.pins.find((item) => item.id === sample.pinId) : null;
+    const placement = pin ? pinPlacements(pin)[0] : null;
+    const plan = placement?.planId ? p.plans.find((item) => item.id === placement.planId) : null;
+    return {
+      nr: String(index + 1),
+      topic: `${issue.check?.title || "Prüfstelle"}${sample.number ? " · Prüfstelle " + sample.number : ""}${sample.location ? " · " + sample.location : ""}`,
+      status: sample.overlapCheck?.resultStatus || sample.status || "-",
+      pin: pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-",
+      note: sample.note || sample.overlapCheck?.generatedText || "-"
+    };
+  }), { emptyText: "Keine Auflagen / Mängel dokumentiert.", size: 7.8 });
 
-  addHeading("Checkliste und Pr?fstellen");
+  addHeading("Checkliste und Prüfstellen");
   p.checkpoints.forEach((check) => {
     ensure(44);
     const headerY = y;
@@ -5896,27 +5908,27 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     y = headerY + 30;
     const samples = check.samples || [];
     if (!samples.length) {
-      addText("Keine einzelnen Pr?fstellen angelegt.", { size: 8.6, color: "#52606d", x: margin + 10, maxWidth: contentWidth - 20 });
+      addText("Keine einzelnen Prüfstellen angelegt.", { size: 8.6, color: "#52606d", x: margin + 10, maxWidth: contentWidth - 20 });
     }
     samples.forEach((sample) => {
       ensure(58);
       const sampleStart = y;
       addRect(margin + 10, sampleStart, contentWidth - 20, 22, { fill: "#fbfcfd", stroke: "#e2e7ed", lineWidth: 0.6 });
-      addOp({ type: "text", text: `Pr?fstelle ${sample.number || ""}${sample.location ? " - " + sample.location : ""}`, x: margin + 18, y: sampleStart + 14, size: 8.8, font: "F2", color: "#17212b" });
+      addOp({ type: "text", text: `Prüfstelle ${sample.number || ""}${sample.location ? " - " + sample.location : ""}`, x: margin + 18, y: sampleStart + 14, size: 8.8, font: "F2", color: "#17212b" });
       addBadge(sample.status || "offen", pageWidth - margin - 112, sampleStart + 14, statusStyle(sample.status));
       y = sampleStart + 28;
       addKeyValue("Bereich", sample.location || "ohne Angabe", { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
       addKeyValue("Bemerkung", sample.note || "-", { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
       if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
       if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
-      if (sample.overlapCheck?.generatedText) addKeyValue("?bergreifung", sample.overlapCheck.generatedText, { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.0 });
+      if (sample.overlapCheck?.generatedText) addKeyValue("Übergreifung", sample.overlapCheck.generatedText, { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.0 });
       y += 6;
     });
     y += 4;
   });
 
   addHeading("Plananlagen / Planmarkierungen", { pageBreak: true });
-  if (!p.plans.length) addText("Keine Pl?ne hinterlegt.");
+  if (!p.plans.length) addText("Keine Pläne hinterlegt.");
   for (let planIndex = 0; planIndex < p.plans.length; planIndex += 1) {
     const plan = p.plans[planIndex];
     const pagesForPlan = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
@@ -5950,7 +5962,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     for (const item of group.photos) {
       try {
         const src = await reportPhotoDataUrl(item.photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
-        photoItems.push({ src, caption: `${item.label} ? ${item.photo.name || "Foto"}` });
+        photoItems.push({ src, caption: `${item.label} · ${item.photo.name || "Foto"}` });
       } catch (error) {
         const message = `${group.title} / ${item.label} konnte nicht eingebettet werden: ${error?.message || error}`;
         warnings.push(message);
@@ -5962,13 +5974,13 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
 
   addHeading("Schlussformulierung");
   addInfoCard("Abschluss", [
-    ["Pr?fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
+    ["Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
     ...(hasDrawnSignatures(p) ? [] : [["Unterschrift als Text", p.result.signatureText]])
   ], margin, y, contentWidth);
   y += 82;
 
   addHeading("Unterschriften / Kenntnisnahme");
-  addText("Die Unterschrift best?tigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder ?ffentlich-rechtlichen Erkl?rungen.", { size: 8.5, color: "#52606d" });
+  addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
   const signatures = p.signatures || [];
   if (!signatures.length) addText("Keine digitale Unterschrift erfasst.");
   for (const signature of signatures) {
@@ -6141,12 +6153,12 @@ async function shareReportPdf() {
   const fallbackDownload = (message) => {
     addDebug("fallback:download", { message });
     triggerPdfDownload(blob, fileName);
-    alert(message || "Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
+    alert(message || "Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
   };
   try {
     if (!blob || blob.type !== "application/pdf") throw new Error(`Ungültiger PDF-Blob: ${blob?.type || "kein Typ"}`);
     if (typeof File === "undefined") {
-      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
+      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
       return;
     }
     const safeName = sanitizeFileName(fileName || reportFileName(state.current));
@@ -6158,7 +6170,7 @@ async function shareReportPdf() {
     const canShareFiles = hasShare && hasCanShare ? navigator.canShare({ files: [file] }) : false;
     addDebug("share:capabilities", { hasShare, hasCanShare, canShareFiles, fileName: safeName, fileType: file.type, fileSize: file.size });
     if (!canShareFiles) {
-      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
+      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
       return;
     }
     addDebug("share:start");
@@ -6172,7 +6184,7 @@ async function shareReportPdf() {
     }
     addDebug("share:error", { name: error?.name || "Error", message: error?.message || String(error) });
     console.error("PDF teilen fehlgeschlagen", { error, debug });
-    fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
+    fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
   }
 }
 async function saveReportPdfDirectExperimental() {
@@ -6793,7 +6805,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v80",
+    appVersion: "v81",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6816,7 +6828,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v80",
+    appVersion: "v81",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),

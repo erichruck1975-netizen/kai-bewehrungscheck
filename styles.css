@@ -232,6 +232,36 @@ main {
   justify-content: space-between;
 }
 
+
+.report-export-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+  justify-content: stretch;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.report-export-actions > *,
+.report-dialog-toolbar button {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+
+.report-export-actions small,
+.report-dialog-toolbar button small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
 .zoom-actions {
   display: grid;
   grid-template-columns: 56px 1fr 56px 74px 1fr;
@@ -1634,6 +1664,20 @@ body.report-open #resultTab .result-actions {
 }
 
 @media (max-width: 640px) {
+  .report-export-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .report-export-actions > * {
+    width: 100%;
+    min-height: 50px;
+  }
+
+  .report-export-actions #pdfPrintBtn {
+    grid-column: 1 / -1;
+  }
+
   .check-scope-compact {
     grid-template-columns: 1fr;
   }
@@ -1664,6 +1708,7 @@ body.report-open #resultTab .result-actions {
     white-space: nowrap;
   }
 
+  #downloadReportPdfBtn,
   #shareReportBtn,
   #copyWhatsappTextBtn,
   #saveReportHtmlBtn,
@@ -1883,7 +1928,8 @@ dialog button {
     font-size: 13px;
   }
 
-  .zoom-actions {
+  
+.zoom-actions {
     display: flex;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;

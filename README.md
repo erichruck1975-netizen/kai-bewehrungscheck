@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v80`
+- Cache-Version: `kai-bewehrungscheck-v81`
 
 ## Daten und Sicherung
 
@@ -192,3 +192,9 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 - Direkt-PDF wurde inhaltlich und optisch näher an den Druckdialog-Bericht angeglichen.
 - Enthält strukturierte Projekt-/Prüfungsdaten, Wetter, Übersichtsfotos, Ergebnis, Planunterlagen, Auflagen/Mängel, Checkliste, Plananlagen, Fotodokumentation und Unterschriften.
 - PDF teilen verwendet weiterhin dieselbe Direkt-PDF wie PDF herunterladen; Druckdialog, Planviewer und Pins bleiben unverändert.
+
+### v81
+- Direkt-PDF-Hotfix: feste deutsche Sonderzeichen/Umlaute im Direkt-PDF repariert.
+- Auflagen/M?ngel im Direkt-PDF enthalten jetzt Pr?fpunkt, Pr?fstelle, Status, Pin/Plan und Bemerkung verst?ndlicher.
+- Mobile PDF-Aktionsleiste im Ergebnis-/Berichtsbereich l?uft nicht mehr rechts aus dem Bildschirm.
+- Druckdialog, Planviewer und Pin-Darstellung bleiben unver?ndert.
