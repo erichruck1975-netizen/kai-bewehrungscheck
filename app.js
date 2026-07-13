@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v87";
+const APP_VERSION = "v88";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -5855,7 +5855,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const scale = Math.min(maxWidth / info.width, maxHeight / info.height, 1);
     const width = Math.max(1, info.width * scale);
     const height = Math.max(1, info.height * scale);
-    ensure(height + (caption ? 24 : 8));
+    if (options.allowPageBreak !== false) ensure(height + (caption ? 24 : 8));
     const x = options.x ?? margin;
     addOp({ type: "image", imageIndex, x, y, width, height });
     const imageBox = { x, y, width, height };
@@ -5905,6 +5905,30 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       });
       y += rowHeight + 10;
     }
+  };
+  const estimateImageGridFirstRowHeight = async (items, options = {}) => {
+    if (!items.length) return 58;
+    const columns = options.columns || 2;
+    const gap = 10;
+    const cellWidth = (contentWidth - gap * (columns - 1)) / columns;
+    const row = items.slice(0, columns);
+    const heights = [];
+    for (const item of row) {
+      const info = await pdfImageInfo(item.src, item.caption || "Bild");
+      if (!info) {
+        heights.push(42);
+      } else {
+        const frameHeight = options.maxHeight || 150;
+        let imageHeight = Math.min(frameHeight, info.height * Math.min(cellWidth / info.width, frameHeight / info.height, 1));
+        let imageWidth = Math.min(cellWidth, info.width * imageHeight / info.height);
+        if (options.minImageWidth && imageWidth < Math.min(options.minImageWidth, cellWidth)) {
+          const boostedWidth = Math.min(options.minImageWidth, cellWidth);
+          imageHeight = Math.min(frameHeight, info.height * boostedWidth / info.width);
+        }
+        heights.push(imageHeight + 34);
+      }
+    }
+    return Math.max(...heights, 42) + 10;
   };
   const addPinClusters = (box, pins, planId, pageNumber) => {
     if (!box || !pins.length) return;
@@ -5985,9 +6009,13 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       logPdfStep("section:overview:image-error", { index: index + 1, photoId: item.photoId, message });
     }
   }
-  addHeading("Übersichtsfotos Baustelle", { keepWith: overviewItems.length ? 320 : 100 });
+  const overviewGridOptions = { columns: 2, maxHeight: 205, minImageWidth: 150 };
+  const overviewFirstRowHeight = overviewItems.length ? await estimateImageGridFirstRowHeight(overviewItems, overviewGridOptions) : 58;
+  const overviewSectionNeed = 44 + overviewFirstRowHeight;
+  if (y + overviewSectionNeed > pageHeight - bottom) newPage();
+  addHeading("Übersichtsfotos Baustelle", { keepWith: overviewSectionNeed });
   if (!overview.length) addTextCard("Übersichtsfotos Baustelle", "Keine Übersichtsfotos zur Baustelle hinterlegt.", { minHeight: 58 });
-  if (overviewItems.length) await addImageGrid(overviewItems, { columns: 2, maxHeight: 205, minImageWidth: 150 });
+  if (overviewItems.length) await addImageGrid(overviewItems, overviewGridOptions);
 
   ensure(88);
   const resultStart = y;
@@ -6097,22 +6125,28 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const pagesForPlan = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
     if (!pagesForPlan.length) pagesForPlan.push(plan.currentPage || 1);
     for (const pageNumber of pagesForPlan) {
-      if (!firstPlanAppendix || y > pageHeight - bottom - 590) newPage();
+      if (!firstPlanAppendix || y > pageHeight - bottom - 625) newPage();
       firstPlanAppendix = false;
-      addHeading(`Anlage ${planIndex + 1} - Plan ${displayPlanNumber(plan) || plan.fileName || ""} - Seite ${pageNumber}`);
-      addText(plan.planName || plan.fileName || "Plan", { size: 9, color: "#52606d" });
+      ensure(620);
+      const appendixY = y;
+      addRect(margin, appendixY, contentWidth, 29, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.65 });
+      addOp({ type: "text", text: `Anlage ${planIndex + 1} - Plan ${displayPlanNumber(plan) || plan.fileName || ""} - Seite ${pageNumber}`, x: margin + 12, y: appendixY + 18, size: 10.0, font: "F2", color: "#17212b" });
+      y = appendixY + 36;
+      addText(plan.planName || plan.fileName || "Plan", { size: 8.5, color: "#52606d", blank: false });
+      y += 2;
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
       const pinsForPage = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber));
-      const availablePlanHeight = Math.max(455, pageHeight - bottom - y - 82);
-      const box = await addImage(image, "", { maxHeight: Math.min(610, availablePlanHeight), maxWidth: contentWidth - 8, x: margin + 4 });
-      if (box) addRect(box.x - 5, box.y - 5, box.width + 10, box.height + 10, { fill: "", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
+      const tableReserve = pinsForPage.length ? 72 : 34;
+      const availablePlanHeight = Math.max(500, pageHeight - bottom - y - tableReserve);
+      const box = await addImage(image, "", { maxHeight: Math.min(675, availablePlanHeight), maxWidth: contentWidth, x: margin, allowPageBreak: false });
+      if (box) addRect(box.x - 4, box.y - 4, box.width + 8, box.height + 8, { fill: "", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
       addPinClusters(box, pinsForPage, plan.id, pageNumber);
       addTable([
         { key: "pin", title: "Pin", weight: 0.5, bold: true },
         { key: "title", title: "Titel / Bereich", weight: 1.8 },
         { key: "status", title: "Status", weight: 0.9 },
         { key: "note", title: "Bemerkung", weight: 2.4 }
-      ], pinsForPage.map((pin) => ({ pin: pinLabel(pin), title: pin.title || "Pin", status: pin.status || "-", note: pin.note || "-" })), { emptyText: "Keine Pins auf dieser Seite.", size: 7.3, maxLines: 4 });
+      ], pinsForPage.map((pin) => ({ pin: pinLabel(pin), title: pin.title || "Pin", status: pin.status || "-", note: pin.note || "-" })), { emptyText: "Keine Pins auf dieser Seite.", size: 6.9, maxLines: 3 });
     }
   }
 
