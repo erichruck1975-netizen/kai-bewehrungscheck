@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v84";
+const APP_CACHE = "kai-bewehrungscheck-v85";
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=83`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=83`;
 const STABLE_TAG = "v52-stable-before-v53";
@@ -5624,6 +5624,18 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const margin = 42;
   const bottom = 56;
   const contentWidth = pageWidth - margin * 2;
+  const pdfTheme = {
+    cardPadding: 10,
+    cardGap: 12,
+    border: "#d8dee6",
+    borderStrong: "#c4ced8",
+    headerFill: "#f1f5f9",
+    cardFill: "#ffffff",
+    mutedFill: "#fbfcfd",
+    text: "#1f2933",
+    muted: "#52606d",
+    accent: "#1f4e79"
+  };
   const pages = [];
   const images = [];
   let page;
@@ -5736,27 +5748,61 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const startPage = page;
     const savedY = y;
     const opStart = page.ops.length;
-    y = cardY + 25;
-    rows.forEach((row, index) => addKeyValue(row[0], row[1], { x: x + 10, width: width - 20, keyWidth: Math.min(116, (width - 20) * 0.42), rowFill: index % 2 ? "" : "#fafbfc" }));
-    const endY = y + 8;
+    y = cardY + 31;
+    rows.forEach((row, index) => addKeyValue(row[0], row[1], { x: x + 12, width: width - 24, keyWidth: Math.min(118, (width - 24) * 0.42), rowFill: index % 2 ? "" : pdfTheme.mutedFill }));
+    const endY = y + 10;
     if (startPage === page) {
       page.ops.splice(opStart, 0,
-        { type: "rect", x, y: cardY, width, height: endY - cardY, fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 },
-        { type: "rect", x, y: cardY, width, height: 22, fill: "#f3f6f9", stroke: "#d8dee6", lineWidth: 0.8 },
-        { type: "text", text: title, x: x + 10, y: cardY + 14, size: 8.8, font: "F2", color: "#4b5563" }
+        { type: "rect", x, y: cardY, width, height: endY - cardY, fill: pdfTheme.cardFill, stroke: pdfTheme.borderStrong, lineWidth: 0.9 },
+        { type: "rect", x, y: cardY, width, height: 26, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.8 },
+        { type: "line", x1: x, y1: cardY, x2: x, y2: endY, color: pdfTheme.accent, width: 2.1 },
+        { type: "text", text: title, x: x + 12, y: cardY + 17, size: 9.2, font: "F2", color: "#26323f" }
       );
     }
     y = savedY;
     return endY;
   };
   const addInfoGrid = (leftTitle, leftRows, rightTitle, rightRows) => {
-    ensure(120);
+    ensure(132);
     const startY = y;
     const gap = 14;
     const width = (contentWidth - gap) / 2;
     const leftEnd = addInfoCard(leftTitle, leftRows, margin, startY, width);
     const rightEnd = addInfoCard(rightTitle, rightRows, margin + width + gap, startY, width);
-    y = Math.max(leftEnd, rightEnd) + 8;
+    y = Math.max(leftEnd, rightEnd) + pdfTheme.cardGap;
+  };
+  const addCardShell = (title, startY, endY, options = {}) => {
+    const x = options.x || margin;
+    const width = options.width || contentWidth;
+    const accent = options.accent || pdfTheme.accent;
+    page.ops.splice(options.opStart ?? page.ops.length, 0,
+      { type: "rect", x, y: startY, width, height: endY - startY, fill: options.fill || pdfTheme.cardFill, stroke: options.stroke || pdfTheme.borderStrong, lineWidth: options.lineWidth ?? 0.85 },
+      { type: "rect", x, y: startY, width, height: 27, fill: options.headerFill || pdfTheme.headerFill, stroke: options.stroke || pdfTheme.borderStrong, lineWidth: 0.7 },
+      { type: "line", x1: x, y1: startY, x2: x, y2: endY, color: accent, width: 2.2 },
+      { type: "text", text: title, x: x + 12, y: startY + 17, size: options.titleSize || 9.5, font: "F2", color: options.titleColor || "#26323f" }
+    );
+  };
+  const addTableCard = (title, columns, rows, options = {}) => {
+    ensure(options.minHeight || 70);
+    const startPage = page;
+    const startY = y;
+    const opStart = page.ops.length;
+    y = startY + 36;
+    addTable(columns, rows, { ...options, x: margin + 10, width: contentWidth - 20 });
+    const endY = y + 2;
+    if (startPage === page) addCardShell(title, startY, endY, { opStart, accent: options.accent });
+    y = endY + pdfTheme.cardGap;
+  };
+  const addTextCard = (title, textValue, options = {}) => {
+    ensure(options.minHeight || 58);
+    const startPage = page;
+    const startY = y;
+    const opStart = page.ops.length;
+    y = startY + 36;
+    addText(textValue, { x: margin + 12, maxWidth: contentWidth - 24, size: options.size || 9, color: options.color || pdfTheme.muted, blank: false });
+    const endY = y + 10;
+    if (startPage === page) addCardShell(title, startY, endY, { opStart, accent: options.accent, fill: options.fill });
+    y = endY + pdfTheme.cardGap;
   };
   const addTable = (columns, rows, options = {}) => {
     if (!rows.length && !options.emptyText) return;
@@ -5919,14 +5965,13 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     ["Protokoll", p.id.slice(-8).toUpperCase()]
   ]);
 
-  addHeading("Wetterdaten");
-  addTable([
+  addTableCard("Wetterdaten", [
     { key: "condition", title: "Wetter", weight: 1.4 },
     { key: "temperature", title: "Temperatur", weight: 1 },
     { key: "wind", title: "Wind", weight: 1 },
     { key: "precipitation", title: "Niederschlag", weight: 1 },
     { key: "humidity", title: "Luftfeuchte", weight: 1 }
-  ], [{ condition: p.weather.condition || "-", temperature: p.weather.temperature || "-", wind: p.weather.wind || "-", precipitation: p.weather.precipitation || "-", humidity: p.weather.humidity || "-" }], { size: 8.2 });
+  ], [{ condition: p.weather.condition || "-", temperature: p.weather.temperature || "-", wind: p.weather.wind || "-", precipitation: p.weather.precipitation || "-", humidity: p.weather.humidity || "-" }], { size: 8.2, minHeight: 74 });
 
   addHeading("Übersichtsfotos Baustelle");
   logPdfStep("section:overview:start", { count: normalizeOverviewPhotos(p.overviewPhotos || [], p.id).length });
@@ -5947,19 +5992,19 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   }
   if (overviewItems.length) await addImageGrid(overviewItems, { columns: 2, maxHeight: 185, minImageWidth: 120 });
 
-  addHeading("Ergebnis");
-  ensure(78);
+  ensure(88);
   const resultStart = y;
   const resultStyle = statusStyle(p.result.resultStatus);
-  addRect(margin, resultStart, contentWidth, 58, { fill: resultStyle.fill, stroke: resultStyle.stroke, lineWidth: 1.1 });
-  addBadge(p.result.resultStatus || "offen", margin + 12, resultStart + 20, resultStyle);
-  y = resultStart + 34;
-  addText(resultClause(p.result.resultStatus) || "Ergebnis gemäß Auswahl dokumentiert.", { x: margin + 12, maxWidth: contentWidth - 24, size: 9.5, bold: true, blank: false });
-  if (p.result.finalNote) addText(`Schlussbemerkung: ${p.result.finalNote}`, { x: margin + 12, maxWidth: contentWidth - 24, size: 8.8, blank: false });
-  y = Math.max(y, resultStart + 66);
+  const resultOpStart = page.ops.length;
+  y = resultStart + 37;
+  addBadge(p.result.resultStatus || "offen", margin + 14, resultStart + 18, resultStyle);
+  addText(resultClause(p.result.resultStatus) || "Ergebnis gemäß Auswahl dokumentiert.", { x: margin + 14, maxWidth: contentWidth - 28, size: 9.6, bold: true, blank: false });
+  if (p.result.finalNote) addText(`Schlussbemerkung: ${p.result.finalNote}`, { x: margin + 14, maxWidth: contentWidth - 28, size: 8.8, blank: false });
+  const resultEnd = Math.max(y + 12, resultStart + 78);
+  addCardShell("Ergebnis", resultStart, resultEnd, { opStart: resultOpStart, accent: resultStyle.color || "#12663e", fill: resultStyle.fill, headerFill: "#f0faf4", stroke: resultStyle.stroke });
+  y = resultEnd + pdfTheme.cardGap;
 
-  addHeading("Verwendete Planunterlagen");
-  addTable([
+  addTableCard("Verwendete Planunterlagen", [
     { key: "number", title: "Plan-Nr.", weight: 0.9, bold: true },
     { key: "name", title: "Planbezeichnung", weight: 2.2 },
     { key: "status", title: "Status", weight: 0.9 },
@@ -5967,56 +6012,75 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "index", title: "Index", weight: 0.7 },
     { key: "pages", title: "Seite(n)", weight: 0.7 },
     { key: "file", title: "Datei", weight: 1.5 }
-  ], p.plans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.planName || plan.fileName || "Plan", status: plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.4 });
+  ], p.plans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.planName || plan.fileName || "Plan", status: plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.3, minHeight: 86 });
 
   addHeading("Auflagen / Mängel");
-  addTable([
-    { key: "nr", title: "Nr.", weight: 0.35, bold: true },
-    { key: "topic", title: "Prüfpunkt / Prüfstelle", weight: 1.7, bold: true },
-    { key: "status", title: "Status", weight: 0.9 },
-    { key: "pin", title: "Pin / Plan", weight: 1.3 },
-    { key: "note", title: "Bemerkung / Auflage", weight: 2.4 }
-  ], issues.map((issue, index) => {
-    const sample = issue.sample || {};
-    const pin = sample.pinId ? p.pins.find((item) => item.id === sample.pinId) : null;
-    const placement = pin ? pinPlacements(pin)[0] : null;
-    const plan = placement?.planId ? p.plans.find((item) => item.id === placement.planId) : null;
-    return {
-      nr: String(index + 1),
-      topic: `${issue.check?.title || "Prüfstelle"}${sample.number ? " · Prüfstelle " + sample.number : ""}${sample.location ? " · " + sample.location : ""}`,
-      status: sample.overlapCheck?.resultStatus || sample.status || "-",
-      pin: pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-",
-      note: sample.note || sample.overlapCheck?.generatedText || "-"
-    };
-  }), { emptyText: "Keine Auflagen / Mängel dokumentiert.", size: 7.8 });
+  if (!issues.length) {
+    addTextCard("Auflagen / Mängel", "Keine Auflagen / Mängel dokumentiert.", { minHeight: 58 });
+  } else {
+    issues.forEach((issue, index) => {
+      const sample = issue.sample || {};
+      const pin = sample.pinId ? p.pins.find((item) => item.id === sample.pinId) : null;
+      const placement = pin ? pinPlacements(pin)[0] : null;
+      const plan = placement?.planId ? p.plans.find((item) => item.id === placement.planId) : null;
+      const status = sample.overlapCheck?.resultStatus || sample.status || "-";
+      const style = statusStyle(status);
+      ensure(82);
+      const issueY = y;
+      const opStart = page.ops.length;
+      y = issueY + 32;
+      addText(sample.note || sample.overlapCheck?.generatedText || "-", { x: margin + 14, maxWidth: contentWidth - 28, size: 8.5, color: pdfTheme.text, blank: false });
+      const pinText = pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-";
+      addText(`Pin / Plan: ${pinText}`, { x: margin + 14, maxWidth: contentWidth - 28, size: 8.0, color: pdfTheme.muted, blank: false });
+      const issueEnd = Math.max(y + 10, issueY + 72);
+      page.ops.splice(opStart, 0,
+        { type: "rect", x: margin, y: issueY, width: contentWidth, height: issueEnd - issueY, fill: "#ffffff", stroke: style.stroke, lineWidth: 0.8 },
+        { type: "rect", x: margin, y: issueY, width: contentWidth, height: 26, fill: style.fill, stroke: style.stroke, lineWidth: 0.6 },
+        { type: "line", x1: margin, y1: issueY, x2: margin, y2: issueEnd, color: style.color, width: 2.2 },
+        { type: "text", text: `${index + 1}. ${issue.check?.title || "Prüfstelle"}${sample.number ? " · Prüfstelle " + sample.number : ""}${sample.location ? " · " + sample.location : ""}`, x: margin + 12, y: issueY + 16, size: 8.9, font: "F2", color: "#17212b" }
+      );
+      addBadge(status, pageWidth - margin - 112, issueY + 16, style);
+      y = issueEnd + 8;
+    });
+  }
 
   addHeading("Checkliste und Prüfstellen");
   p.checkpoints.forEach((check) => {
-    ensure(44);
-    const headerY = y;
-    addRect(margin, headerY, contentWidth, 24, { fill: "#f7f9fb", stroke: "#d8dee6", lineWidth: 0.8 });
-    addOp({ type: "text", text: check.title, x: margin + 10, y: headerY + 15, size: 10, font: "F2", color: "#17212b" });
-    addBadge(check.status || "offen", pageWidth - margin - 105, headerY + 15, statusStyle(check.status));
-    y = headerY + 30;
     const samples = check.samples || [];
+    ensure(Math.min(190, 48 + samples.length * 58));
+    const checkPage = page;
+    const checkStart = y;
+    const opStart = page.ops.length;
+    const style = statusStyle(check.status);
+    y = checkStart + 32;
     if (!samples.length) {
-      addText("Keine einzelnen Prüfstellen angelegt.", { size: 8.6, color: "#52606d", x: margin + 10, maxWidth: contentWidth - 20 });
+      addText("Keine einzelnen Prüfstellen angelegt.", { size: 8.4, color: pdfTheme.muted, x: margin + 14, maxWidth: contentWidth - 28, blank: false });
     }
     samples.forEach((sample) => {
       ensure(58);
       const sampleStart = y;
-      addRect(margin + 10, sampleStart, contentWidth - 20, 22, { fill: "#fbfcfd", stroke: "#e2e7ed", lineWidth: 0.6 });
-      addOp({ type: "text", text: `Prüfstelle ${sample.number || ""}${sample.location ? " - " + sample.location : ""}`, x: margin + 18, y: sampleStart + 14, size: 8.8, font: "F2", color: "#17212b" });
-      addBadge(sample.status || "offen", pageWidth - margin - 112, sampleStart + 14, statusStyle(sample.status));
-      y = sampleStart + 28;
-      addKeyValue("Bereich", sample.location || "ohne Angabe", { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
-      addKeyValue("Bemerkung", sample.note || "-", { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
-      if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
-      if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
-      if (sample.overlapCheck?.generatedText) addKeyValue("Übergreifung", sample.overlapCheck.generatedText, { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.0 });
-      y += 6;
+      addRect(margin + 12, sampleStart, contentWidth - 24, 24, { fill: "#fbfcfd", stroke: "#e2e7ed", lineWidth: 0.6 });
+      addOp({ type: "text", text: `Prüfstelle ${sample.number || ""}${sample.location ? " - " + sample.location : ""}`, x: margin + 22, y: sampleStart + 15, size: 8.7, font: "F2", color: "#17212b" });
+      addBadge(sample.status || "offen", pageWidth - margin - 116, sampleStart + 15, statusStyle(sample.status));
+      y = sampleStart + 30;
+      addKeyValue("Bereich", sample.location || "ohne Angabe", { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1, rowFill: "#ffffff" });
+      addKeyValue("Bemerkung", sample.note || "-", { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1 });
+      if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1, rowFill: "#ffffff" });
+      if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1 });
+      if (sample.overlapCheck?.generatedText) addKeyValue("Übergreifung", sample.overlapCheck.generatedText, { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 7.9 });
+      y += 7;
     });
-    y += 4;
+    const checkEnd = y + 8;
+    if (checkPage === page) {
+      page.ops.splice(opStart, 0,
+        { type: "rect", x: margin, y: checkStart, width: contentWidth, height: checkEnd - checkStart, fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 },
+        { type: "rect", x: margin, y: checkStart, width: contentWidth, height: 27, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.7 },
+        { type: "line", x1: margin, y1: checkStart, x2: margin, y2: checkEnd, color: style.color || pdfTheme.accent, width: 2.2 },
+        { type: "text", text: check.title, x: margin + 12, y: checkStart + 17, size: 9.4, font: "F2", color: "#17212b" }
+      );
+      addBadge(check.status || "offen", pageWidth - margin - 110, checkStart + 17, style);
+    }
+    y = checkEnd + 8;
   });
 
   addHeading("Plananlagen / Planmarkierungen", { pageBreak: true });
@@ -6033,7 +6097,8 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       addText(plan.planName || plan.fileName || "Plan", { size: 9, color: "#52606d" });
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
       const pinsForPage = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber));
-      const box = await addImage(image, "", { maxHeight: 445 });
+      const box = await addImage(image, "", { maxHeight: 430, maxWidth: contentWidth - 24, x: margin + 12 });
+      if (box) addRect(box.x - 6, box.y - 6, box.width + 12, box.height + 12, { fill: "", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
       addPinClusters(box, pinsForPage, plan.id, pageNumber);
       addTable([
         { key: "pin", title: "Pin", weight: 0.5, bold: true },
@@ -6074,11 +6139,12 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   }
 
   addHeading("Schlussformulierung");
-  addInfoCard("Abschluss", [
+  const closingRows = [
     ["Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
     ...(hasDrawnSignatures(p) ? [] : [["Unterschrift als Text", p.result.signatureText]])
-  ], margin, y, contentWidth);
-  y += 82;
+  ];
+  const closingEnd = addInfoCard("Abschluss", closingRows, margin, y, contentWidth);
+  y = closingEnd + pdfTheme.cardGap;
 
   addHeading("Unterschriften / Kenntnisnahme");
   addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
@@ -6164,6 +6230,16 @@ function buildPdfBlobFromModel(model) {
   const pageHeight = 841.89;
   const lineFor = (op) => {
     if (op.type === "text") return `BT\n/${op.font || "F1"} ${op.size || 10} Tf\n${pdfRgb(op.color)} rg\n1 0 0 1 ${op.x.toFixed(2)} ${(pageHeight - op.y).toFixed(2)} Tm\n${pdfHexText(op.text)} Tj\nET\n`;
+    if (op.type === "rect") {
+      const rectY = pageHeight - op.y - op.height;
+      const width = op.lineWidth ?? 0.7;
+      const hasFill = !!op.fill;
+      const hasStroke = !!op.stroke;
+      const fill = hasFill ? `${pdfRgb(op.fill)} rg\n` : "";
+      const stroke = hasStroke ? `${pdfRgb(op.stroke)} RG\n${width} w\n` : "";
+      const mode = hasFill && hasStroke ? "B" : hasFill ? "f" : "S";
+      return `q\n${fill}${stroke}${op.x.toFixed(2)} ${rectY.toFixed(2)} ${op.width.toFixed(2)} ${op.height.toFixed(2)} re ${mode}\nQ\n`;
+    }
     if (op.type === "line") return `q\n${pdfRgb(op.color)} RG\n${op.width || 0.8} w\n${op.x1.toFixed(2)} ${(pageHeight - op.y1).toFixed(2)} m ${op.x2.toFixed(2)} ${(pageHeight - op.y2).toFixed(2)} l S\nQ\n`;
     if (op.type === "image") return `q\n${op.width.toFixed(2)} 0 0 ${op.height.toFixed(2)} ${op.x.toFixed(2)} ${(pageHeight - op.y - op.height).toFixed(2)} cm\n/${imageName(op.imageIndex)} Do\nQ\n`;
     if (op.type === "pin") {
@@ -6929,7 +7005,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v84",
+    appVersion: "v85",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6952,7 +7028,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v84",
+    appVersion: "v85",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
