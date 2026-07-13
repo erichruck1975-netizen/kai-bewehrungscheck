@@ -1,4 +1,4 @@
-﻿# Kai BewehrungsCheck
+# Kai BewehrungsCheck
 
 Mobile-first PWA für Bewehrungsabnahmen auf der Baustelle.
 
@@ -154,11 +154,15 @@ PDF konnte nicht gerendert werden. Bitte Planseite als JPG/PNG hochladen.
 
 Empfohlener PDF-Export:
 
-1. `PDF-Vorschau` öffnen.
-2. Druckdialog öffnen.
-3. Ziel `Als PDF speichern` wählen.
+1. `PDF speichern` wählen.
+2. Die App öffnet den offiziellen A4-Bericht und den Druckdialog.
+3. Im Druckdialog Ziel `Als PDF speichern` wählen.
+
+Alternativ kann der Bericht vorher über `A4-Vorschau` geprüft werden.
 
 Der Browserdruck ist der offizielle PDF-Weg, weil er das A4-Layout der Vorschau zuverlässig abbildet.
+
+Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg.
 
 ## Fotoanalyse / Stäbe zählen
 
@@ -195,24 +199,3 @@ http://localhost:4173/index.html
 ```
 
 Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll die App als gehostete HTTPS-PWA auf dem Handy installiert werden.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
