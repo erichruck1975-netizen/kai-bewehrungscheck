@@ -76,6 +76,21 @@ button {
   white-space: nowrap;
 }
 
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  background: rgba(255,255,255,.14);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: 2px;
+}
+
 .eyebrow {
   margin: 0 0 2px;
   color: #d6dde5;

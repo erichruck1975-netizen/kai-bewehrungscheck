@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v85`
+- Cache-Version: `kai-bewehrungscheck-v86`
 
 ## Daten und Sicherung
 
@@ -202,6 +202,10 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 ### v82
 - Stammdatenfeld beim Prüfingenieur sichtbar von Büro auf Sachbearbeiter umbenannt.
 - Interne Datenfelder und Backup/Restore bleiben unver?ndert.
+
+### v86
+- Direkt-PDF Layout-Feinschliff: interne Bezeichnung entfernt, Orphan-Überschriften reduziert, Cards neutraler/ruhiger, Plananlagen größer und App-Version sichtbar im Header.
+- Druckdialog, Pins und Planviewer bleiben unverändert.
 
 ### v85
 - Direkt-PDF mit echten Karten/Boxen: Rechteck-Rendering im Direkt-PDF aktiviert und zentrale Card-Komponenten für Projekt, Wetter, Ergebnis, Planunterlagen, Auflagen, Checkpunkte, Fotodokumentation und Unterschriften gestärkt.
