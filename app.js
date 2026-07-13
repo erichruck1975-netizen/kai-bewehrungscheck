@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v93";
+const APP_VERSION = "v94";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -146,6 +146,7 @@ const state = {
   current: null,
   selectedPlanId: "",
   selectedPinId: "",
+  lastPdfFileShareDebug: null,
   checkScopeOnlyActive: false,
   signatureEditId: "",
   photoTarget: null,
@@ -5268,11 +5269,12 @@ function applyPrintPageMetadata(doc) {
 }
 async function printReportA4() {
   const parts = state.reportView.parts || await buildReportParts();
+  if (parts?.title) document.title = parts.title;
   const frame = $("#reportPrintFrame") || document.createElement("iframe");
   if (!frame.id) {
     frame.id = "reportPrintFrame";
     frame.className = "report-print-frame";
-    frame.title = "Bericht Druckansicht";
+    frame.title = parts.title || "Bericht Druckansicht";
     document.body.appendChild(frame);
   }
   frame.srcdoc = reportPrintDocumentHtml(parts);
@@ -5305,6 +5307,13 @@ async function printReportA4() {
 }
 async function openReportWindow({ print = false, saveHint = false } = {}) {
   return openReportDialog({ printHint: print || saveHint });
+}
+
+async function savePdfFromA4Report() {
+  await openReportDialog({ printHint: true });
+  setReportPreviewMode("a4");
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await printReportA4();
 }
 
 async function openReportDialog({ printHint = false } = {}) {
@@ -5431,16 +5440,41 @@ async function shareSavedPdfFile(file) {
     alert("Bitte eine PDF-Datei auswählen.");
     return;
   }
+  const debug = {
+    fileName: file.name || "",
+    fileType: file.type || "",
+    fileSize: file.size || 0,
+    hasNavigatorShare: !!navigator.share,
+    hasNavigatorCanShare: !!navigator.canShare,
+    canShareResult: null,
+    errorName: "",
+    errorMessage: ""
+  };
+  state.lastPdfFileShareDebug = debug;
+  if (!navigator.share) {
+    debug.errorName = "ShareUnavailable";
+    debug.errorMessage = "navigator.share fehlt";
+    alert("Direktes Teilen der PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF aus dem Dateimanager teilen.");
+    return;
+  }
+  const shareData = { title: reportShareTitle(), text: buildReportShareText({ compact: true }), files: [file] };
   try {
-    if (typeof File === "undefined" || !navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) {
-      alert("Dateiteilen wird auf diesem Gerät nicht unterstützt. Bitte die PDF direkt aus dem Dateimanager teilen.");
-      return;
+    if (navigator.canShare) {
+      try {
+        debug.canShareResult = navigator.canShare(shareData);
+      } catch (canShareError) {
+        debug.canShareResult = false;
+        debug.errorName = canShareError?.name || "CanShareError";
+        debug.errorMessage = canShareError?.message || String(canShareError || "");
+      }
     }
-    await navigator.share({ title: reportShareTitle(), text: buildReportShareText({ compact: true }), files: [file] });
+    await navigator.share(shareData);
   } catch (error) {
     if (error?.name === "AbortError") return;
-    console.error("Gespeicherte PDF konnte nicht geteilt werden", error);
-    alert("Dateiteilen wird auf diesem Gerät nicht unterstützt. Bitte die PDF direkt aus dem Dateimanager teilen.");
+    debug.errorName = error?.name || "ShareError";
+    debug.errorMessage = error?.message || String(error || "");
+    console.error("Gespeicherte PDF konnte nicht geteilt werden", { error, debug });
+    alert("Direktes Teilen der PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF aus dem Dateimanager teilen.");
   }
 }
 
@@ -7815,7 +7849,7 @@ function bindEvents() {
     const deleteSig = event.target.closest("[data-delete-signature]");
     if (deleteSig && confirm("Diese Unterschrift wirklich löschen?")) deleteSignature(deleteSig.dataset.deleteSignature);
     const pdfSave = event.target.closest("#pdfSaveBtn");
-    if (pdfSave) printReportA4();
+    if (pdfSave) savePdfFromA4Report();
     const pdfShare = event.target.closest("#pdfShareBtn");
     if (pdfShare) triggerSavedPdfSharePicker();
     const copyReportTextMain = event.target.closest("#copyReportTextMainBtn");
@@ -7940,14 +7974,14 @@ function bindEvents() {
   $("#reportDialog").addEventListener("close", () => document.body.classList.remove("report-open"));
   $("#reportReadModeBtn").addEventListener("click", () => setReportPreviewMode("read"));
   $("#reportA4ModeBtn").addEventListener("click", () => setReportPreviewMode("a4"));
-  $("#downloadReportPdfBtn").addEventListener("click", printReportA4);
+  $("#downloadReportPdfBtn").addEventListener("click", savePdfFromA4Report);
   $("#shareReportBtn").addEventListener("click", triggerSavedPdfSharePicker);
   $("#copyWhatsappTextBtn").addEventListener("click", shareReportText);
   $("#saveReportHtmlBtn").addEventListener("click", saveReportHtml);
   $("#savedPdfShareInput")?.addEventListener("change", (event) => shareSavedPdfFile(event.target.files?.[0]));
   $("#printReportBtn").addEventListener("click", () => {
     if (typeof window.print === "function") {
-      printReportA4();
+      savePdfFromA4Report();
     } else {
       alert("Bitte über Browser-Menü Drucken / Als PDF speichern verwenden.");
     }
@@ -8654,9 +8688,9 @@ function normalizeResultPdfActions() {
     if (className) button.className = className;
     return button;
   };
-  setButton("#pdfSaveBtn", "PDF speichern<br><small>Druckdialog · Als PDF speichern</small>", "primary-btn");
+  setButton("#pdfSaveBtn", "PDF speichern<br><small>Druckdialog · aus A4-Bericht</small>", "primary-btn");
   setButton("#pdfShareBtn", "Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small>", "secondary-btn");
-  setButton("#downloadReportPdfBtn", "PDF speichern<br><small>Druckdialog · Als PDF speichern</small>", "primary-btn");
+  setButton("#downloadReportPdfBtn", "PDF speichern<br><small>Druckdialog · aus A4-Bericht</small>", "primary-btn");
   setButton("#shareReportBtn", "Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small>", "secondary-btn");
   setButton("#copyWhatsappTextBtn", "Berichtstext teilen", "secondary-btn");
   const printButton = document.querySelector("#pdfPrintBtn");

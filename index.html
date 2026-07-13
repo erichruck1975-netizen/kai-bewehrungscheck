@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BewehrungsCheck</title>
-  <link rel="manifest" href="manifest.webmanifest?v=93">
-  <link rel="stylesheet" href="styles.css?v=93">
+  <link rel="manifest" href="manifest.webmanifest?v=94">
+  <link rel="stylesheet" href="styles.css?v=94">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BewehrungsCheck <span class="version-badge" data-app-version>v93</span></h1>
+        <h1>Kai BewehrungsCheck <span class="version-badge" data-app-version>v94</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -74,7 +74,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v93</p>
+              <p id="appVersionInfo" class="muted">Version: v94</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -282,14 +282,14 @@
               </section>
               <p class="muted report-workflow-hint">Der offizielle PDF-Bericht wird über den Druckdialog gespeichert. Bitte dort als Ziel „Als PDF speichern“ wählen. Anschließend kann die gespeicherte PDF über „Gespeicherte PDF teilen“ weitergegeben werden.</p>
               <div class="result-actions report-export-actions">
-                <button class="primary-btn" id="pdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · Als PDF speichern</small></button>
+                <button class="primary-btn" id="pdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · aus A4-Bericht</small></button>
                 <button class="secondary-btn" id="pdfShareBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small></button>
                 <button class="secondary-btn" id="copyReportTextMainBtn" type="button">Berichtstext teilen<br><small>Kurztext für WhatsApp/Mail</small></button>
               </div>
               <details class="report-more-options">
                 <summary>Weitere Optionen</summary>
                 <div class="result-actions report-secondary-actions">
-                  <button class="secondary-btn" id="pdfPreviewBtn" type="button">A4-Vorschau</button>
+                  <button class="secondary-btn" id="pdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button>
                   <button class="secondary-btn" id="exportJsonBtn" type="button">JSON exportieren</button>
                 </div>
               </details>
@@ -358,7 +358,7 @@
         <strong>PDF-/Berichtsvorschau</strong>
         <button class="small-btn" id="reportReadModeBtn" type="button">Lesemodus</button>
         <button class="small-btn" id="reportA4ModeBtn" type="button">A4-Ansicht</button>
-        <button class="primary-btn" id="downloadReportPdfBtn" type="button">PDF speichern<br><small>Druckdialog · Als PDF speichern</small></button>
+        <button class="primary-btn" id="downloadReportPdfBtn" type="button">PDF speichern<br><small>Druckdialog · aus A4-Bericht</small></button>
         <button class="secondary-btn" id="shareReportBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small></button>
         <button class="secondary-btn" id="copyWhatsappTextBtn" type="button">Berichtstext teilen</button>
 
@@ -535,7 +535,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=85"></script>
-  <script src="app.js?v=93"></script>
+  <script src="app.js?v=94"></script>
 </body>
 </html>
 
