@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v91";
+const APP_VERSION = "v92";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -5663,6 +5663,7 @@ async function pdfImageInfo(dataUrl, context = "Bild") {
 
 function collectReportPhotoGroups(p) {
   const groups = [];
+  const usedPhotoIds = new Set();
   p.plans.forEach((plan) => {
     p.pins
       .filter((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id))
@@ -5674,7 +5675,10 @@ function collectReportPhotoGroups(p) {
           group = { key: `pin:${pin.id}`, title: `${pinLabel(pin)} - ${pin.title || "Pin"}`, status: pin.status, note: pin.note, meta: `Plan ${displayPlanNumber(plan) || plan.fileName} / Seite ${placement?.pageNumber || pin.pageNumber || 1}`, photos: [] };
           groups.push(group);
         }
-        group.photos.push({ label: `Foto ${index + 1}`, photo });
+        if (!usedPhotoIds.has(photo.id)) {
+          usedPhotoIds.add(photo.id);
+          group.photos.push({ label: `Foto ${group.photos.length + 1}`, photo });
+        }
       }));
   });
   p.checkpoints.forEach((check) => {
@@ -5685,7 +5689,10 @@ function collectReportPhotoGroups(p) {
           group = { key: `sample:${sample.id}`, title: `${check.title} - Prüfstelle ${sample.number}${sample.location ? " - " + sample.location : ""}`, status: sample.status, note: sample.note, meta: sample.pinId ? pinName(sample.pinId) : "", photos: [] };
           groups.push(group);
         }
-        group.photos.push({ label: `Foto ${index + 1}`, photo });
+        if (!usedPhotoIds.has(photo.id)) {
+          usedPhotoIds.add(photo.id);
+          group.photos.push({ label: `Foto ${group.photos.length + 1}`, photo });
+        }
       });
     });
   });
@@ -5695,9 +5702,12 @@ function collectReportPhotoGroups(p) {
       group = { key: `check:${check.id}`, title: check.title, status: check.status, note: check.note, meta: check.pinId ? pinName(check.pinId) : "", photos: [] };
       groups.push(group);
     }
-    group.photos.push({ label: `Foto ${index + 1}`, photo });
+    if (!usedPhotoIds.has(photo.id)) {
+      usedPhotoIds.add(photo.id);
+      group.photos.push({ label: `Foto ${group.photos.length + 1}`, photo });
+    }
   }));
-  return groups;
+  return groups.filter((group) => group.photos.length);
 }
 
 async function buildStructuredReportPdfModel(parts, logStep = null) {
@@ -5840,12 +5850,21 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const keyWidth = options.keyWidth || Math.min(142, width * 0.36);
     const size = options.size || 9.0;
     const valueText = value || "-";
-    const valueLines = splitLines(valueText, width - keyWidth - 10, size);
-    const height = Math.max(18, valueLines.length * lineHeight(size) + 7);
+    const availableValueWidth = Math.max(40, width - keyWidth - 10);
+    const shouldStack = !!options.stack || String(valueText).length > 58 || splitLines(valueText, availableValueWidth, size).length > 2;
+    const valueMaxWidth = shouldStack ? width - 16 : availableValueWidth;
+    const valueLines = splitLines(valueText, valueMaxWidth, size);
+    const labelHeight = lineHeight(size);
+    const height = shouldStack
+      ? Math.max(28, labelHeight + Math.max(1, valueLines.length) * lineHeight(size) + 10)
+      : Math.max(18, valueLines.length * lineHeight(size) + 7);
     ensure(height + 2);
     if (options.rowFill) addRect(x, y - 2, width, height, { fill: options.rowFill, stroke: "#edf0f3", lineWidth: 0.4 });
-    addOp({ type: "text", text: `${key}:`, x, y: y + 11, size, font: "F2", color: "#52606d" });
-    valueLines.length ? valueLines.forEach((line, index) => addOp({ type: "text", text: line, x: x + keyWidth, y: y + 11 + index * lineHeight(size), size, font: "F1", color: "#1f2933" })) : addOp({ type: "text", text: "-", x: x + keyWidth, y: y + 11, size, font: "F1", color: "#1f2933" });
+    addOp({ type: "text", text: `${key}:`, x: x + (shouldStack ? 6 : 0), y: y + 11, size, font: "F2", color: "#52606d" });
+    const valueX = shouldStack ? x + 6 : x + keyWidth;
+    const valueY = shouldStack ? y + 11 + labelHeight : y + 11;
+    const lines = valueLines.length ? valueLines : ["-"];
+    lines.forEach((line, index) => addOp({ type: "text", text: line, x: valueX, y: valueY + index * lineHeight(size), size, font: "F1", color: "#1f2933" }));
     y += height;
   };
   const addInfoCard = (title, rows, x, cardY, width) => {
@@ -5853,7 +5872,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const savedY = y;
     const opStart = page.ops.length;
     y = cardY + 34;
-    rows.forEach((row, index) => addKeyValue(row[0], row[1], { x: x + 14, width: width - 28, keyWidth: width > 360 ? 156 : Math.min(112, (width - 28) * 0.40), rowFill: index % 2 ? "" : pdfTheme.mutedFill }));
+    rows.forEach((row, index) => addKeyValue(row[0], row[1], { x: x + 14, width: width - 28, keyWidth: width > 360 ? 156 : Math.min(112, (width - 28) * 0.40), stack: true, rowFill: index % 2 ? "" : pdfTheme.mutedFill }));
     const endY = y + 10;
     if (startPage === page) {
       page.ops.splice(opStart, 0,
@@ -6143,7 +6162,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "file", title: "Datei", weight: 1.5 }
   ], p.plans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.planName || plan.fileName || "Plan", status: plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.3, minHeight: 86 });
 
-  addHeading("Auflagen / Mängel", { keepWith: issues.length ? 165 : 95 });
+  addHeading("Auflagen / Mängel", { keepWith: issues.length ? 150 : 95 });
   if (!issues.length) {
     addTextCard("Auflagen / Mängel", "Keine Auflagen / Mängel dokumentiert.", { minHeight: 58 });
   } else {
@@ -6154,23 +6173,24 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       const plan = placement?.planId ? p.plans.find((item) => item.id === placement.planId) : null;
       const status = sample.overlapCheck?.resultStatus || sample.status || "-";
       const style = statusStyle(status);
-      ensure(82);
+      ensure(98);
       const issueY = y;
       const opStart = page.ops.length;
-      y = issueY + 32;
-      addText(sample.note || sample.overlapCheck?.generatedText || "-", { x: margin + 14, maxWidth: contentWidth - 28, size: 8.5, color: pdfTheme.text, blank: false });
-      const pinText = pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-";
-      addText(`Pin / Plan: ${pinText}`, { x: margin + 14, maxWidth: contentWidth - 28, size: 8.0, color: pdfTheme.muted, blank: false });
-      const issueEnd = Math.max(y + 10, issueY + 76);
       const issueTitle = `${index + 1}. ${issue.check?.title || "Prüfstelle"}${sample.number ? " · Prüfstelle " + sample.number : ""}${sample.location ? " · " + sample.location : ""}`;
-      const issueTitleLines = splitLines(issueTitle, contentWidth - 150, 8.6).slice(0, 2);
+      const issueTitleLines = splitLines(issueTitle, contentWidth - 28, 8.9).slice(0, 3);
+      const issueHeaderHeight = Math.max(32, issueTitleLines.length * lineHeight(8.9) + 13);
+      y = issueY + issueHeaderHeight + 8;
+      addKeyValue("Status", status, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.2, rowFill: "#fbfcfd" });
+      const pinText = pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-";
+      addKeyValue("Pin / Plan", pinText, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1 });
+      addKeyValue("Bemerkung", sample.note || sample.overlapCheck?.generatedText || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.2, stack: true, rowFill: "#fbfcfd" });
+      const issueEnd = Math.max(y + 12, issueY + issueHeaderHeight + 70);
       page.ops.splice(opStart, 0,
         { type: "rect", x: margin, y: issueY, width: contentWidth, height: issueEnd - issueY, fill: "#ffffff", stroke: style.stroke, lineWidth: 0.8 },
-        { type: "rect", x: margin, y: issueY, width: contentWidth, height: 32, fill: style.fill, stroke: style.stroke, lineWidth: 0.55 },
-        ...issueTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: issueY + 15 + lineIndex * lineHeight(8.6), size: 8.6, font: "F2", color: "#17212b" }))
+        { type: "rect", x: margin, y: issueY, width: contentWidth, height: issueHeaderHeight, fill: style.fill, stroke: style.stroke, lineWidth: 0.55 },
+        ...issueTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: issueY + 16 + lineIndex * lineHeight(8.9), size: 8.9, font: "F2", color: "#17212b" }))
       );
-      addBadge(status, pageWidth - margin - 112, issueY + 17, style);
-      y = issueEnd + 8;
+      y = issueEnd + 10;
     });
   }
 
@@ -6184,44 +6204,52 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       ensure(28);
       const rowY = y;
       addRect(margin, rowY, contentWidth, 24, { fill: "#ffffff", stroke: pdfTheme.border, lineWidth: 0.45 });
-      addOp({ type: "text", text: check.title, x: margin + 10, y: rowY + 15, size: 8.5, font: "F1", color: pdfTheme.text });
+      splitLines(check.title, contentWidth - 128, 8.5).slice(0, 1).forEach((line) => addOp({ type: "text", text: line, x: margin + 10, y: rowY + 15, size: 8.5, font: "F1", color: pdfTheme.text }));
       addBadge(check.status || "offen", pageWidth - margin - 106, rowY + 15, style);
       y = rowY + 29;
       return;
     }
-    ensure(Math.min(190, 48 + samples.length * 58));
-    const checkPage = page;
+
+    ensure(78);
     const checkStart = y;
-    const opStart = page.ops.length;
-    y = checkStart + 32;
+    const checkOpStart = page.ops.length;
+    const checkTitleLines = splitLines(check.title, contentWidth - 28, 9.2).slice(0, 3);
+    const checkHeaderHeight = Math.max(32, checkTitleLines.length * lineHeight(9.2) + 13);
+    y = checkStart + checkHeaderHeight + 8;
+    addKeyValue("Gesamtstatus", check.status || "offen / nicht bewertet", { x: margin + 14, width: contentWidth - 28, keyWidth: 88, size: 8.2, rowFill: "#fbfcfd" });
     if (!samples.length) {
       addText("Keine einzelnen Prüfstellen angelegt.", { size: 8.4, color: pdfTheme.muted, x: margin + 14, maxWidth: contentWidth - 28, blank: false });
     }
-    samples.forEach((sample) => {
-      ensure(58);
-      const sampleStart = y;
-      addRect(margin + 12, sampleStart, contentWidth - 24, 24, { fill: "#fbfcfd", stroke: "#e2e7ed", lineWidth: 0.6 });
-      addOp({ type: "text", text: `Prüfstelle ${sample.number || ""}${sample.location ? " - " + sample.location : ""}`, x: margin + 22, y: sampleStart + 15, size: 8.7, font: "F2", color: "#17212b" });
-      addBadge(sample.status || "offen", pageWidth - margin - 116, sampleStart + 15, statusStyle(sample.status));
-      y = sampleStart + 30;
-      addKeyValue("Bereich", sample.location || "ohne Angabe", { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1, rowFill: "#ffffff" });
-      addKeyValue("Bemerkung", sample.note || "-", { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1 });
-      if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1, rowFill: "#ffffff" });
-      if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 8.1 });
-      if (sample.overlapCheck?.generatedText) addKeyValue("Übergreifung", sample.overlapCheck.generatedText, { x: margin + 22, width: contentWidth - 44, keyWidth: 86, size: 7.9 });
-      y += 7;
-    });
-    const checkEnd = y + 8;
-    if (checkPage === page) {
-      const checkTitleLines = splitLines(check.title, contentWidth - 150, 9.0).slice(0, 2);
-      page.ops.splice(opStart, 0,
-        { type: "rect", x: margin, y: checkStart, width: contentWidth, height: checkEnd - checkStart, fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 },
-        { type: "rect", x: margin, y: checkStart, width: contentWidth, height: 32, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.65 },
-        ...checkTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: checkStart + 16 + lineIndex * lineHeight(9.0), size: 9.0, font: "F2", color: "#17212b" }))
-      );
-      addBadge(check.status || "offen", pageWidth - margin - 110, checkStart + 17, style);
-    }
+    const checkEnd = Math.max(y + 12, checkStart + checkHeaderHeight + 40);
+    page.ops.splice(checkOpStart, 0,
+      { type: "rect", x: margin, y: checkStart, width: contentWidth, height: checkEnd - checkStart, fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 },
+      { type: "rect", x: margin, y: checkStart, width: contentWidth, height: checkHeaderHeight, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.65 },
+      ...checkTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: checkStart + 17 + lineIndex * lineHeight(9.2), size: 9.2, font: "F2", color: "#17212b" }))
+    );
     y = checkEnd + 8;
+
+    samples.forEach((sample) => {
+      ensure(104);
+      const sampleStart = y;
+      const sampleOpStart = page.ops.length;
+      const sampleTitle = `Prüfstelle ${sample.number || ""}${sample.location ? " · " + sample.location : ""}`.trim();
+      const sampleTitleLines = splitLines(sampleTitle, contentWidth - 52, 8.8).slice(0, 3);
+      const sampleHeaderHeight = Math.max(30, sampleTitleLines.length * lineHeight(8.8) + 12);
+      y = sampleStart + sampleHeaderHeight + 8;
+      addKeyValue("Status", sample.status || "offen / nicht bewertet", { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, rowFill: "#fbfcfd" });
+      addKeyValue("Bereich", sample.location || "ohne Angabe", { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1 });
+      if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, rowFill: "#fbfcfd" });
+      if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1 });
+      addKeyValue("Bemerkung", sample.note || "-", { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, stack: true, rowFill: "#fbfcfd" });
+      if (sample.overlapCheck?.generatedText) addKeyValue("Übergreifung", sample.overlapCheck.generatedText, { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 7.9, stack: true });
+      const sampleEnd = Math.max(y + 10, sampleStart + sampleHeaderHeight + 66);
+      page.ops.splice(sampleOpStart, 0,
+        { type: "rect", x: margin + 10, y: sampleStart, width: contentWidth - 20, height: sampleEnd - sampleStart, fill: "#ffffff", stroke: "#e2e7ed", lineWidth: 0.65 },
+        { type: "rect", x: margin + 10, y: sampleStart, width: contentWidth - 20, height: sampleHeaderHeight, fill: "#fbfcfd", stroke: "#e2e7ed", lineWidth: 0.55 },
+        ...sampleTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 22, y: sampleStart + 16 + lineIndex * lineHeight(8.8), size: 8.8, font: "F2", color: "#17212b" }))
+      );
+      y = sampleEnd + 8;
+    });
   });
 
   addHeading("Plananlagen / Planmarkierungen", { pageBreak: true, keepWith: 120 });
@@ -6246,9 +6274,9 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       y += 2;
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
       const pinsForPage = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber));
-      const tableReserve = pinsForPage.length ? 72 : 34;
-      const availablePlanHeight = Math.max(500, pageHeight - bottom - y - tableReserve);
-      const box = await addImage(image, "", { maxHeight: Math.min(675, availablePlanHeight), maxWidth: contentWidth, x: margin, allowPageBreak: false });
+      const tableReserve = pinsForPage.length ? 46 : 18;
+      const availablePlanHeight = Math.max(540, pageHeight - bottom - y - tableReserve);
+      const box = await addImage(image, "", { maxHeight: Math.min(720, availablePlanHeight), maxWidth: contentWidth, x: margin, allowPageBreak: false });
       if (box) addRect(box.x - 4, box.y - 4, box.width + 8, box.height + 8, { fill: "", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
       addPinClusters(box, pinsForPage, plan.id, pageNumber);
       addTable([
@@ -6266,17 +6294,22 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   logPdfStep("section:photos:start", { groups: photoGroups.length, photos: imageDebug.photoFound });
   if (!photoGroups.length) addText("Keine Fotos hinterlegt.");
   for (const group of photoGroups) {
-    ensure(66);
+    ensure(92);
     const groupStart = y;
-    const groupTitleLines = splitLines(group.title, contentWidth - 150, 9.0).slice(0, 2);
-    const groupHeaderHeight = Math.max(30, groupTitleLines.length * lineHeight(9.0) + 12);
-    addRect(margin, groupStart, contentWidth, groupHeaderHeight + 12, { fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
-    addRect(margin, groupStart, contentWidth, groupHeaderHeight, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.55 });
-    groupTitleLines.forEach((line, lineIndex) => addOp({ type: "text", text: line, x: margin + 14, y: groupStart + 16 + lineIndex * lineHeight(9.0), size: 9.0, font: "F2", color: "#17212b" }));
-    if (group.status) addBadge(group.status, pageWidth - margin - 110, groupStart + 16, statusStyle(group.status));
-    y = groupStart + groupHeaderHeight + 7;
-    if (group.note || group.meta) addText(`${group.meta || ""}${group.note ? " - " + group.note : ""}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, color: "#52606d", blank: false });
-    y = Math.max(y, groupStart + 46);
+    const groupOpStart = page.ops.length;
+    const groupTitleLines = splitLines(group.title, contentWidth - 28, 9.2).slice(0, 3);
+    const groupHeaderHeight = Math.max(32, groupTitleLines.length * lineHeight(9.2) + 13);
+    y = groupStart + groupHeaderHeight + 8;
+    if (group.status) addKeyValue("Status", group.status, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1, rowFill: "#fbfcfd" });
+    if (group.meta) addKeyValue("Zuordnung", group.meta, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1 });
+    if (group.note) addKeyValue("Bemerkung", group.note, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1, stack: true, rowFill: "#fbfcfd" });
+    const groupEnd = Math.max(y + 10, groupStart + groupHeaderHeight + 34);
+    page.ops.splice(groupOpStart, 0,
+      { type: "rect", x: margin, y: groupStart, width: contentWidth, height: groupEnd - groupStart, fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 },
+      { type: "rect", x: margin, y: groupStart, width: contentWidth, height: groupHeaderHeight, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.55 },
+      ...groupTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: groupStart + 17 + lineIndex * lineHeight(9.2), size: 9.2, font: "F2", color: "#17212b" }))
+    );
+    y = groupEnd + 8;
     const photoItems = [];
     for (const item of group.photos) {
       try {
@@ -6289,7 +6322,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
         logPdfStep("section:photos:image-error", { group: group.title, photoId: item.photo?.id, message });
       }
     }
-    if (photoItems.length) await addImageGrid(photoItems, { columns: 2, maxHeight: 245, minImageWidth: 145 });
+    if (photoItems.length) await addImageGrid(photoItems, { columns: 1, maxHeight: 360, minImageWidth: 260 });
   }
 
   addHeading("Schlussformulierung", { keepWith: 90 });
@@ -6307,22 +6340,20 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   imageDebug.signatureFields = signatures.map((signature) => ({ name: signature.name || "", field: signatureFieldName(signature) || "none" }));
   if (!signatures.length) addText("Keine digitale Unterschrift erfasst.");
   for (const signature of signatures) {
-    ensure(138);
+    ensure(180);
     const blockY = y;
-    const blockHeight = 122;
-    addRect(margin, blockY, contentWidth, blockHeight, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 });
-    addRect(margin, blockY, contentWidth, 26, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.6 });
-    splitLines(signature.name || "ohne Name", contentWidth - 28, 9.2).slice(0, 2).forEach((line, lineIndex) => addOp({ type: "text", text: line, x: margin + 14, y: blockY + 15 + lineIndex * lineHeight(9.2), size: 9.2, font: "F2", color: "#17212b" }));
-    const metaX = margin + 10;
-    y = blockY + 36;
-    addKeyValue("Firma", signature.company || "-", { x: metaX, width: 226, keyWidth: 58, size: 8.1, rowFill: "#fbfcfd" });
-    addKeyValue("Funktion", signature.role || "-", { x: metaX, width: 226, keyWidth: 58, size: 8.1 });
-    addKeyValue("Datum", formatDate(signature.signedAt) || "-", { x: metaX, width: 226, keyWidth: 58, size: 8.1, rowFill: "#fbfcfd" });
-    if (signature.note) addKeyValue("Bemerkung", signature.note, { x: metaX, width: 226, keyWidth: 58, size: 8.0 });
-    const boxWidth = 236;
+    const sigOpStart = page.ops.length;
+    const titleLines = splitLines(signature.name || "ohne Name", contentWidth - 28, 9.2).slice(0, 3);
+    const headerHeight = Math.max(30, titleLines.length * lineHeight(9.2) + 12);
+    y = blockY + headerHeight + 8;
+    addKeyValue("Firma", signature.company || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.1, rowFill: "#fbfcfd" });
+    addKeyValue("Funktion", signature.role || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.1 });
+    addKeyValue("Datum", formatDate(signature.signedAt) || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.1, rowFill: "#fbfcfd" });
+    if (signature.note) addKeyValue("Bemerkung", signature.note, { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.0, stack: true });
+    const boxWidth = 286;
     const boxHeight = 76;
-    const boxX = margin + contentWidth - boxWidth - 10;
-    const boxY = blockY + 36;
+    const boxX = margin + 14;
+    const boxY = y + 8;
     addRect(boxX, boxY, boxWidth, boxHeight, { fill: "#ffffff", stroke: "#25313d", lineWidth: 0.65 });
     addOp({ type: "line", x1: boxX + 14, y1: boxY + boxHeight - 14, x2: boxX + boxWidth - 14, y2: boxY + boxHeight - 14, color: "#25313d", width: 0.5 });
     const sourceField = signatureFieldName(signature);
@@ -6343,13 +6374,19 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
         const message = `Unterschrift ${signature.name || "ohne Name"} konnte nicht eingebettet werden.`;
         warnings.push(message);
         imageDebug.errors.push({ type: "signature", name: signature.name || "", field: sourceField || "none", message });
-        addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 20, size: 8.2, color: "#697586", blank: false });
+        addOp({ type: "text", text: "Keine gezeichnete Signatur gespeichert.", x: boxX + 10, y: boxY + 24, size: 8.2, font: "F1", color: "#697586" });
       }
     } else {
       imageDebug.errors.push({ type: "signature", name: signature.name || "", field: "none", message: "Keine gespeicherten Signaturdaten gefunden." });
-      addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 20, size: 8.2, color: "#697586", blank: false });
+      addOp({ type: "text", text: "Keine gezeichnete Signatur gespeichert.", x: boxX + 10, y: boxY + 24, size: 8.2, font: "F1", color: "#697586" });
     }
-    y = blockY + blockHeight + 10;
+    const blockEnd = boxY + boxHeight + 12;
+    page.ops.splice(sigOpStart, 0,
+      { type: "rect", x: margin, y: blockY, width: contentWidth, height: blockEnd - blockY, fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 },
+      { type: "rect", x: margin, y: blockY, width: contentWidth, height: headerHeight, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.6 },
+      ...titleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: blockY + 16 + lineIndex * lineHeight(9.2), size: 9.2, font: "F2", color: "#17212b" }))
+    );
+    y = blockEnd + 10;
   }
   if (warnings.length) {
     newPage();
