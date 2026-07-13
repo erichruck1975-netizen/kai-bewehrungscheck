@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v88`
+- Cache-Version: `kai-bewehrungscheck-v91`
 
 ## Daten und Sicherung
 
@@ -203,6 +203,10 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 - Stammdatenfeld beim Prüfingenieur sichtbar von Büro auf Sachbearbeiter umbenannt.
 - Interne Datenfelder und Backup/Restore bleiben unver?ndert.
 
+### v91
+- Direkt-PDF Layout saubergezogen: harter Textumbruch, robuste einspaltige Projekt-/Prüfungskarten, gekapselte Überschriften für Auflagen, Checkpunkte, Plananlagen, Fotodokumentation und Unterschriften.
+- Druckdialog, Pins, Planviewer und PDF-Download/Teilen-Logik bleiben unverändert.
+
 ### v88
 - Direkt-PDF Mini-Fix: Übersichtsfotos-Überschrift wird vor dem Abschnittsstart mit erster Fotozeile zusammengehalten; Plananlagen nutzen Breite/Höhe stärker aus.
 - Druckdialog, Pins, Planviewer und übrige PDF-Logik bleiben unverändert.
@@ -227,3 +231,4 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 - Direkt-PDF-Bildeinbettung robuster gemacht: Übersichtsfotos, Fotodokumentationsfotos und gezeichnete Signaturen werden gr??er/sichtbarer eingef?gt.
 - `state.lastPdfImageDebug` protokolliert gefundene/eingebettete Übersichtsfotos, Fotodokumentationsfotos und Signaturen.
 - Druckdialog, Pins, Planviewer und Checklogik bleiben unver?ndert.
+

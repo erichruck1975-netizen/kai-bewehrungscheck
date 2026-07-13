@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v88";
+const APP_VERSION = "v91";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -198,6 +198,14 @@ const state = {
     startPointer: null
   },
   persistTimer: null,
+  voice: {
+    active: false,
+    recognition: null,
+    button: null,
+    baseText: "",
+    finalText: "",
+    finalResults: {}
+  },
   zoomPersistTimer: null,
   touch: {
     active: false,
@@ -4848,39 +4856,120 @@ function bindVoice() {
   document.addEventListener("click", (event) => {
     const btn = event.target.closest(".mic-btn");
     if (!btn || btn.disabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (state.voice?.active) {
+      if (state.voice.button === btn && state.voice.recognition) {
+        try { state.voice.recognition.stop(); } catch {}
+      }
+      return;
+    }
+    state.voice = {
+      active: true,
+      recognition: null,
+      button: btn,
+      baseText: getVoiceTargetText(btn),
+      finalText: "",
+      finalResults: {}
+    };
     const recognition = new SpeechRecognition();
+    state.voice.recognition = recognition;
     recognition.lang = "de-DE";
-    recognition.interimResults = false;
-    btn.textContent = "Hört zu...";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    btn.dataset.originalLabel = btn.textContent || "Mikrofon";
+    btn.textContent = "Stoppen";
+    btn.classList.add("is-listening");
+    $$(".mic-btn").forEach((item) => {
+      if (item !== btn) item.disabled = true;
+    });
     recognition.onresult = (resultEvent) => {
-      const text = resultEvent.results[0][0].transcript;
-      insertVoiceText(btn, text);
-      btn.textContent = "Mikrofon";
+      for (let index = resultEvent.resultIndex; index < resultEvent.results.length; index += 1) {
+        const result = resultEvent.results[index];
+        if (!result.isFinal) continue;
+        const transcript = (result[0]?.transcript || "").trim();
+        if (transcript) state.voice.finalResults[index] = transcript;
+      }
+      state.voice.finalText = Object.keys(state.voice.finalResults)
+        .map((key) => Number(key))
+        .sort((a, b) => a - b)
+        .map((key) => state.voice.finalResults[key])
+        .join(" ")
+        .trim();
     };
-    recognition.onerror = () => {
-      btn.textContent = "Mikrofon";
+    recognition.onerror = (errorEvent) => {
+      if (errorEvent.error !== "aborted" && errorEvent.error !== "no-speech") {
+        alert("Spracherkennung konnte nicht gestartet werden.");
+      }
+    };
+    recognition.onend = () => {
+      const finalText = (state.voice?.button === btn ? state.voice.finalText : "").trim();
+      resetVoiceButton(btn);
+      if (finalText) insertVoiceText(btn, finalText);
+      state.voice = { active: false, recognition: null, button: null, baseText: "", finalText: "", finalResults: {} };
+    };
+    try {
+      recognition.start();
+    } catch {
+      resetVoiceButton(btn);
+      state.voice = { active: false, recognition: null, button: null, baseText: "", finalText: "", finalResults: {} };
       alert("Spracherkennung konnte nicht gestartet werden.");
-    };
-    recognition.onend = () => btn.textContent = "Mikrofon";
-    recognition.start();
+    }
   });
+}
+
+function resetVoiceButton(btn) {
+  btn.textContent = btn.dataset.originalLabel || "Mikrofon";
+  btn.classList.remove("is-listening");
+  delete btn.dataset.originalLabel;
+  $$(".mic-btn").forEach((item) => {
+    item.disabled = false;
+  });
+}
+
+function appendVoiceText(existing, addition) {
+  const left = (existing || "").trim();
+  const right = (addition || "").trim();
+  if (!right) return left;
+  if (!left) return right;
+  return `${left}${/[.!?:;]$/.test(left) ? " " : ". "}${right}`;
+}
+
+function getVoiceTargetText(btn) {
+  if (btn.dataset.voiceFor) {
+    return $(`[name="${btn.dataset.voiceFor}"]`)?.value || "";
+  }
+  if (btn.dataset.voicePin) {
+    return state.current?.pins.find((item) => item.id === btn.dataset.voicePin)?.note || "";
+  }
+  if (btn.dataset.voiceCheck) {
+    return state.current?.checkpoints.find((item) => item.id === btn.dataset.voiceCheck)?.note || "";
+  }
+  if (btn.dataset.voiceMarkPin) {
+    const pin = state.current?.pins.find((item) => item.id === btn.dataset.voiceMarkPin);
+    return pin?.[btn.dataset.voiceMarkField || "note"] || "";
+  }
+  if (btn.dataset.voiceSample) {
+    return findSample(btn.dataset.voiceSample)?.note || "";
+  }
+  return "";
 }
 
 function insertVoiceText(btn, text) {
   if (btn.dataset.voiceFor) {
     const field = $(`[name="${btn.dataset.voiceFor}"]`);
-    field.value = `${field.value}${field.value ? " " : ""}${text}`;
+    field.value = appendVoiceText(field.value, text);
     saveFromForm();
   }
   if (btn.dataset.voicePin) {
     const pin = state.current.pins.find((item) => item.id === btn.dataset.voicePin);
-    pin.note = `${pin.note}${pin.note ? " " : ""}${text}`;
+    pin.note = appendVoiceText(pin.note, text);
     saveFromForm();
     renderPinEditor();
   }
   if (btn.dataset.voiceCheck) {
     const check = state.current.checkpoints.find((item) => item.id === btn.dataset.voiceCheck);
-    check.note = `${check.note}${check.note ? " " : ""}${text}`;
+    check.note = appendVoiceText(check.note, text);
     saveFromForm();
     renderChecklist();
   }
@@ -4889,7 +4978,7 @@ function insertVoiceText(btn, text) {
     if (!pin) return;
     const fieldName = btn.dataset.voiceMarkField || "note";
     const field = $(`[data-mark-pin-field="${fieldName}"]`, btn.closest("#markPinSheet") || document);
-    pin[fieldName] = `${pin[fieldName] || ""}${pin[fieldName] ? " " : ""}${text}`;
+    pin[fieldName] = appendVoiceText(pin[fieldName] || "", text);
     pin.updatedAt = new Date().toISOString();
     if (field) field.value = pin[fieldName];
     const sample = pin.sampleId ? findSample(pin.sampleId) : null;
@@ -4903,7 +4992,7 @@ function insertVoiceText(btn, text) {
   if (btn.dataset.voiceSample) {
     const sample = findSample(btn.dataset.voiceSample);
     if (!sample) return;
-    sample.note = `${sample.note}${sample.note ? " " : ""}${text}`;
+    sample.note = appendVoiceText(sample.note, text);
     sample.updatedAt = new Date().toISOString();
     saveFromForm();
     renderChecklist();
@@ -5672,8 +5761,18 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const splitLines = (text, maxWidth = contentWidth, size = 10) => {
     const value = String(text || "").replace(/\s+/g, " ").trim();
     if (!value) return [];
-    const maxChars = Math.max(8, Math.floor(maxWidth / (size * 0.47)));
-    const words = value.split(" ").filter(Boolean);
+    const maxChars = Math.max(8, Math.floor(maxWidth / (size * 0.50)));
+    const sourceWords = value.split(" ").filter(Boolean);
+    const words = [];
+    sourceWords.forEach((word) => {
+      if (word.length <= maxChars) {
+        words.push(word);
+        return;
+      }
+      for (let index = 0; index < word.length; index += maxChars) {
+        words.push(word.slice(index, index + maxChars));
+      }
+    });
     const lines = [];
     let line = "";
     words.forEach((word) => {
@@ -5713,8 +5812,12 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     if (options.pageBreak && pages.length) newPage();
     ensureSection(options.keepWith || 96);
     y += pages.length === 1 && y < margin + 22 ? 0 : 10;
-    addRect(margin, y - 2, contentWidth, 25, { fill: "#f6f8fa", stroke: "#d8dee6", lineWidth: 0.55 });
-    addTextLine(text, margin + 12, options.size || 13.2, { bold: true, color: "#17212b", gap: 13 });
+    const size = options.size || 13.0;
+    const lines = splitLines(text, contentWidth - 24, size).slice(0, 2);
+    const boxHeight = Math.max(28, lines.length * lineHeight(size) + 11);
+    addRect(margin, y - 2, contentWidth, boxHeight, { fill: "#f6f8fa", stroke: "#d8dee6", lineWidth: 0.55 });
+    lines.forEach((line, index) => addOp({ type: "text", text: line, x: margin + 12, y: y + 15 + index * lineHeight(size), size, font: "F2", color: "#17212b" }));
+    y += boxHeight + 5;
   };
   const addBadge = (text, x, badgeY, style = {}) => {
     const label = String(text || "offen");
@@ -5750,7 +5853,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const savedY = y;
     const opStart = page.ops.length;
     y = cardY + 34;
-    rows.forEach((row, index) => addKeyValue(row[0], row[1], { x: x + 14, width: width - 28, keyWidth: Math.min(112, (width - 28) * 0.40), rowFill: index % 2 ? "" : pdfTheme.mutedFill }));
+    rows.forEach((row, index) => addKeyValue(row[0], row[1], { x: x + 14, width: width - 28, keyWidth: width > 360 ? 156 : Math.min(112, (width - 28) * 0.40), rowFill: index % 2 ? "" : pdfTheme.mutedFill }));
     const endY = y + 10;
     if (startPage === page) {
       page.ops.splice(opStart, 0,
@@ -5763,21 +5866,22 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     return endY;
   };
   const addInfoGrid = (leftTitle, leftRows, rightTitle, rightRows) => {
-    ensure(132);
-    const startY = y;
-    const gap = 14;
-    const width = (contentWidth - gap) / 2;
-    const leftEnd = addInfoCard(leftTitle, leftRows, margin, startY, width);
-    const rightEnd = addInfoCard(rightTitle, rightRows, margin + width + gap, startY, width);
-    y = Math.max(leftEnd, rightEnd) + pdfTheme.cardGap;
+    ensure(220);
+    const width = contentWidth;
+    const leftEnd = addInfoCard(leftTitle, leftRows, margin, y, width);
+    y = leftEnd + 10;
+    const rightEnd = addInfoCard(rightTitle, rightRows, margin, y, width);
+    y = rightEnd + pdfTheme.cardGap;
   };
   const addCardShell = (title, startY, endY, options = {}) => {
     const x = options.x || margin;
     const width = options.width || contentWidth;
+    const titleSize = options.titleSize || 9.5;
+    const titleLines = splitLines(title, width - 28, titleSize).slice(0, 2);
     page.ops.splice(options.opStart ?? page.ops.length, 0,
       { type: "rect", x, y: startY, width, height: endY - startY, fill: options.fill || pdfTheme.cardFill, stroke: options.stroke || pdfTheme.borderStrong, lineWidth: options.lineWidth ?? 0.85 },
-      { type: "rect", x, y: startY, width, height: 28, fill: options.headerFill || pdfTheme.headerFill, stroke: options.stroke || pdfTheme.borderStrong, lineWidth: 0.65 },
-      { type: "text", text: title, x: x + 14, y: startY + 18, size: options.titleSize || 9.5, font: "F2", color: options.titleColor || "#26323f" }
+      { type: "rect", x, y: startY, width, height: 30, fill: options.headerFill || pdfTheme.headerFill, stroke: options.stroke || pdfTheme.borderStrong, lineWidth: 0.65 },
+      ...titleLines.map((line, index) => ({ type: "text", text: line, x: x + 14, y: startY + 18 + index * lineHeight(titleSize), size: titleSize, font: "F2", color: options.titleColor || "#26323f" }))
     );
   };
   const addTableCard = (title, columns, rows, options = {}) => {
@@ -5835,7 +5939,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       columns.forEach((col, index) => {
         if (index) addOp({ type: "line", x1: cellX, y1: y, x2: cellX, y2: y + rowHeight, color: "#d8dee6", width: 0.35 });
         const lines = cellLines[index].length ? cellLines[index] : ["-"];
-        lines.slice(0, options.maxLines || 6).forEach((line, lineIndex) => addOp({ type: "text", text: line, x: cellX + 6, y: y + 13 + lineIndex * lineHeight(options.size || 8.2), size: options.size || 8.2, font: col.bold ? "F2" : "F1", color: "#1f2933" }));
+        lines.slice(0, options.maxLines || 4).forEach((line, lineIndex) => addOp({ type: "text", text: line, x: cellX + 6, y: y + 13 + lineIndex * lineHeight(options.size || 8.2), size: options.size || 8.2, font: col.bold ? "F2" : "F1", color: "#1f2933" }));
         cellX += widths[index];
       });
       y += rowHeight;
@@ -5964,7 +6068,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   addOp({ type: "text", text: p.id.slice(-8).toUpperCase(), x: metaX + 54, y: headerTop + 33, size: 8, font: "F1", color: "#17212b" });
   addTextLine("Kai BewehrungsCheck · LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
   addTextLine("Bewehrungskontrolle / Bewehrungsabnahme", margin, 21.5, { bold: true, color: "#17212b", gap: 8 });
-  addText("Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 9.6, color: "#52606d", maxWidth: contentWidth - 160 });
+  addText("Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 9.6, color: "#52606d", maxWidth: contentWidth - 174 });
   y = Math.max(y, headerTop + 70);
   addRule(y + 4, "#1f4e79", 2.2);
   y += 18;
@@ -6057,11 +6161,13 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       addText(sample.note || sample.overlapCheck?.generatedText || "-", { x: margin + 14, maxWidth: contentWidth - 28, size: 8.5, color: pdfTheme.text, blank: false });
       const pinText = pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-";
       addText(`Pin / Plan: ${pinText}`, { x: margin + 14, maxWidth: contentWidth - 28, size: 8.0, color: pdfTheme.muted, blank: false });
-      const issueEnd = Math.max(y + 10, issueY + 72);
+      const issueEnd = Math.max(y + 10, issueY + 76);
+      const issueTitle = `${index + 1}. ${issue.check?.title || "Prüfstelle"}${sample.number ? " · Prüfstelle " + sample.number : ""}${sample.location ? " · " + sample.location : ""}`;
+      const issueTitleLines = splitLines(issueTitle, contentWidth - 150, 8.6).slice(0, 2);
       page.ops.splice(opStart, 0,
         { type: "rect", x: margin, y: issueY, width: contentWidth, height: issueEnd - issueY, fill: "#ffffff", stroke: style.stroke, lineWidth: 0.8 },
-        { type: "rect", x: margin, y: issueY, width: contentWidth, height: 27, fill: style.fill, stroke: style.stroke, lineWidth: 0.55 },
-        { type: "text", text: `${index + 1}. ${issue.check?.title || "Prüfstelle"}${sample.number ? " · Prüfstelle " + sample.number : ""}${sample.location ? " · " + sample.location : ""}`, x: margin + 14, y: issueY + 17, size: 8.9, font: "F2", color: "#17212b" }
+        { type: "rect", x: margin, y: issueY, width: contentWidth, height: 32, fill: style.fill, stroke: style.stroke, lineWidth: 0.55 },
+        ...issueTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: issueY + 15 + lineIndex * lineHeight(8.6), size: 8.6, font: "F2", color: "#17212b" }))
       );
       addBadge(status, pageWidth - margin - 112, issueY + 17, style);
       y = issueEnd + 8;
@@ -6107,10 +6213,11 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     });
     const checkEnd = y + 8;
     if (checkPage === page) {
+      const checkTitleLines = splitLines(check.title, contentWidth - 150, 9.0).slice(0, 2);
       page.ops.splice(opStart, 0,
         { type: "rect", x: margin, y: checkStart, width: contentWidth, height: checkEnd - checkStart, fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 },
-        { type: "rect", x: margin, y: checkStart, width: contentWidth, height: 27, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.65 },
-        { type: "text", text: check.title, x: margin + 14, y: checkStart + 17, size: 9.4, font: "F2", color: "#17212b" }
+        { type: "rect", x: margin, y: checkStart, width: contentWidth, height: 32, fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.65 },
+        ...checkTitleLines.map((line, lineIndex) => ({ type: "text", text: line, x: margin + 14, y: checkStart + 16 + lineIndex * lineHeight(9.0), size: 9.0, font: "F2", color: "#17212b" }))
       );
       addBadge(check.status || "offen", pageWidth - margin - 110, checkStart + 17, style);
     }
@@ -6129,9 +6236,12 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       firstPlanAppendix = false;
       ensure(620);
       const appendixY = y;
-      addRect(margin, appendixY, contentWidth, 29, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.65 });
-      addOp({ type: "text", text: `Anlage ${planIndex + 1} - Plan ${displayPlanNumber(plan) || plan.fileName || ""} - Seite ${pageNumber}`, x: margin + 12, y: appendixY + 18, size: 10.0, font: "F2", color: "#17212b" });
-      y = appendixY + 36;
+      const appendixTitle = `Anlage ${planIndex + 1} - Plan ${displayPlanNumber(plan) || plan.fileName || ""} - Seite ${pageNumber}`;
+      const appendixTitleLines = splitLines(appendixTitle, contentWidth - 24, 9.6).slice(0, 2);
+      const appendixHeaderHeight = Math.max(31, appendixTitleLines.length * lineHeight(9.6) + 12);
+      addRect(margin, appendixY, contentWidth, appendixHeaderHeight, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.65 });
+      appendixTitleLines.forEach((line, lineIndex) => addOp({ type: "text", text: line, x: margin + 12, y: appendixY + 18 + lineIndex * lineHeight(9.6), size: 9.6, font: "F2", color: "#17212b" }));
+      y = appendixY + appendixHeaderHeight + 7;
       addText(plan.planName || plan.fileName || "Plan", { size: 8.5, color: "#52606d", blank: false });
       y += 2;
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
@@ -6158,11 +6268,13 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   for (const group of photoGroups) {
     ensure(66);
     const groupStart = y;
-    addRect(margin, groupStart, contentWidth, 38, { fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
-    addRect(margin, groupStart, contentWidth, 26, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.55 });
-    addOp({ type: "text", text: group.title, x: margin + 14, y: groupStart + 16, size: 9.5, font: "F2", color: "#17212b" });
+    const groupTitleLines = splitLines(group.title, contentWidth - 150, 9.0).slice(0, 2);
+    const groupHeaderHeight = Math.max(30, groupTitleLines.length * lineHeight(9.0) + 12);
+    addRect(margin, groupStart, contentWidth, groupHeaderHeight + 12, { fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
+    addRect(margin, groupStart, contentWidth, groupHeaderHeight, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.55 });
+    groupTitleLines.forEach((line, lineIndex) => addOp({ type: "text", text: line, x: margin + 14, y: groupStart + 16 + lineIndex * lineHeight(9.0), size: 9.0, font: "F2", color: "#17212b" }));
     if (group.status) addBadge(group.status, pageWidth - margin - 110, groupStart + 16, statusStyle(group.status));
-    y = groupStart + 32;
+    y = groupStart + groupHeaderHeight + 7;
     if (group.note || group.meta) addText(`${group.meta || ""}${group.note ? " - " + group.note : ""}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, color: "#52606d", blank: false });
     y = Math.max(y, groupStart + 46);
     const photoItems = [];
@@ -6200,7 +6312,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const blockHeight = 122;
     addRect(margin, blockY, contentWidth, blockHeight, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 });
     addRect(margin, blockY, contentWidth, 26, { fill: pdfTheme.headerFill, stroke: pdfTheme.borderStrong, lineWidth: 0.6 });
-    addOp({ type: "text", text: signature.name || "ohne Name", x: margin + 10, y: blockY + 15, size: 9.3, font: "F2", color: "#17212b" });
+    splitLines(signature.name || "ohne Name", contentWidth - 28, 9.2).slice(0, 2).forEach((line, lineIndex) => addOp({ type: "text", text: line, x: margin + 14, y: blockY + 15 + lineIndex * lineHeight(9.2), size: 9.2, font: "F2", color: "#17212b" }));
     const metaX = margin + 10;
     y = blockY + 36;
     addKeyValue("Firma", signature.company || "-", { x: metaX, width: 226, keyWidth: 58, size: 8.1, rowFill: "#fbfcfd" });
@@ -8495,6 +8607,10 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
+
+
+
 
 
 

@@ -453,6 +453,7 @@ input:focus, textarea:focus, select:focus, button:focus {
 .danger-btn { background: var(--bad); color: #fff; width: 100%; }
 .mic-btn { background: #e8eef4; color: #1d252d; justify-self: start; }
 .mic-btn:disabled { opacity: .5; }
+.mic-btn.is-listening { background: #c2410c; color: #fff; box-shadow: 0 0 0 3px rgba(194, 65, 12, .16); }
 
 .muted { color: var(--muted); font-size: 13px; }
 
@@ -2018,6 +2019,7 @@ dialog button {
   .appbar, .tabs, .result-actions, .back-btn, #saveBtn { display: none !important; }
   main { padding: 0; }
 }
+
 
 
 
