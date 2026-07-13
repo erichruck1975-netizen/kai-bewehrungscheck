@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BewehrungsCheck</title>
-  <link rel="manifest" href="manifest.webmanifest?v=94">
-  <link rel="stylesheet" href="styles.css?v=94">
+  <link rel="manifest" href="manifest.webmanifest?v=95">
+  <link rel="stylesheet" href="styles.css?v=95">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BewehrungsCheck <span class="version-badge" data-app-version>v94</span></h1>
+        <h1>Kai BewehrungsCheck <span class="version-badge" data-app-version>v95</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -74,7 +74,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v94</p>
+              <p id="appVersionInfo" class="muted">Version: v95</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -280,7 +280,7 @@
                 <p class="muted">Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses.</p>
                 <div id="signatureList" class="signature-list"></div>
               </section>
-              <p class="muted report-workflow-hint">Der offizielle PDF-Bericht wird über den Druckdialog gespeichert. Bitte dort als Ziel „Als PDF speichern“ wählen. Anschließend kann die gespeicherte PDF über „Gespeicherte PDF teilen“ weitergegeben werden.</p>
+              <p class="muted report-workflow-hint">Bitte den Bericht zuerst über „PDF speichern“ als PDF sichern. Danach kann die gespeicherte PDF über „Gespeicherte PDF teilen“ ausgewählt und weitergegeben werden.</p>
               <div class="result-actions report-export-actions">
                 <button class="primary-btn" id="pdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · aus A4-Bericht</small></button>
                 <button class="secondary-btn" id="pdfShareBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small></button>
@@ -535,7 +535,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=85"></script>
-  <script src="app.js?v=94"></script>
+  <script src="app.js?v=95"></script>
 </body>
 </html>
 

@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v94";
+const APP_VERSION = "v95";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -5425,18 +5425,49 @@ async function shareReportFile() {
 }
 
 function triggerSavedPdfSharePicker() {
-  const input = $("#savedPdfShareInput");
-  if (!input) {
-    alert("PDF-Auswahl ist nicht verfügbar. Bitte die PDF direkt aus dem Dateimanager teilen.");
-    return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/pdf,.pdf";
+  input.className = "visually-hidden";
+  input.setAttribute("aria-hidden", "true");
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0] || null;
+    input.remove();
+    await shareSavedPdfFile(file);
+  }, { once: true });
+  document.body.appendChild(input);
+  try {
+    input.click();
+  } catch (error) {
+    input.remove();
+    state.lastPdfFileShareDebug = {
+      fileName: "",
+      fileType: "",
+      fileSize: 0,
+      hasNavigatorShare: !!navigator.share,
+      hasNavigatorCanShare: !!navigator.canShare,
+      canShareResult: null,
+      errorName: error?.name || "FilePickerError",
+      errorMessage: error?.message || String(error || "")
+    };
+    alert("PDF-Dateiauswahl konnte nicht geöffnet werden. Bitte die PDF direkt aus dem Dateimanager teilen.");
   }
-  input.value = "";
-  input.click();
 }
 
 async function shareSavedPdfFile(file) {
   if (!file) return;
-  if (file.type && file.type !== "application/pdf") {
+  const looksLikePdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  if (!looksLikePdf) {
+    state.lastPdfFileShareDebug = {
+      fileName: file.name || "",
+      fileType: file.type || "",
+      fileSize: file.size || 0,
+      hasNavigatorShare: !!navigator.share,
+      hasNavigatorCanShare: !!navigator.canShare,
+      canShareResult: null,
+      errorName: "InvalidFileType",
+      errorMessage: "Ausgewählte Datei ist keine PDF."
+    };
     alert("Bitte eine PDF-Datei auswählen.");
     return;
   }
@@ -5454,10 +5485,10 @@ async function shareSavedPdfFile(file) {
   if (!navigator.share) {
     debug.errorName = "ShareUnavailable";
     debug.errorMessage = "navigator.share fehlt";
-    alert("Direktes Teilen der PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF aus dem Dateimanager teilen.");
+    alert("Direktes Teilen dieser PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF direkt aus dem Dateimanager teilen.");
     return;
   }
-  const shareData = { title: reportShareTitle(), text: buildReportShareText({ compact: true }), files: [file] };
+  const shareData = { title: "Bewehrungsbericht", text: buildReportShareText({ compact: true }), files: [file] };
   try {
     if (navigator.canShare) {
       try {
@@ -5474,7 +5505,7 @@ async function shareSavedPdfFile(file) {
     debug.errorName = error?.name || "ShareError";
     debug.errorMessage = error?.message || String(error || "");
     console.error("Gespeicherte PDF konnte nicht geteilt werden", { error, debug });
-    alert("Direktes Teilen der PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF aus dem Dateimanager teilen.");
+    alert("Direktes Teilen dieser PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF direkt aus dem Dateimanager teilen.");
   }
 }
 
@@ -7978,7 +8009,6 @@ function bindEvents() {
   $("#shareReportBtn").addEventListener("click", triggerSavedPdfSharePicker);
   $("#copyWhatsappTextBtn").addEventListener("click", shareReportText);
   $("#saveReportHtmlBtn").addEventListener("click", saveReportHtml);
-  $("#savedPdfShareInput")?.addEventListener("change", (event) => shareSavedPdfFile(event.target.files?.[0]));
   $("#printReportBtn").addEventListener("click", () => {
     if (typeof window.print === "function") {
       savePdfFromA4Report();
