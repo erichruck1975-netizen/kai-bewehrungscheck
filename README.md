@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v83`
+- Cache-Version: `kai-bewehrungscheck-v84`
 
 ## Daten und Sicherung
 
@@ -202,6 +202,10 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 ### v82
 - Stammdatenfeld beim Prüfingenieur sichtbar von Büro auf Sachbearbeiter umbenannt.
 - Interne Datenfelder und Backup/Restore bleiben unver?ndert.
+
+### v84
+- Direkt-PDF optisch näher am Druckdialog-Bericht: verbesserter Kopf, ruhigere Tabellen/Karten, Fotodokumentation und kompakter Unterschriftenbereich.
+- Gezeichnete Signaturen werden im Direkt-PDF aus gespeicherten Signaturdaten eingebettet; Druckdialog und Plan-/Pin-Funktionen bleiben unverändert.
 
 ### v83
 - Direkt-PDF-Bildeinbettung robuster gemacht: Übersichtsfotos, Fotodokumentationsfotos und gezeichnete Signaturen werden gr??er/sichtbarer eingef?gt.

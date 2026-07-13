@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v83";
+const APP_CACHE = "kai-bewehrungscheck-v84";
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=83`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=83`;
 const STABLE_TAG = "v52-stable-before-v53";
@@ -5463,6 +5463,63 @@ async function prepareReportImageSafe(source, options = {}, context = "Bild") {
   }
 }
 
+async function prepareSignatureImageForPdf(source) {
+  if (!source) return "";
+  try {
+    const image = await imageFromDataUrl(source);
+    const sourceWidth = image.naturalWidth || image.width || 1;
+    const sourceHeight = image.naturalHeight || image.height || 1;
+    const canvas = document.createElement("canvas");
+    canvas.width = sourceWidth;
+    canvas.height = sourceHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0, sourceWidth, sourceHeight);
+    const pixels = ctx.getImageData(0, 0, sourceWidth, sourceHeight).data;
+    let minX = sourceWidth;
+    let minY = sourceHeight;
+    let maxX = -1;
+    let maxY = -1;
+    for (let yPos = 0; yPos < sourceHeight; yPos += 1) {
+      for (let xPos = 0; xPos < sourceWidth; xPos += 1) {
+        const offset = (yPos * sourceWidth + xPos) * 4;
+        const alpha = pixels[offset + 3];
+        const r = pixels[offset];
+        const g = pixels[offset + 1];
+        const b = pixels[offset + 2];
+        if (alpha > 16 && (r < 245 || g < 245 || b < 245)) {
+          minX = Math.min(minX, xPos);
+          minY = Math.min(minY, yPos);
+          maxX = Math.max(maxX, xPos);
+          maxY = Math.max(maxY, yPos);
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) {
+      return prepareReportImageSafe(source, { maxWidth: 1000, maxHeight: 420, quality: 0.86, mimeType: "image/jpeg" }, "Unterschrift");
+    }
+    const pad = Math.max(8, Math.round(Math.max(sourceWidth, sourceHeight) * 0.025));
+    const cropX = Math.max(0, minX - pad);
+    const cropY = Math.max(0, minY - pad);
+    const cropW = Math.min(sourceWidth - cropX, maxX - minX + 1 + pad * 2);
+    const cropH = Math.min(sourceHeight - cropY, maxY - minY + 1 + pad * 2);
+    const scale = Math.min(1, 1000 / cropW, 420 / cropH);
+    const outW = Math.max(1, Math.round(cropW * scale));
+    const outH = Math.max(1, Math.round(cropH * scale));
+    const out = document.createElement("canvas");
+    out.width = outW;
+    out.height = outH;
+    const outCtx = out.getContext("2d");
+    outCtx.fillStyle = "#ffffff";
+    outCtx.fillRect(0, 0, outW, outH);
+    outCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
+    const blob = await safeCanvasToBlob(out, "image/jpeg", 0.86, "Unterschrift");
+    return blob ? blobToDataUrl(blob) : "";
+  } catch (error) {
+    console.warn("Unterschrift konnte nicht für PDF vorbereitet werden", error);
+    return prepareReportImageSafe(source, { maxWidth: 1000, maxHeight: 420, quality: 0.86, mimeType: "image/jpeg" }, "Unterschrift");
+  }
+}
+
 function pdfWinAnsiBytes(text) {
   const map = new Map([[0x20ac, 0x80], [0x201a, 0x82], [0x0192, 0x83], [0x201e, 0x84], [0x2026, 0x85], [0x2020, 0x86], [0x2021, 0x87], [0x02c6, 0x88], [0x2030, 0x89], [0x0160, 0x8a], [0x2039, 0x8b], [0x0152, 0x8c], [0x017d, 0x8e], [0x2018, 0x91], [0x2019, 0x92], [0x201c, 0x93], [0x201d, 0x94], [0x2022, 0x95], [0x2013, 0x96], [0x2014, 0x97], [0x02dc, 0x98], [0x2122, 0x99], [0x0161, 0x9a], [0x203a, 0x9b], [0x0153, 0x9c], [0x017e, 0x9e], [0x0178, 0x9f]]);
   const bytes = [];
@@ -5579,9 +5636,15 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     photoEmbedded: 0,
     signaturesFound: 0,
     signaturesEmbedded: 0,
+    signatureFields: [],
     errors: []
   };
   const logPdfStep = typeof logStep === "function" ? logStep : () => {};
+  const signatureFieldName = (signature) => ["signatureData", "dataUrl", "imageData", "signature", "signatureImage"].find((key) => !!signature?.[key]) || "";
+  const signatureSource = (signature) => {
+    const field = signatureFieldName(signature);
+    return field ? signature[field] : "";
+  };
   const newPage = () => {
     page = { ops: [] };
     pages.push(page);
@@ -5634,10 +5697,11 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const addRule = (ruleY = y, color = "#aab4bf", width = 0.8) => addOp({ type: "line", x1: margin, y1: ruleY, x2: pageWidth - margin, y2: ruleY, color, width });
   const addHeading = (text, options = {}) => {
     if (options.pageBreak && pages.length) newPage();
-    ensure(36);
-    y += pages.length === 1 && y < margin + 22 ? 0 : 8;
-    addRule(y + 17, "#aab4bf", 0.8);
-    addTextLine(text, margin, options.size || 14, { bold: true, color: "#17212b", gap: 8 });
+    ensure(38);
+    y += pages.length === 1 && y < margin + 22 ? 0 : 10;
+    addRect(margin, y - 2, contentWidth, 24, { fill: "#f4f7fa", stroke: "#d8dee6", lineWidth: 0.6 });
+    addOp({ type: "line", x1: margin, y1: y - 2, x2: margin, y2: y + 22, color: "#1f4e79", width: 2.4 });
+    addTextLine(text, margin + 10, options.size || 13.5, { bold: true, color: "#17212b", gap: 12 });
   };
   const addBadge = (text, x, badgeY, style = {}) => {
     const label = String(text || "offen");
@@ -5697,7 +5761,10 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const addTable = (columns, rows, options = {}) => {
     if (!rows.length && !options.emptyText) return;
     if (!rows.length) {
-      addText(options.emptyText, { size: 9, color: "#52606d" });
+      ensure(24);
+      addRect(options.x || margin, y, options.width || contentWidth, 24, { fill: "#fbfcfd", stroke: "#d8dee6", lineWidth: 0.5 });
+      addText(options.emptyText, { size: 9, color: "#52606d", x: (options.x || margin) + 8, maxWidth: (options.width || contentWidth) - 16, blank: false });
+      y += 8;
       return;
     }
     const tableWidth = options.width || contentWidth;
@@ -5705,31 +5772,31 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const weights = columns.map((col) => col.weight || 1);
     const totalWeight = weights.reduce((sum, value) => sum + value, 0) || 1;
     const widths = weights.map((value) => tableWidth * value / totalWeight);
-    const headerHeight = 20;
+    const headerHeight = 22;
     ensure(headerHeight + 16);
-    addRect(x, y, tableWidth, headerHeight, { fill: "#edf2f7", stroke: "#d8dee6", lineWidth: 0.7 });
+    addRect(x, y, tableWidth, headerHeight, { fill: "#e9eff5", stroke: "#cbd5df", lineWidth: 0.7 });
     let cellX = x;
     columns.forEach((col, index) => {
-      addOp({ type: "text", text: col.title, x: cellX + 4, y: y + 13, size: 7.6, font: "F2", color: "#26323f" });
-      if (index) addOp({ type: "line", x1: cellX, y1: y, x2: cellX, y2: y + headerHeight, color: "#d8dee6", width: 0.5 });
+      addOp({ type: "text", text: col.title, x: cellX + 6, y: y + 14, size: 7.8, font: "F2", color: "#26323f" });
+      if (index) addOp({ type: "line", x1: cellX, y1: y, x2: cellX, y2: y + headerHeight, color: "#cbd5df", width: 0.45 });
       cellX += widths[index];
     });
     y += headerHeight;
     rows.forEach((row, rowIndex) => {
-      const cellLines = columns.map((col, index) => splitLines(row[col.key] ?? "", Math.max(20, widths[index] - 8), options.size || 8.2));
-      const rowHeight = Math.max(20, Math.max(...cellLines.map((lines) => lines.length || 1)) * lineHeight(options.size || 8.2) + 8);
+      const cellLines = columns.map((col, index) => splitLines(row[col.key] ?? "", Math.max(20, widths[index] - 12), options.size || 8.2));
+      const rowHeight = Math.max(22, Math.max(...cellLines.map((lines) => lines.length || 1)) * lineHeight(options.size || 8.2) + 10);
       ensure(rowHeight + 4);
-      addRect(x, y, tableWidth, rowHeight, { fill: rowIndex % 2 ? "#ffffff" : "#fbfcfd", stroke: "#d8dee6", lineWidth: 0.5 });
+      addRect(x, y, tableWidth, rowHeight, { fill: rowIndex % 2 ? "#ffffff" : "#fbfcfd", stroke: "#d8dee6", lineWidth: 0.45 });
       cellX = x;
       columns.forEach((col, index) => {
-        if (index) addOp({ type: "line", x1: cellX, y1: y, x2: cellX, y2: y + rowHeight, color: "#d8dee6", width: 0.45 });
+        if (index) addOp({ type: "line", x1: cellX, y1: y, x2: cellX, y2: y + rowHeight, color: "#d8dee6", width: 0.35 });
         const lines = cellLines[index].length ? cellLines[index] : ["-"];
-        lines.slice(0, 5).forEach((line, lineIndex) => addOp({ type: "text", text: line, x: cellX + 4, y: y + 12 + lineIndex * lineHeight(options.size || 8.2), size: options.size || 8.2, font: col.bold ? "F2" : "F1", color: "#1f2933" }));
+        lines.slice(0, options.maxLines || 6).forEach((line, lineIndex) => addOp({ type: "text", text: line, x: cellX + 6, y: y + 13 + lineIndex * lineHeight(options.size || 8.2), size: options.size || 8.2, font: col.bold ? "F2" : "F1", color: "#1f2933" }));
         cellX += widths[index];
       });
       y += rowHeight;
     });
-    y += 8;
+    y += 10;
   };
   const addImage = async (dataUrl, caption, options = {}) => {
     const info = await pdfImageInfo(dataUrl, caption || "Bild");
@@ -5820,9 +5887,18 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   };
 
   newPage();
+  const headerTop = y;
+  const metaX = pageWidth - margin - 148;
+  addRect(metaX, headerTop, 148, 58, { fill: "#f4f7fa", stroke: "#d8dee6", lineWidth: 0.8 });
+  addOp({ type: "text", text: "Datum", x: metaX + 10, y: headerTop + 15, size: 7.8, font: "F2", color: "#52606d" });
+  addOp({ type: "text", text: formatDate(p.head.createdAt) || "-", x: metaX + 54, y: headerTop + 15, size: 8, font: "F1", color: "#17212b" });
+  addOp({ type: "text", text: "Protokoll", x: metaX + 10, y: headerTop + 33, size: 7.8, font: "F2", color: "#52606d" });
+  addOp({ type: "text", text: p.id.slice(-8).toUpperCase(), x: metaX + 54, y: headerTop + 33, size: 8, font: "F1", color: "#17212b" });
+  addOp({ type: "text", text: "Direkt-PDF", x: metaX + 10, y: headerTop + 49, size: 7.5, font: "F1", color: "#697586" });
   addTextLine("Kai BewehrungsCheck · LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
-  addTextLine("Bewehrungskontrolle / Bewehrungsabnahme", margin, 22, { bold: true, color: "#17212b", gap: 7 });
-  addText("Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 10, color: "#52606d", maxWidth: contentWidth - 95 });
+  addTextLine("Bewehrungskontrolle / Bewehrungsabnahme", margin, 21, { bold: true, color: "#17212b", gap: 7 });
+  addText("Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 9.6, color: "#52606d", maxWidth: contentWidth - 168 });
+  y = Math.max(y, headerTop + 66);
   addRule(y + 4, "#1f4e79", 2.2);
   y += 18;
   addInfoGrid("Projektinformationen", [
@@ -5945,12 +6021,14 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
 
   addHeading("Plananlagen / Planmarkierungen", { pageBreak: true });
   if (!p.plans.length) addText("Keine Pläne hinterlegt.");
+  let firstPlanAppendix = true;
   for (let planIndex = 0; planIndex < p.plans.length; planIndex += 1) {
     const plan = p.plans[planIndex];
     const pagesForPlan = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
     if (!pagesForPlan.length) pagesForPlan.push(plan.currentPage || 1);
     for (const pageNumber of pagesForPlan) {
-      if (y > margin + 28) newPage();
+      if (!firstPlanAppendix || y > pageHeight - bottom - 500) newPage();
+      firstPlanAppendix = false;
       addHeading(`Anlage ${planIndex + 1} - Plan ${displayPlanNumber(plan) || plan.fileName || ""} - Seite ${pageNumber}`);
       addText(plan.planName || plan.fileName || "Plan", { size: 9, color: "#52606d" });
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
@@ -5972,9 +6050,14 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   logPdfStep("section:photos:start", { groups: photoGroups.length, photos: imageDebug.photoFound });
   if (!photoGroups.length) addText("Keine Fotos hinterlegt.");
   for (const group of photoGroups) {
-    ensure(52);
-    addText(group.title, { size: 10, bold: true });
-    if (group.note || group.meta) addText(`${group.meta || ""}${group.note ? " - " + group.note : ""}`, { size: 8.5, color: "#52606d" });
+    ensure(66);
+    const groupStart = y;
+    addRect(margin, groupStart, contentWidth, 34, { fill: "#f7f9fb", stroke: "#d8dee6", lineWidth: 0.7 });
+    addOp({ type: "text", text: group.title, x: margin + 10, y: groupStart + 14, size: 9.6, font: "F2", color: "#17212b" });
+    if (group.status) addBadge(group.status, pageWidth - margin - 110, groupStart + 14, statusStyle(group.status));
+    y = groupStart + 27;
+    if (group.note || group.meta) addText(`${group.meta || ""}${group.note ? " - " + group.note : ""}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, color: "#52606d", blank: false });
+    y = Math.max(y, groupStart + 42);
     const photoItems = [];
     for (const item of group.photos) {
       try {
@@ -6000,42 +6083,53 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   addHeading("Unterschriften / Kenntnisnahme");
   addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
   const signatures = p.signatures || [];
-  imageDebug.signaturesFound = signatures.filter((signature) => !!signature.signatureData).length;
+  imageDebug.signaturesFound = signatures.filter((signature) => !!signatureSource(signature)).length;
+  imageDebug.signatureFields = signatures.map((signature) => ({ name: signature.name || "", field: signatureFieldName(signature) || "none" }));
   if (!signatures.length) addText("Keine digitale Unterschrift erfasst.");
   for (const signature of signatures) {
-    ensure(126);
+    ensure(138);
     const blockY = y;
-    addRect(margin, blockY, contentWidth, 116, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 });
-    y = blockY + 14;
-    addText(`${signature.name || "ohne Name"} - ${signature.company || ""} - ${signature.role || ""}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 9, bold: true, blank: false });
-    addText(`Datum / Uhrzeit: ${formatDate(signature.signedAt)}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, color: "#52606d", blank: false });
-    if (signature.note) addText(signature.note, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, blank: false });
-    const boxWidth = 255;
-    const boxHeight = 100;
-    const boxX = margin + contentWidth - boxWidth;
-    const boxY = blockY + 12;
-    addRect(boxX, boxY, boxWidth - 10, boxHeight, { fill: "#ffffff", stroke: "#25313d", lineWidth: 0.6 });
-    if (signature.signatureData) {
-      const info = await pdfImageInfo(signature.signatureData, "Unterschrift");
+    const blockHeight = 128;
+    addRect(margin, blockY, contentWidth, blockHeight, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 });
+    addRect(margin, blockY, contentWidth, 24, { fill: "#f4f7fa", stroke: "#d8dee6", lineWidth: 0.6 });
+    addOp({ type: "text", text: signature.name || "ohne Name", x: margin + 10, y: blockY + 15, size: 9.3, font: "F2", color: "#17212b" });
+    const metaX = margin + 10;
+    y = blockY + 34;
+    addKeyValue("Firma", signature.company || "-", { x: metaX, width: 226, keyWidth: 58, size: 8.1, rowFill: "#fbfcfd" });
+    addKeyValue("Funktion", signature.role || "-", { x: metaX, width: 226, keyWidth: 58, size: 8.1 });
+    addKeyValue("Datum", formatDate(signature.signedAt) || "-", { x: metaX, width: 226, keyWidth: 58, size: 8.1, rowFill: "#fbfcfd" });
+    if (signature.note) addKeyValue("Bemerkung", signature.note, { x: metaX, width: 226, keyWidth: 58, size: 8.0 });
+    const boxWidth = 236;
+    const boxHeight = 82;
+    const boxX = margin + contentWidth - boxWidth - 10;
+    const boxY = blockY + 34;
+    addRect(boxX, boxY, boxWidth, boxHeight, { fill: "#ffffff", stroke: "#25313d", lineWidth: 0.65 });
+    addOp({ type: "line", x1: boxX + 14, y1: boxY + boxHeight - 14, x2: boxX + boxWidth - 14, y2: boxY + boxHeight - 14, color: "#25313d", width: 0.5 });
+    const sourceField = signatureFieldName(signature);
+    const source = signatureSource(signature);
+    if (source) {
+      const preparedSignature = await prepareSignatureImageForPdf(source);
+      const info = await pdfImageInfo(preparedSignature || source, "Unterschrift");
       if (info) {
         const imageIndex = images.push(info) - 1;
-        const signScale = Math.min(226 / info.width, 79 / info.height, 1);
+        const signScale = Math.min((boxWidth - 30) / info.width, (boxHeight - 28) / info.height, 1);
         const signWidth = info.width * signScale;
         const signHeight = info.height * signScale;
-        const signX = boxX + (boxWidth - 10 - signWidth) / 2;
-        const signY = boxY + (boxHeight - signHeight) / 2;
+        const signX = boxX + (boxWidth - signWidth) / 2;
+        const signY = boxY + 10 + ((boxHeight - 30 - signHeight) / 2);
         addOp({ type: "image", imageIndex, x: signX, y: signY, width: signWidth, height: signHeight });
         imageDebug.signaturesEmbedded += 1;
       } else {
         const message = `Unterschrift ${signature.name || "ohne Name"} konnte nicht eingebettet werden.`;
         warnings.push(message);
-        imageDebug.errors.push({ type: "signature", name: signature.name || "", message });
-        addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 30, size: 8.2, color: "#697586", blank: false });
+        imageDebug.errors.push({ type: "signature", name: signature.name || "", field: sourceField || "none", message });
+        addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 20, size: 8.2, color: "#697586", blank: false });
       }
     } else {
-      addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 30, size: 8.2, color: "#697586", blank: false });
+      imageDebug.errors.push({ type: "signature", name: signature.name || "", field: "none", message: "Keine gespeicherten Signaturdaten gefunden." });
+      addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 20, size: 8.2, color: "#697586", blank: false });
     }
-    y = blockY + 124;
+    y = blockY + blockHeight + 10;
   }
   if (warnings.length) {
     newPage();
@@ -6835,7 +6929,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v83",
+    appVersion: "v84",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6858,7 +6952,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v83",
+    appVersion: "v84",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
