@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v86";
+const APP_VERSION = "v87";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -5970,10 +5970,8 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "humidity", title: "Luftfeuchte", weight: 1 }
   ], [{ condition: p.weather.condition || "-", temperature: p.weather.temperature || "-", wind: p.weather.wind || "-", precipitation: p.weather.precipitation || "-", humidity: p.weather.humidity || "-" }], { size: 8.2, minHeight: 74 });
 
-  addHeading("Übersichtsfotos Baustelle", { keepWith: 185 });
   logPdfStep("section:overview:start", { count: normalizeOverviewPhotos(p.overviewPhotos || [], p.id).length });
   const overview = normalizeOverviewPhotos(p.overviewPhotos || [], p.id);
-  if (!overview.length) addTextCard("Übersichtsfotos Baustelle", "Keine Übersichtsfotos zur Baustelle hinterlegt.", { minHeight: 58 });
   const overviewItems = [];
   for (let index = 0; index < overview.length; index += 1) {
     const item = overview[index];
@@ -5987,6 +5985,8 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       logPdfStep("section:overview:image-error", { index: index + 1, photoId: item.photoId, message });
     }
   }
+  addHeading("Übersichtsfotos Baustelle", { keepWith: overviewItems.length ? 320 : 100 });
+  if (!overview.length) addTextCard("Übersichtsfotos Baustelle", "Keine Übersichtsfotos zur Baustelle hinterlegt.", { minHeight: 58 });
   if (overviewItems.length) await addImageGrid(overviewItems, { columns: 2, maxHeight: 205, minImageWidth: 150 });
 
   ensure(88);
@@ -6011,7 +6011,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "file", title: "Datei", weight: 1.5 }
   ], p.plans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.planName || plan.fileName || "Plan", status: plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.3, minHeight: 86 });
 
-  addHeading("Auflagen / Mängel", { keepWith: issues.length ? 125 : 72 });
+  addHeading("Auflagen / Mängel", { keepWith: issues.length ? 165 : 95 });
   if (!issues.length) {
     addTextCard("Auflagen / Mängel", "Keine Auflagen / Mängel dokumentiert.", { minHeight: 58 });
   } else {
@@ -6040,14 +6040,25 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     });
   }
 
-  addHeading("Checkliste und Prüfstellen", { keepWith: 120 });
+  addHeading("Checkliste und Prüfstellen", { keepWith: 155 });
   p.checkpoints.forEach((check) => {
     const samples = check.samples || [];
+    const statusClass = resultClass(check.status);
+    const compactEmptyCheck = !samples.length && (statusClass === "neutral" || statusClass === "na" || !check.status);
+    const style = statusStyle(check.status);
+    if (compactEmptyCheck) {
+      ensure(28);
+      const rowY = y;
+      addRect(margin, rowY, contentWidth, 24, { fill: "#ffffff", stroke: pdfTheme.border, lineWidth: 0.45 });
+      addOp({ type: "text", text: check.title, x: margin + 10, y: rowY + 15, size: 8.5, font: "F1", color: pdfTheme.text });
+      addBadge(check.status || "offen", pageWidth - margin - 106, rowY + 15, style);
+      y = rowY + 29;
+      return;
+    }
     ensure(Math.min(190, 48 + samples.length * 58));
     const checkPage = page;
     const checkStart = y;
     const opStart = page.ops.length;
-    const style = statusStyle(check.status);
     y = checkStart + 32;
     if (!samples.length) {
       addText("Keine einzelnen Prüfstellen angelegt.", { size: 8.4, color: pdfTheme.muted, x: margin + 14, maxWidth: contentWidth - 28, blank: false });
@@ -6092,19 +6103,20 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       addText(plan.planName || plan.fileName || "Plan", { size: 9, color: "#52606d" });
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
       const pinsForPage = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber));
-      const box = await addImage(image, "", { maxHeight: 535, maxWidth: contentWidth - 16, x: margin + 8 });
-      if (box) addRect(box.x - 6, box.y - 6, box.width + 12, box.height + 12, { fill: "", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
+      const availablePlanHeight = Math.max(455, pageHeight - bottom - y - 82);
+      const box = await addImage(image, "", { maxHeight: Math.min(610, availablePlanHeight), maxWidth: contentWidth - 8, x: margin + 4 });
+      if (box) addRect(box.x - 5, box.y - 5, box.width + 10, box.height + 10, { fill: "", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
       addPinClusters(box, pinsForPage, plan.id, pageNumber);
       addTable([
         { key: "pin", title: "Pin", weight: 0.5, bold: true },
         { key: "title", title: "Titel / Bereich", weight: 1.8 },
         { key: "status", title: "Status", weight: 0.9 },
         { key: "note", title: "Bemerkung", weight: 2.4 }
-      ], pinsForPage.map((pin) => ({ pin: pinLabel(pin), title: pin.title || "Pin", status: pin.status || "-", note: pin.note || "-" })), { emptyText: "Keine Pins auf dieser Seite.", size: 7.8 });
+      ], pinsForPage.map((pin) => ({ pin: pinLabel(pin), title: pin.title || "Pin", status: pin.status || "-", note: pin.note || "-" })), { emptyText: "Keine Pins auf dieser Seite.", size: 7.3, maxLines: 4 });
     }
   }
 
-  addHeading("Fotodokumentation", { pageBreak: true, keepWith: 150 });
+  addHeading("Fotodokumentation", { pageBreak: true, keepWith: 185 });
   const photoGroups = collectReportPhotoGroups(p);
   imageDebug.photoFound = photoGroups.reduce((sum, group) => sum + (group.photos?.length || 0), 0);
   logPdfStep("section:photos:start", { groups: photoGroups.length, photos: imageDebug.photoFound });
@@ -6142,7 +6154,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const closingEnd = addInfoCard("Abschluss", closingRows, margin, y, contentWidth);
   y = closingEnd + pdfTheme.cardGap;
 
-  addHeading("Unterschriften / Kenntnisnahme", { keepWith: 165 });
+  addHeading("Unterschriften / Kenntnisnahme", { keepWith: 190 });
   addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
   const signatures = p.signatures || [];
   imageDebug.signaturesFound = signatures.filter((signature) => !!signatureSource(signature)).length;
