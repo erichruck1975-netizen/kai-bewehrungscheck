@@ -214,54 +214,5 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 
 
 
-### v79
-- PDF teilen nutzt dieselbe zentrale PDF-Datei wie PDF herunterladen.
-- Wenn direktes Teilen nicht unterstützt wird oder fehlschlägt, wird die PDF automatisch heruntergeladen.
-- Technische Share-Diagnose wird in state.lastPdfShareDebug protokolliert.
-- Druckdialog/A4-Bericht und Pin-Darstellung bleiben unverändert.
-
-### v80
-- Direkt-PDF wurde inhaltlich und optisch näher an den Druckdialog-Bericht angeglichen.
-- Enthält strukturierte Projekt-/Prüfungsdaten, Wetter, Übersichtsfotos, Ergebnis, Planunterlagen, Auflagen/Mängel, Checkliste, Plananlagen, Fotodokumentation und Unterschriften.
-- PDF teilen verwendet weiterhin dieselbe Direkt-PDF wie PDF herunterladen; Druckdialog, Planviewer und Pins bleiben unverändert.
-
-### v81
-- Direkt-PDF-Hotfix: feste deutsche Sonderzeichen/Umlaute im Direkt-PDF repariert.
-- Auflagen/M?ngel im Direkt-PDF enthalten jetzt Pr?fpunkt, Pr?fstelle, Status, Pin/Plan und Bemerkung verst?ndlicher.
-- Mobile PDF-Aktionsleiste im Ergebnis-/Berichtsbereich l?uft nicht mehr rechts aus dem Bildschirm.
-- Druckdialog, Planviewer und Pin-Darstellung bleiben unver?ndert.
-
-### v82
-- Stammdatenfeld beim Prüfingenieur sichtbar von Büro auf Sachbearbeiter umbenannt.
-- Interne Datenfelder und Backup/Restore bleiben unver?ndert.
-
-### v95
-- Direkt-PDF Layout saubergezogen: harter Textumbruch, robuste einspaltige Projekt-/Prüfungskarten, gekapselte Überschriften für Auflagen, Checkpunkte, Plananlagen, Fotodokumentation und Unterschriften.
-- Druckdialog, Pins, Planviewer und PDF-Download/Teilen-Logik bleiben unverändert.
-
-### v88
-- Direkt-PDF Mini-Fix: Übersichtsfotos-Überschrift wird vor dem Abschnittsstart mit erster Fotozeile zusammengehalten; Plananlagen nutzen Breite/Höhe stärker aus.
-- Druckdialog, Pins, Planviewer und übrige PDF-Logik bleiben unverändert.
-
-### v87
-- Direkt-PDF Feinschliff: Orphan-Überschriften weiter reduziert, Übersichtsfotos mit erstem Inhalt zusammengehalten, Plananlagen größer und offene Checkpunkte kompakter dargestellt.
-- Druckdialog, Pins, Planviewer und PDF-Download/Teilen-Logik bleiben unverändert.
-
-### v86
-- Direkt-PDF Layout-Feinschliff: interne Bezeichnung entfernt, Orphan-Überschriften reduziert, Cards neutraler/ruhiger, Plananlagen größer und App-Version sichtbar im Header.
-- Druckdialog, Pins und Planviewer bleiben unverändert.
-
-### v85
-- Direkt-PDF mit echten Karten/Boxen: Rechteck-Rendering im Direkt-PDF aktiviert und zentrale Card-Komponenten für Projekt, Wetter, Ergebnis, Planunterlagen, Auflagen, Checkpunkte, Fotodokumentation und Unterschriften gestärkt.
-- Druckdialog, Planviewer und Pin-Funktionen bleiben unverändert.
-
-### v84
-- Direkt-PDF optisch näher am Druckdialog-Bericht: verbesserter Kopf, ruhigere Tabellen/Karten, Fotodokumentation und kompakter Unterschriftenbereich.
-- Gezeichnete Signaturen werden im Direkt-PDF aus gespeicherten Signaturdaten eingebettet; Druckdialog und Plan-/Pin-Funktionen bleiben unverändert.
-
-### v83
-- Direkt-PDF-Bildeinbettung robuster gemacht: Übersichtsfotos, Fotodokumentationsfotos und gezeichnete Signaturen werden gr??er/sichtbarer eingef?gt.
-- `state.lastPdfImageDebug` protokolliert gefundene/eingebettete Übersichtsfotos, Fotodokumentationsfotos und Signaturen.
-- Druckdialog, Pins, Planviewer und Checklogik bleiben unver?ndert.
 
 
