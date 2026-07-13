@@ -35,7 +35,14 @@ PDF-Server-MVP, der denselben A4-Bericht serverseitig als echte PDF rendert.
 
 ## Aktueller Entwicklungsstand
 
-v78 stabilisiert den direkten PDF-Download/Teilen mit stufenweiser Diagnose und Abschnitts-Fallbacks. Der PDF-Export startet nicht mehr über die HTML-Berichtsvorstufe. Nahe Pins werden wieder einzeln mit leichtem Versatz statt als Cluster ausgegeben; die v75-Bildkomprimierung bleibt erhalten.
+v95 ist der aktuelle stabile Baustellenstand.
+
+Der offizielle PDF-Weg ist:
+PDF speichern → A4-Bericht → Druckdialog → Als PDF speichern
+
+Die gespeicherte PDF kann anschließend über „Gespeicherte PDF teilen“ ausgewählt und weitergegeben werden.
+
+Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und soll nicht ohne ausdrückliche Freigabe reaktiviert werden.
 
 ## Production-PWA
 
