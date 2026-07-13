@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v78";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=78`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=78`;
+const APP_CACHE = "kai-bewehrungscheck-v80";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=80`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=80`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -5557,12 +5557,16 @@ function collectReportPhotoGroups(p) {
 async function buildStructuredReportPdfModel(parts, logStep = null) {
   const p = state.current;
   const project = projectById(p.projectId);
+  const clientCompany = projectClientRecord(project);
+  const contractorCompany = projectContractorRecord(project, p);
+  const projectInspector = projectInspectorRecord(project);
+  const defaultInspectorPerson = projectDefaultInspectorRecord(project, p);
   p.checkpoints.forEach(updateCheckStatus);
   const issues = sampleIssues(p);
   const pageWidth = 595.28;
   const pageHeight = 841.89;
   const margin = 42;
-  const bottom = 54;
+  const bottom = 56;
   const contentWidth = pageWidth - margin * 2;
   const pages = [];
   const images = [];
@@ -5579,8 +5583,28 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     if (!page || y + height > pageHeight - bottom) newPage();
   };
   const addOp = (op) => page.ops.push(op);
+  const lineHeight = (size) => size + 3.8;
+  const splitLines = (text, maxWidth = contentWidth, size = 10) => {
+    const value = String(text || "").replace(/\s+/g, " ").trim();
+    if (!value) return [];
+    const maxChars = Math.max(8, Math.floor(maxWidth / (size * 0.47)));
+    const words = value.split(" ").filter(Boolean);
+    const lines = [];
+    let line = "";
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (candidate.length > maxChars && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    });
+    if (line) lines.push(line);
+    return lines;
+  };
   const addTextLine = (text, x = margin, size = 10, style = {}) => {
-    ensure(size + 5);
+    ensure(size + 6);
     addOp({ type: "text", text: String(text || ""), x, y, size, font: style.bold ? "F2" : "F1", color: style.color || "#1f2933" });
     y += size + (style.gap ?? 4);
   };
@@ -5588,42 +5612,122 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const size = options.size || 10;
     const maxWidth = options.maxWidth || contentWidth;
     const x = options.x || margin;
-    const words = String(text || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-    if (!words.length) {
+    const lines = splitLines(text, maxWidth, size);
+    if (!lines.length) {
       if (options.blank !== false) y += size + 4;
+      return 0;
+    }
+    lines.forEach((line) => addTextLine(line, x, size, options));
+    return lines.length;
+  };
+  const addRect = (x, rectY, width, height, options = {}) => {
+    addOp({ type: "rect", x, y: rectY, width, height, fill: options.fill || "", stroke: options.stroke || "#d8dee6", lineWidth: options.lineWidth ?? 0.7 });
+  };
+  const addRule = (ruleY = y, color = "#aab4bf", width = 0.8) => addOp({ type: "line", x1: margin, y1: ruleY, x2: pageWidth - margin, y2: ruleY, color, width });
+  const addHeading = (text, options = {}) => {
+    if (options.pageBreak && pages.length) newPage();
+    ensure(36);
+    y += pages.length === 1 && y < margin + 22 ? 0 : 8;
+    addRule(y + 17, "#aab4bf", 0.8);
+    addTextLine(text, margin, options.size || 14, { bold: true, color: "#17212b", gap: 8 });
+  };
+  const addBadge = (text, x, badgeY, style = {}) => {
+    const label = String(text || "offen");
+    const width = Math.min(145, Math.max(48, label.length * 5.2 + 16));
+    addRect(x, badgeY - 11, width, 17, { fill: style.fill || "#eef1f4", stroke: style.stroke || "#cfd6dd", lineWidth: 0.7 });
+    addOp({ type: "text", text: label, x: x + 6, y: badgeY + 1, size: 8, font: "F2", color: style.color || "#4f5b67" });
+    return width;
+  };
+  const statusStyle = (status) => {
+    const cls = resultClass(status);
+    if (cls === "ok") return { fill: "#e7f6ee", stroke: "#adddc2", color: "#12663e" };
+    if (cls === "partial") return { fill: "#fff1d6", stroke: "#f0c56c", color: "#8a5400" };
+    if (cls === "bad") return { fill: "#ffe1df", stroke: "#efa6a1", color: "#9f2a25" };
+    return { fill: "#eef1f4", stroke: "#cfd6dd", color: "#4f5b67" };
+  };
+  const addKeyValue = (key, value, options = {}) => {
+    if (!value && !options.showEmpty) return;
+    const x = options.x || margin;
+    const width = options.width || contentWidth;
+    const keyWidth = options.keyWidth || Math.min(142, width * 0.36);
+    const size = options.size || 8.8;
+    const valueText = value || "-";
+    const valueLines = splitLines(valueText, width - keyWidth - 10, size);
+    const height = Math.max(16, valueLines.length * lineHeight(size) + 5);
+    ensure(height + 2);
+    if (options.rowFill) addRect(x, y - 2, width, height, { fill: options.rowFill, stroke: "#edf0f3", lineWidth: 0.4 });
+    addOp({ type: "text", text: `${key}:`, x, y: y + 9, size, font: "F2", color: "#52606d" });
+    valueLines.length ? valueLines.forEach((line, index) => addOp({ type: "text", text: line, x: x + keyWidth, y: y + 9 + index * lineHeight(size), size, font: "F1", color: "#1f2933" })) : addOp({ type: "text", text: "-", x: x + keyWidth, y: y + 9, size, font: "F1", color: "#1f2933" });
+    y += height;
+  };
+  const addInfoCard = (title, rows, x, cardY, width) => {
+    const startPage = page;
+    const savedY = y;
+    const opStart = page.ops.length;
+    y = cardY + 25;
+    rows.forEach((row, index) => addKeyValue(row[0], row[1], { x: x + 10, width: width - 20, keyWidth: Math.min(116, (width - 20) * 0.42), rowFill: index % 2 ? "" : "#fafbfc" }));
+    const endY = y + 8;
+    if (startPage === page) {
+      page.ops.splice(opStart, 0,
+        { type: "rect", x, y: cardY, width, height: endY - cardY, fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 },
+        { type: "rect", x, y: cardY, width, height: 22, fill: "#f3f6f9", stroke: "#d8dee6", lineWidth: 0.8 },
+        { type: "text", text: title, x: x + 10, y: cardY + 14, size: 8.8, font: "F2", color: "#4b5563" }
+      );
+    }
+    y = savedY;
+    return endY;
+  };
+  const addInfoGrid = (leftTitle, leftRows, rightTitle, rightRows) => {
+    ensure(120);
+    const startY = y;
+    const gap = 14;
+    const width = (contentWidth - gap) / 2;
+    const leftEnd = addInfoCard(leftTitle, leftRows, margin, startY, width);
+    const rightEnd = addInfoCard(rightTitle, rightRows, margin + width + gap, startY, width);
+    y = Math.max(leftEnd, rightEnd) + 8;
+  };
+  const addTable = (columns, rows, options = {}) => {
+    if (!rows.length && !options.emptyText) return;
+    if (!rows.length) {
+      addText(options.emptyText, { size: 9, color: "#52606d" });
       return;
     }
-    let line = "";
-    const maxChars = Math.max(12, Math.floor(maxWidth / (size * 0.48)));
-    words.forEach((word) => {
-      const candidate = line ? `${line} ${word}` : word;
-      if (candidate.length > maxChars && line) {
-        addTextLine(line, x, size, options);
-        line = word;
-      } else {
-        line = candidate;
-      }
+    const tableWidth = options.width || contentWidth;
+    const x = options.x || margin;
+    const weights = columns.map((col) => col.weight || 1);
+    const totalWeight = weights.reduce((sum, value) => sum + value, 0) || 1;
+    const widths = weights.map((value) => tableWidth * value / totalWeight);
+    const headerHeight = 20;
+    ensure(headerHeight + 16);
+    addRect(x, y, tableWidth, headerHeight, { fill: "#edf2f7", stroke: "#d8dee6", lineWidth: 0.7 });
+    let cellX = x;
+    columns.forEach((col, index) => {
+      addOp({ type: "text", text: col.title, x: cellX + 4, y: y + 13, size: 7.6, font: "F2", color: "#26323f" });
+      if (index) addOp({ type: "line", x1: cellX, y1: y, x2: cellX, y2: y + headerHeight, color: "#d8dee6", width: 0.5 });
+      cellX += widths[index];
     });
-    if (line) addTextLine(line, x, size, options);
-  };
-  const addHeading = (text) => {
-    ensure(34);
-    y += pages.length === 1 && y < margin + 20 ? 0 : 8;
-    addOp({ type: "line", x1: margin, y1: y + 17, x2: pageWidth - margin, y2: y + 17, color: "#aab4bf", width: 0.8 });
-    addTextLine(text, margin, 14, { bold: true, color: "#17212b", gap: 8 });
-  };
-  const addKeyValue = (key, value) => {
-    if (!value) return;
-    ensure(16);
-    addOp({ type: "text", text: `${key}:`, x: margin, y, size: 9, font: "F2", color: "#52606d" });
-    addOp({ type: "text", text: String(value), x: margin + 142, y, size: 9, font: "F1", color: "#1f2933" });
-    y += 14;
+    y += headerHeight;
+    rows.forEach((row, rowIndex) => {
+      const cellLines = columns.map((col, index) => splitLines(row[col.key] ?? "", Math.max(20, widths[index] - 8), options.size || 8.2));
+      const rowHeight = Math.max(20, Math.max(...cellLines.map((lines) => lines.length || 1)) * lineHeight(options.size || 8.2) + 8);
+      ensure(rowHeight + 4);
+      addRect(x, y, tableWidth, rowHeight, { fill: rowIndex % 2 ? "#ffffff" : "#fbfcfd", stroke: "#d8dee6", lineWidth: 0.5 });
+      cellX = x;
+      columns.forEach((col, index) => {
+        if (index) addOp({ type: "line", x1: cellX, y1: y, x2: cellX, y2: y + rowHeight, color: "#d8dee6", width: 0.45 });
+        const lines = cellLines[index].length ? cellLines[index] : ["-"];
+        lines.slice(0, 5).forEach((line, lineIndex) => addOp({ type: "text", text: line, x: cellX + 4, y: y + 12 + lineIndex * lineHeight(options.size || 8.2), size: options.size || 8.2, font: col.bold ? "F2" : "F1", color: "#1f2933" }));
+        cellX += widths[index];
+      });
+      y += rowHeight;
+    });
+    y += 8;
   };
   const addImage = async (dataUrl, caption, options = {}) => {
     const info = await pdfImageInfo(dataUrl, caption || "Bild");
     if (!info) {
       warnings.push(caption || "Bild");
-      addText("Bild konnte aus Browser-Sicherheitsgründen nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
+      addText("Bild konnte aus Browser-Sicherheitsgr?nden nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
       return null;
     }
     const imageIndex = images.push(info) - 1;
@@ -5632,13 +5736,49 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const scale = Math.min(maxWidth / info.width, maxHeight / info.height, 1);
     const width = Math.max(1, info.width * scale);
     const height = Math.max(1, info.height * scale);
-    ensure(height + 28);
-    const x = options.x || margin;
+    ensure(height + (caption ? 24 : 8));
+    const x = options.x ?? margin;
     addOp({ type: "image", imageIndex, x, y, width, height });
     const imageBox = { x, y, width, height };
     y += height + 6;
-    if (caption) addText(caption, { size: 8.5, color: "#697586" });
+    if (caption) addText(caption, { size: 8.2, color: "#697586", maxWidth: width, x });
     return imageBox;
+  };
+  const addImageGrid = async (items, options = {}) => {
+    const columns = options.columns || 2;
+    const gap = 10;
+    const cellWidth = (contentWidth - gap * (columns - 1)) / columns;
+    for (let index = 0; index < items.length; index += columns) {
+      const row = items.slice(index, index + columns);
+      const prepared = [];
+      for (const item of row) {
+        const info = await pdfImageInfo(item.src, item.caption || "Bild");
+        if (!info) {
+          warnings.push(item.caption || "Bild");
+          prepared.push(null);
+        } else {
+          const imageIndex = images.push(info) - 1;
+          const imageHeight = Math.min(options.maxHeight || 150, info.height * Math.min(cellWidth / info.width, (options.maxHeight || 150) / info.height, 1));
+          const imageWidth = Math.min(cellWidth, info.width * imageHeight / info.height);
+          prepared.push({ ...item, info, imageIndex, imageWidth, imageHeight });
+        }
+      }
+      const rowHeight = Math.max(...prepared.map((item) => item ? item.imageHeight + 34 : 42), 42);
+      ensure(rowHeight + 10);
+      row.forEach((item, cellIndex) => {
+        const x = margin + cellIndex * (cellWidth + gap);
+        const preparedItem = prepared[cellIndex];
+        addRect(x, y, cellWidth, rowHeight, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.6 });
+        if (preparedItem) {
+          addOp({ type: "image", imageIndex: preparedItem.imageIndex, x: x + (cellWidth - preparedItem.imageWidth) / 2, y: y + 6, width: preparedItem.imageWidth, height: preparedItem.imageHeight });
+          const captionLines = splitLines(item.caption || "", cellWidth - 12, 8.2).slice(0, 3);
+          captionLines.forEach((line, lineIndex) => addOp({ type: "text", text: line, x: x + 6, y: y + preparedItem.imageHeight + 19 + lineIndex * lineHeight(8.2), size: 8.2, font: lineIndex === 0 && item.boldCaption ? "F2" : "F1", color: "#52606d" }));
+        } else {
+          addOp({ type: "text", text: "Bild konnte nicht eingebettet werden.", x: x + 6, y: y + 20, size: 8.2, font: "F1", color: "#9f2a25" });
+        }
+      });
+      y += rowHeight + 10;
+    }
   };
   const addPinClusters = (box, pins, planId, pageNumber) => {
     if (!box || !pins.length) return;
@@ -5665,109 +5805,196 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   };
 
   newPage();
-  addTextLine("Kai BewehrungsCheck", margin, 10, { bold: true, color: "#697586" });
-  addTextLine("Bewehrungskontrolle / Bewehrungsabnahme", margin, 22, { bold: true, color: "#17212b", gap: 10 });
-  addText("Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne.", { size: 10, color: "#52606d" });
-  addHeading("Projekt- und Abnahmedaten");
-  addKeyValue("Projekt", p.head.projectName);
-  addKeyValue("Abnahme", p.head.acceptanceTitle);
-  addKeyValue("Art", p.head.acceptanceType);
-  addKeyValue("Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim());
-  addKeyValue("Bereich / Achsen", p.head.areaAxes);
-  addKeyValue("Datum", formatDate(p.head.createdAt));
-  addKeyValue("Ausführende Firma", p.head.contractor);
-  addKeyValue("Abnehmender", p.result.inspectorName);
-  addHeading("Wetterdaten");
-  addKeyValue("Wetter", p.weather.condition);
-  addKeyValue("Temperatur", p.weather.temperature);
-  addKeyValue("Wind", p.weather.wind);
-  addKeyValue("Niederschlag", p.weather.precipitation);
+  addTextLine("Kai BewehrungsCheck ? LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
+  addTextLine("Bewehrungskontrolle / Bewehrungsabnahme", margin, 22, { bold: true, color: "#17212b", gap: 7 });
+  addText("?rtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausf?hrungs- und Bewehrungspl?ne. Die Betonagefreigabe erfolgt unter Ber?cksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 10, color: "#52606d", maxWidth: contentWidth - 95 });
+  addRule(y + 4, "#1f4e79", 2.2);
+  y += 18;
+  addInfoGrid("Projektinformationen", [
+    ["Projekt / Bauvorhaben", p.head.projectName],
+    ["Abnahme", p.head.acceptanceTitle],
+    ["Art der Abnahme", p.head.acceptanceType],
+    ["Abnahme-ID", p.id],
+    ["Baustellenadresse", formatAddress(project?.address || p.head.siteAddress)],
+    ["Auftraggeber", companyReportText(clientCompany, project?.client || "")],
+    ["Pr?fingenieur", inspectorReportText(projectInspector, project?.inspector || "")],
+    ["Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim()],
+    ["Bereich / Achsen", p.head.areaAxes]
+  ], "Pr?fung", [
+    ["Datum / Uhrzeit", formatDate(p.head.createdAt)],
+    ["Pr?fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
+    ["Ausf?hrende Firma", companyReportText(contractorCompany, p.head.contractor)],
+    ["Allgemeiner Planstand / Pr?fstand", p.head.planDate],
+    ["Protokoll", p.id.slice(-8).toUpperCase()]
+  ]);
 
-  addHeading("Übersichtsfotos Baustelle");
+  addHeading("Wetterdaten");
+  addTable([
+    { key: "condition", title: "Wetter", weight: 1.4 },
+    { key: "temperature", title: "Temperatur", weight: 1 },
+    { key: "wind", title: "Wind", weight: 1 },
+    { key: "precipitation", title: "Niederschlag", weight: 1 },
+    { key: "humidity", title: "Luftfeuchte", weight: 1 }
+  ], [{ condition: p.weather.condition || "-", temperature: p.weather.temperature || "-", wind: p.weather.wind || "-", precipitation: p.weather.precipitation || "-", humidity: p.weather.humidity || "-" }], { size: 8.2 });
+
+  addHeading("?bersichtsfotos Baustelle");
   logPdfStep("section:overview:start", { count: normalizeOverviewPhotos(p.overviewPhotos || [], p.id).length });
   const overview = normalizeOverviewPhotos(p.overviewPhotos || [], p.id);
-  if (!overview.length) addText("Keine Übersichtsfotos zur Baustelle hinterlegt.");
+  if (!overview.length) addText("Keine ?bersichtsfotos zur Baustelle hinterlegt.");
+  const overviewItems = [];
   for (let index = 0; index < overview.length; index += 1) {
     const item = overview[index];
     try {
       const src = await reportPhotoDataUrl(item.photoId, { maxWidth: 1400, maxHeight: 1400, quality: 0.75, mimeType: "image/jpeg" });
-      await addImage(src, `${item.isCover ? "Titelbild - " : ""}Übersichtsfoto ${index + 1}: ${item.caption || ""}`.trim(), { maxHeight: 210 });
+      overviewItems.push({ src, caption: `${item.isCover ? "Titelbild ? " : ""}?bersichtsfoto ${index + 1}${item.caption ? " ? " + item.caption : ""}`, boldCaption: true });
     } catch (error) {
-      const message = `Übersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
+      const message = `?bersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
       warnings.push(message);
       logPdfStep("section:overview:image-error", { index: index + 1, photoId: item.photoId, message });
-      addText("Übersichtsfoto konnte nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
     }
   }
+  if (overviewItems.length) await addImageGrid(overviewItems, { columns: 2, maxHeight: 145 });
 
   addHeading("Ergebnis");
-  addText(resultClause(p.result.resultStatus) || p.result.resultStatus || "Ergebnis gemäß Auswahl dokumentiert.", { size: 11, bold: true });
-  if (p.result.finalNote) addText(p.result.finalNote);
+  ensure(78);
+  const resultStart = y;
+  const resultStyle = statusStyle(p.result.resultStatus);
+  addRect(margin, resultStart, contentWidth, 58, { fill: resultStyle.fill, stroke: resultStyle.stroke, lineWidth: 1.1 });
+  addBadge(p.result.resultStatus || "offen", margin + 12, resultStart + 20, resultStyle);
+  y = resultStart + 34;
+  addText(resultClause(p.result.resultStatus) || "Ergebnis gem?? Auswahl dokumentiert.", { x: margin + 12, maxWidth: contentWidth - 24, size: 9.5, bold: true, blank: false });
+  if (p.result.finalNote) addText(`Schlussbemerkung: ${p.result.finalNote}`, { x: margin + 12, maxWidth: contentWidth - 24, size: 8.8, blank: false });
+  y = Math.max(y, resultStart + 66);
+
   addHeading("Verwendete Planunterlagen");
-  if (!p.plans.length) addText("Es wurden keine Planunterlagen hochgeladen.");
-  p.plans.forEach((plan) => addText(`${displayPlanNumber(plan) || "ohne Plan-Nr."} - ${plan.planName || plan.fileName || "Plan"} - Stand ${plan.planDate || "-"} - Datei: ${plan.fileName || ""}`, { size: 9 }));
+  addTable([
+    { key: "number", title: "Plan-Nr.", weight: 0.9, bold: true },
+    { key: "name", title: "Planbezeichnung", weight: 2.2 },
+    { key: "status", title: "Status", weight: 0.9 },
+    { key: "date", title: "Planstand", weight: 1 },
+    { key: "index", title: "Index", weight: 0.7 },
+    { key: "pages", title: "Seite(n)", weight: 0.7 },
+    { key: "file", title: "Datei", weight: 1.5 }
+  ], p.plans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.planName || plan.fileName || "Plan", status: plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.4 });
 
-  addHeading("Auflagen / Mängel");
-  if (!issues.length) addText("Keine Auflagen / Mängel dokumentiert.");
-  issues.forEach((issue, index) => addText(`${index + 1}. ${issue.title || issue.checkTitle || "Prüfstelle"}: ${issue.location || ""} ${issue.note || ""}`, { size: 9 }));
+  addHeading("Auflagen / M?ngel");
+  addTable([
+    { key: "nr", title: "Nr.", weight: 0.35, bold: true },
+    { key: "topic", title: "Pr?fpunkt", weight: 1.5, bold: true },
+    { key: "location", title: "Bereich", weight: 1.2 },
+    { key: "status", title: "Status", weight: 0.9 },
+    { key: "note", title: "Bemerkung / Auflage", weight: 2.5 }
+  ], issues.map((issue, index) => ({ nr: String(index + 1), topic: issue.title || issue.checkTitle || "Pr?fstelle", location: issue.location || "-", status: issue.status || "-", note: issue.note || "-" })), { emptyText: "Keine Auflagen / M?ngel dokumentiert.", size: 7.8 });
 
-  addHeading("Checkliste und Prüfstellen");
+  addHeading("Checkliste und Pr?fstellen");
   p.checkpoints.forEach((check) => {
-    addText(check.title, { size: 11, bold: true });
+    ensure(44);
+    const headerY = y;
+    addRect(margin, headerY, contentWidth, 24, { fill: "#f7f9fb", stroke: "#d8dee6", lineWidth: 0.8 });
+    addOp({ type: "text", text: check.title, x: margin + 10, y: headerY + 15, size: 10, font: "F2", color: "#17212b" });
+    addBadge(check.status || "offen", pageWidth - margin - 105, headerY + 15, statusStyle(check.status));
+    y = headerY + 30;
     const samples = check.samples || [];
-    if (!samples.length) addText(`Status: ${check.status || "offen"}`, { size: 9, color: "#52606d" });
+    if (!samples.length) {
+      addText("Keine einzelnen Pr?fstellen angelegt.", { size: 8.6, color: "#52606d", x: margin + 10, maxWidth: contentWidth - 20 });
+    }
     samples.forEach((sample) => {
-      addText(`Prüfstelle ${sample.number || ""}${sample.location ? " - " + sample.location : ""}: ${sample.status || "offen"}`, { size: 9, bold: true });
-      if (sample.note) addText(sample.note, { size: 9 });
-      if (sample.pinId) addText(`Planmarkierung: ${pinName(sample.pinId)}`, { size: 8.5, color: "#52606d" });
-      if (sample.overlapCheck?.generatedText) addText(sample.overlapCheck.generatedText, { size: 8.5, color: "#52606d" });
+      ensure(58);
+      const sampleStart = y;
+      addRect(margin + 10, sampleStart, contentWidth - 20, 22, { fill: "#fbfcfd", stroke: "#e2e7ed", lineWidth: 0.6 });
+      addOp({ type: "text", text: `Pr?fstelle ${sample.number || ""}${sample.location ? " - " + sample.location : ""}`, x: margin + 18, y: sampleStart + 14, size: 8.8, font: "F2", color: "#17212b" });
+      addBadge(sample.status || "offen", pageWidth - margin - 112, sampleStart + 14, statusStyle(sample.status));
+      y = sampleStart + 28;
+      addKeyValue("Bereich", sample.location || "ohne Angabe", { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
+      addKeyValue("Bemerkung", sample.note || "-", { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
+      if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
+      if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.2 });
+      if (sample.overlapCheck?.generatedText) addKeyValue("?bergreifung", sample.overlapCheck.generatedText, { x: margin + 18, width: contentWidth - 36, keyWidth: 86, size: 8.0 });
+      y += 6;
     });
+    y += 4;
   });
 
-  addHeading("Plananhang / Planmarkierungen");
-  if (!p.plans.length) addText("Keine Pläne hinterlegt.");
+  addHeading("Plananlagen / Planmarkierungen", { pageBreak: true });
+  if (!p.plans.length) addText("Keine Pl?ne hinterlegt.");
   for (let planIndex = 0; planIndex < p.plans.length; planIndex += 1) {
     const plan = p.plans[planIndex];
     const pagesForPlan = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
     if (!pagesForPlan.length) pagesForPlan.push(plan.currentPage || 1);
     for (const pageNumber of pagesForPlan) {
+      if (y > margin + 28) newPage();
       addHeading(`Anlage ${planIndex + 1} - Plan ${displayPlanNumber(plan) || plan.fileName || ""} - Seite ${pageNumber}`);
+      addText(plan.planName || plan.fileName || "Plan", { size: 9, color: "#52606d" });
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
       const pinsForPage = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber));
-      const box = await addImage(image, plan.planName || plan.fileName || "Plan", { maxHeight: 360 });
+      const box = await addImage(image, "", { maxHeight: 445 });
       addPinClusters(box, pinsForPage, plan.id, pageNumber);
-      pinsForPage.forEach((pin) => addText(`${pinLabel(pin)} - ${pin.title || "Pin"}${pin.note ? ": " + pin.note : ""}`, { size: 8.5 }));
+      addTable([
+        { key: "pin", title: "Pin", weight: 0.5, bold: true },
+        { key: "title", title: "Titel / Bereich", weight: 1.8 },
+        { key: "status", title: "Status", weight: 0.9 },
+        { key: "note", title: "Bemerkung", weight: 2.4 }
+      ], pinsForPage.map((pin) => ({ pin: pinLabel(pin), title: pin.title || "Pin", status: pin.status || "-", note: pin.note || "-" })), { emptyText: "Keine Pins auf dieser Seite.", size: 7.8 });
     }
   }
 
-  addHeading("Fotodokumentation");
+  addHeading("Fotodokumentation", { pageBreak: true });
   const photoGroups = collectReportPhotoGroups(p);
   logPdfStep("section:photos:start", { groups: photoGroups.length });
   if (!photoGroups.length) addText("Keine Fotos hinterlegt.");
   for (const group of photoGroups) {
+    ensure(52);
     addText(group.title, { size: 10, bold: true });
     if (group.note || group.meta) addText(`${group.meta || ""}${group.note ? " - " + group.note : ""}`, { size: 8.5, color: "#52606d" });
+    const photoItems = [];
     for (const item of group.photos) {
       try {
         const src = await reportPhotoDataUrl(item.photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
-        await addImage(src, `${item.label} - ${item.photo.name || "Foto"}`, { maxHeight: 210 });
+        photoItems.push({ src, caption: `${item.label} ? ${item.photo.name || "Foto"}` });
       } catch (error) {
         const message = `${group.title} / ${item.label} konnte nicht eingebettet werden: ${error?.message || error}`;
         warnings.push(message);
         logPdfStep("section:photos:image-error", { group: group.title, photoId: item.photo?.id, message });
-        addText("Foto konnte nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
       }
     }
+    if (photoItems.length) await addImageGrid(photoItems, { columns: 2, maxHeight: 155 });
   }
 
+  addHeading("Schlussformulierung");
+  addInfoCard("Abschluss", [
+    ["Pr?fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
+    ...(hasDrawnSignatures(p) ? [] : [["Unterschrift als Text", p.result.signatureText]])
+  ], margin, y, contentWidth);
+  y += 82;
+
   addHeading("Unterschriften / Kenntnisnahme");
-  addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
+  addText("Die Unterschrift best?tigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder ?ffentlich-rechtlichen Erkl?rungen.", { size: 8.5, color: "#52606d" });
   const signatures = p.signatures || [];
   if (!signatures.length) addText("Keine digitale Unterschrift erfasst.");
   for (const signature of signatures) {
-    addText(`${signature.name || "ohne Name"} - ${signature.company || ""} - ${signature.role || ""} - ${formatDate(signature.signedAt)}`, { size: 9, bold: true });
-    if (signature.note) addText(signature.note, { size: 8.5 });
-    if (signature.signatureData) await addImage(signature.signatureData, "Unterschrift", { maxWidth: 220, maxHeight: 85 });
+    ensure(104);
+    const blockY = y;
+    addRect(margin, blockY, contentWidth, 96, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 });
+    y = blockY + 14;
+    addText(`${signature.name || "ohne Name"} - ${signature.company || ""} - ${signature.role || ""}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 9, bold: true, blank: false });
+    addText(`Datum / Uhrzeit: ${formatDate(signature.signedAt)}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, color: "#52606d", blank: false });
+    if (signature.note) addText(signature.note, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, blank: false });
+    if (signature.signatureData) {
+      const info = await pdfImageInfo(signature.signatureData, "Unterschrift");
+      if (info) {
+        const imageIndex = images.push(info) - 1;
+        const boxWidth = 255;
+        const boxHeight = 72;
+        const signScale = Math.min(220 / info.width, 52 / info.height, 1);
+        const signWidth = info.width * signScale;
+        const signHeight = info.height * signScale;
+        const signX = margin + contentWidth - boxWidth + (boxWidth - signWidth) / 2;
+        const signY = blockY + 18 + (boxHeight - signHeight) / 2;
+        addRect(margin + contentWidth - boxWidth, blockY + 14, boxWidth - 10, boxHeight, { fill: "#ffffff", stroke: "#25313d", lineWidth: 0.6 });
+        addOp({ type: "image", imageIndex, x: signX, y: signY, width: signWidth, height: signHeight });
+      }
+    }
+    y = blockY + 106;
   }
   if (warnings.length) {
     newPage();
@@ -5869,17 +6096,21 @@ async function createReportPdfBlob() {
   }
 }
 
+function triggerPdfDownload(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = sanitizeFileName(fileName || reportFileName(state.current));
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
 async function downloadReportPdf() {
   try {
     const { blob, fileName, warnings } = await createReportPdfBlob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    triggerPdfDownload(blob, fileName);
     if (warnings?.length) alert("PDF wurde erstellt, aber einzelne Bilder konnten nicht eingebettet werden.");
   } catch (error) {
     console.error(error);
@@ -5888,41 +6119,62 @@ async function downloadReportPdf() {
 }
 
 async function shareReportPdf() {
+  const debug = [];
+  state.lastPdfShareDebug = debug;
+  const addDebug = (step, detail = {}) => {
+    const entry = { step, ...detail };
+    debug.push(entry);
+    console.info("PDF-Share", entry);
+  };
   let result;
   try {
+    addDebug("pdf:start");
     result = await createReportPdfBlob();
+    addDebug("pdf:done", { type: result.blob?.type, size: result.blob?.size, fileName: result.fileName });
   } catch (error) {
-    console.error(error);
+    addDebug("pdf:error", { name: error?.name || "Error", message: error?.message || String(error) });
+    console.error("PDF-Share PDF-Erzeugung fehlgeschlagen", { error, debug });
     alert(error?.message || "PDF konnte nicht erstellt werden. Bitte Druckdialog als Fallback nutzen.");
     return;
   }
+  const { blob, fileName, warnings } = result;
+  const fallbackDownload = (message) => {
+    addDebug("fallback:download", { message });
+    triggerPdfDownload(blob, fileName);
+    alert(message || "Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
+  };
   try {
-    const { blob, fileName, warnings } = result;
-    if (typeof File === "undefined") throw new Error("File API nicht verfügbar");
-    const file = new File([blob], fileName, { type: "application/pdf" });
-    const text = buildReportShareText();
-    const title = reportShareTitle();
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ title, text, files: [file] });
-      if (warnings?.length) alert("PDF wurde geteilt, aber einzelne Bilder konnten nicht eingebettet werden.");
+    if (!blob || blob.type !== "application/pdf") throw new Error(`Ungültiger PDF-Blob: ${blob?.type || "kein Typ"}`);
+    if (typeof File === "undefined") {
+      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
       return;
     }
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-    alert("PDF-Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde stattdessen heruntergeladen.");
+    const safeName = sanitizeFileName(fileName || reportFileName(state.current));
+    const file = new File([blob], safeName, { type: "application/pdf" });
+    const text = buildReportShareText();
+    const title = reportShareTitle();
+    const hasShare = !!navigator.share;
+    const hasCanShare = !!navigator.canShare;
+    const canShareFiles = hasShare && hasCanShare ? navigator.canShare({ files: [file] }) : false;
+    addDebug("share:capabilities", { hasShare, hasCanShare, canShareFiles, fileName: safeName, fileType: file.type, fileSize: file.size });
+    if (!canShareFiles) {
+      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
+      return;
+    }
+    addDebug("share:start");
+    await navigator.share({ title, text, files: [file] });
+    addDebug("share:done");
+    if (warnings?.length) alert("PDF wurde geteilt, aber einzelne Bilder konnten nicht eingebettet werden.");
   } catch (error) {
-    if (error?.name === "AbortError") return;
-    console.error(error);
-    alert("PDF konnte nicht geteilt werden. Bitte Druckdialog als Fallback nutzen.");
+    if (error?.name === "AbortError") {
+      addDebug("share:abort", { name: error.name, message: error.message || "" });
+      return;
+    }
+    addDebug("share:error", { name: error?.name || "Error", message: error?.message || String(error) });
+    console.error("PDF teilen fehlgeschlagen", { error, debug });
+    fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen und kann aus dem Download-Ordner geteilt werden.");
   }
 }
-
 async function saveReportPdfDirectExperimental() {
   return downloadReportPdf();
 }
@@ -6541,7 +6793,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v78",
+    appVersion: "v80",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6564,7 +6816,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v78",
+    appVersion: "v80",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -7980,6 +8232,7 @@ async function boot() {
 }
 
 boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+
 
 
 

@@ -73,7 +73,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v78`
+- Cache-Version: `kai-bewehrungscheck-v80`
 
 ## Daten und Sicherung
 
@@ -181,3 +181,14 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 
 
 
+
+### v79
+- PDF teilen nutzt dieselbe zentrale PDF-Datei wie PDF herunterladen.
+- Wenn direktes Teilen nicht unterstützt wird oder fehlschlägt, wird die PDF automatisch heruntergeladen.
+- Technische Share-Diagnose wird in state.lastPdfShareDebug protokolliert.
+- Druckdialog/A4-Bericht und Pin-Darstellung bleiben unverändert.
+
+### v80
+- Direkt-PDF wurde inhaltlich und optisch näher an den Druckdialog-Bericht angeglichen.
+- Enthält strukturierte Projekt-/Prüfungsdaten, Wetter, Übersichtsfotos, Ergebnis, Planunterlagen, Auflagen/Mängel, Checkliste, Plananlagen, Fotodokumentation und Unterschriften.
+- PDF teilen verwendet weiterhin dieselbe Direkt-PDF wie PDF herunterladen; Druckdialog, Planviewer und Pins bleiben unverändert.
