@@ -3,9 +3,9 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_CACHE = "kai-bewehrungscheck-v81";
-const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=81`;
-const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=81`;
+const APP_CACHE = "kai-bewehrungscheck-v83";
+const PDFJS_URL = `vendor/pdfjs/pdf.min.js?v=83`;
+const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?v=83`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
 const OVERLAP_PLAN_MODE = "plan_value";
@@ -1354,7 +1354,7 @@ async function addProjectFieldToMaster(kind) {
   }
   if (kind === "inspector") {
     const value = $("#projectInspectorInput").value.trim();
-    if (!value) return alert("Bitte zuerst einen Namen oder ein Büro eintragen.");
+    if (!value) return alert("Bitte zuerst einen Namen oder Sachbearbeiter eintragen.");
     if (resolveInspector(value)) return alert("Dieser Stammdatensatz ist bereits vorhanden.");
     const inspector = { id: uid("inspector"), name: value, office: "", address: normalizeAddress(), email: "", phone: "", note: "" };
     master.inspectors.push(inspector);
@@ -2043,7 +2043,7 @@ function companyMasterFields() {
 function inspectorMasterFields() {
   return [
     { name: "name", label: "Name" },
-    { name: "office", label: "Büro" },
+    { name: "office", label: "Sachbearbeiter" },
     { name: "address.street", label: "Straße / Hausnummer" },
     { name: "address.zip", label: "PLZ" },
     { name: "address.city", label: "Ort" },
@@ -3340,7 +3340,6 @@ function getOverlapDiameter(check) {
 function overlapValidation(check) {
   const errors = [];
   const warnings = [];
-  const logPdfStep = typeof logStep === "function" ? logStep : () => {};
   const diameter = getOverlapDiameter(check);
   const measured = asNumber(check.measuredMm);
   const requiredPlan = asNumber(check.requiredFromPlanMm);
@@ -5573,6 +5572,15 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   let page;
   let y;
   const warnings = [];
+  const imageDebug = {
+    overviewFound: 0,
+    overviewEmbedded: 0,
+    photoFound: 0,
+    photoEmbedded: 0,
+    signaturesFound: 0,
+    signaturesEmbedded: 0,
+    errors: []
+  };
   const logPdfStep = typeof logStep === "function" ? logStep : () => {};
   const newPage = () => {
     page = { ops: [] };
@@ -5758,8 +5766,15 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
           prepared.push(null);
         } else {
           const imageIndex = images.push(info) - 1;
-          const imageHeight = Math.min(options.maxHeight || 150, info.height * Math.min(cellWidth / info.width, (options.maxHeight || 150) / info.height, 1));
-          const imageWidth = Math.min(cellWidth, info.width * imageHeight / info.height);
+          const frameHeight = options.maxHeight || 150;
+          let imageHeight = Math.min(frameHeight, info.height * Math.min(cellWidth / info.width, frameHeight / info.height, 1));
+          let imageWidth = Math.min(cellWidth, info.width * imageHeight / info.height);
+          if (options.minImageWidth && imageWidth < Math.min(options.minImageWidth, cellWidth)) {
+            const boostedWidth = Math.min(options.minImageWidth, cellWidth);
+            const boostedHeight = Math.min(frameHeight, info.height * boostedWidth / info.width);
+            imageWidth = Math.min(cellWidth, boostedWidth);
+            imageHeight = boostedHeight;
+          }
           prepared.push({ ...item, info, imageIndex, imageWidth, imageHeight });
         }
       }
@@ -5850,10 +5865,11 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     } catch (error) {
       const message = `Übersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
       warnings.push(message);
+      imageDebug.errors.push({ type: "overview", index: index + 1, photoId: item.photoId, message });
       logPdfStep("section:overview:image-error", { index: index + 1, photoId: item.photoId, message });
     }
   }
-  if (overviewItems.length) await addImageGrid(overviewItems, { columns: 2, maxHeight: 145 });
+  if (overviewItems.length) await addImageGrid(overviewItems, { columns: 2, maxHeight: 185, minImageWidth: 120 });
 
   addHeading("Ergebnis");
   ensure(78);
@@ -5952,7 +5968,8 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
 
   addHeading("Fotodokumentation", { pageBreak: true });
   const photoGroups = collectReportPhotoGroups(p);
-  logPdfStep("section:photos:start", { groups: photoGroups.length });
+  imageDebug.photoFound = photoGroups.reduce((sum, group) => sum + (group.photos?.length || 0), 0);
+  logPdfStep("section:photos:start", { groups: photoGroups.length, photos: imageDebug.photoFound });
   if (!photoGroups.length) addText("Keine Fotos hinterlegt.");
   for (const group of photoGroups) {
     ensure(52);
@@ -5966,10 +5983,11 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       } catch (error) {
         const message = `${group.title} / ${item.label} konnte nicht eingebettet werden: ${error?.message || error}`;
         warnings.push(message);
+        imageDebug.errors.push({ type: "photo", group: group.title, photoId: item.photo?.id, message });
         logPdfStep("section:photos:image-error", { group: group.title, photoId: item.photo?.id, message });
       }
     }
-    if (photoItems.length) await addImageGrid(photoItems, { columns: 2, maxHeight: 155 });
+    if (photoItems.length) await addImageGrid(photoItems, { columns: 2, maxHeight: 230, minImageWidth: 120 });
   }
 
   addHeading("Schlussformulierung");
@@ -5982,31 +6000,42 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   addHeading("Unterschriften / Kenntnisnahme");
   addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
   const signatures = p.signatures || [];
+  imageDebug.signaturesFound = signatures.filter((signature) => !!signature.signatureData).length;
   if (!signatures.length) addText("Keine digitale Unterschrift erfasst.");
   for (const signature of signatures) {
-    ensure(104);
+    ensure(126);
     const blockY = y;
-    addRect(margin, blockY, contentWidth, 96, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 });
+    addRect(margin, blockY, contentWidth, 116, { fill: "#ffffff", stroke: "#d8dee6", lineWidth: 0.8 });
     y = blockY + 14;
     addText(`${signature.name || "ohne Name"} - ${signature.company || ""} - ${signature.role || ""}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 9, bold: true, blank: false });
     addText(`Datum / Uhrzeit: ${formatDate(signature.signedAt)}`, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, color: "#52606d", blank: false });
     if (signature.note) addText(signature.note, { x: margin + 10, maxWidth: contentWidth - 20, size: 8.2, blank: false });
+    const boxWidth = 255;
+    const boxHeight = 100;
+    const boxX = margin + contentWidth - boxWidth;
+    const boxY = blockY + 12;
+    addRect(boxX, boxY, boxWidth - 10, boxHeight, { fill: "#ffffff", stroke: "#25313d", lineWidth: 0.6 });
     if (signature.signatureData) {
       const info = await pdfImageInfo(signature.signatureData, "Unterschrift");
       if (info) {
         const imageIndex = images.push(info) - 1;
-        const boxWidth = 255;
-        const boxHeight = 72;
-        const signScale = Math.min(220 / info.width, 52 / info.height, 1);
+        const signScale = Math.min(226 / info.width, 79 / info.height, 1);
         const signWidth = info.width * signScale;
         const signHeight = info.height * signScale;
-        const signX = margin + contentWidth - boxWidth + (boxWidth - signWidth) / 2;
-        const signY = blockY + 18 + (boxHeight - signHeight) / 2;
-        addRect(margin + contentWidth - boxWidth, blockY + 14, boxWidth - 10, boxHeight, { fill: "#ffffff", stroke: "#25313d", lineWidth: 0.6 });
+        const signX = boxX + (boxWidth - 10 - signWidth) / 2;
+        const signY = boxY + (boxHeight - signHeight) / 2;
         addOp({ type: "image", imageIndex, x: signX, y: signY, width: signWidth, height: signHeight });
+        imageDebug.signaturesEmbedded += 1;
+      } else {
+        const message = `Unterschrift ${signature.name || "ohne Name"} konnte nicht eingebettet werden.`;
+        warnings.push(message);
+        imageDebug.errors.push({ type: "signature", name: signature.name || "", message });
+        addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 30, size: 8.2, color: "#697586", blank: false });
       }
+    } else {
+      addText("Keine gezeichnete Signatur gespeichert.", { x: boxX + 10, maxWidth: boxWidth - 30, size: 8.2, color: "#697586", blank: false });
     }
-    y = blockY + 106;
+    y = blockY + 124;
   }
   if (warnings.length) {
     newPage();
@@ -6014,7 +6043,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     addText("PDF wurde erstellt, aber einzelne Bilder konnten nicht eingebettet werden.", { size: 10, bold: true, color: "#9f2a25" });
     warnings.forEach((warning) => addText(`- ${warning}`, { size: 9 }));
   }
-  return { pages, images, warnings, totalPages: pages.length };
+  return { pages, images, warnings, totalPages: pages.length, imageDebug };
 }
 
 function buildPdfBlobFromModel(model) {
@@ -6095,7 +6124,8 @@ async function createReportPdfBlob() {
     logStep("plan-images:done", { count: state.reportPlanImages?.size || 0 });
     const parts = { fileName: reportFileName(state.current) };
     const model = await buildStructuredReportPdfModel(parts, logStep);
-    logStep("model:done", { pages: model.pages.length, images: model.images.length, warnings: model.warnings.length });
+    state.lastPdfImageDebug = model.imageDebug || null;
+    logStep("model:done", { pages: model.pages.length, images: model.images.length, warnings: model.warnings.length, imageDebug: model.imageDebug || null });
     if (!model.pages.length) throw new Error("PDF konnte nicht erzeugt werden, Bericht enthält keine Seiten.");
     const blob = buildPdfBlobFromModel(model);
     if (!blob || blob.type !== "application/pdf" || blob.size < 1000) throw new Error("PDF-Blob ist leer oder ungültig.");
@@ -6208,7 +6238,7 @@ function masterDataWarnings(masterData) {
   });
   [
     ...masterData.companies.map((item) => ["Firma", item.name, item.address]),
-    ...masterData.inspectors.map((item) => ["Prüfer", item.name || item.office, item.address]),
+    ...masterData.inspectors.map((item) => ["Prüfer", item.office ? `${item.name || ""} / Sachbearbeiter ${item.office}` : (item.name || item.office), item.address]),
     ...masterData.ownPersons.map((item) => ["Abnehmender", item.name || item.company, item.address])
   ].forEach(([type, label, address]) => {
     const zip = normalizeAddress(address).zip;
@@ -6698,7 +6728,7 @@ function companyReportText(company, fallback = "") {
 
 function inspectorReportText(inspector, fallback = "") {
   if (!inspector) return fallback || "";
-  const firstLine = [inspector.name, inspector.office].filter(Boolean).join(" / ");
+  const firstLine = inspector.office ? `${inspector.name || "Prüfingenieur"} / Sachbearbeiter ${inspector.office}` : (inspector.name || "");
   return [firstLine, formatAddress(inspector.address)].filter(Boolean).join("\n");
 }
 
@@ -6805,7 +6835,7 @@ async function exportFullBackup() {
     version: 1,
     stableTag: STABLE_TAG,
     exportedAt: new Date().toISOString(),
-    appVersion: "v81",
+    appVersion: "v83",
     projects: state.projects.map(normalizeProject),
     protocols: state.protocols.map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
@@ -6828,7 +6858,7 @@ async function exportProjectPackage() {
     type: "kai-bewehrungscheck-project-package",
     version: 1,
     exportedAt: new Date().toISOString(),
-    appVersion: "v81",
+    appVersion: "v83",
     projects: state.projects.filter((project) => selectedProjectIds.includes(project.id)).map(normalizeProject),
     protocols: state.protocols.filter((protocol) => selectedProtocolIds.includes(protocol.id)).map(stripRuntimeFields),
     masterData: normalizeMasterData(state.masterData),
