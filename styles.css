@@ -2216,3 +2216,22 @@ dialog button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* v98 Nachbegehung: neue Prüfpunkte */
+.followup-new-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #b9d7f0;
+  border-left: 4px solid var(--focus);
+  border-radius: 8px;
+  background: #eef7ff;
+  color: #123b61;
+}
+
+.followup-new-note p {
+  margin: 5px 0 0;
+}
+
+.followup-new-sample {
+  border-color: #b9d7f0;
+}

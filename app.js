@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v97";
+const APP_VERSION = "v98";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -931,6 +931,7 @@ function normalizeProtocol(protocol) {
     photos: [],
     samples: []
   }));
+  if (protocol.type === "followup") ensureFollowupCatalogChecks(protocol);
   const templateKey = checkTemplateKey(protocol.head.component || protocol.head.acceptanceTitle || "");
   const templateActive = new Set((CHECK_SCOPE_TEMPLATES[templateKey] || CHECK_ITEMS).map((title) => title.toLowerCase()));
   protocol.checkpoints.forEach((check, index) => {
@@ -973,6 +974,29 @@ function normalizeProtocol(protocol) {
   };
   syncResultLookupFields(protocol);
   return protocol;
+}
+
+function ensureFollowupCatalogChecks(protocol) {
+  const existing = new Set((protocol.checkpoints || []).map((check) => normalizeCheckTitle(check.title || "")));
+  CHECK_ITEMS.forEach((title, index) => {
+    const key = normalizeCheckTitle(title);
+    if (existing.has(key)) return;
+    protocol.checkpoints.push({
+      id: uid(`check-followup-catalog-${index}`),
+      title,
+      active: false,
+      manuallyActivated: false,
+      status: "offen / nicht bewertet",
+      note: "",
+      pinId: "",
+      photos: [],
+      samples: [],
+      isFollowupNew: true,
+      createdInProtocolId: protocol.id || "",
+      originProtocolId: null
+    });
+    existing.add(key);
+  });
 }
 
 function normalizePinPlacements(pin) {
@@ -1043,6 +1067,9 @@ function normalizeSample(sample, checkItemId, number) {
   sample.followupStatus = sample.followupStatus || "";
   sample.followupNote = sample.followupNote || "";
   sample.followupPhotos = (sample.followupPhotos || []).map(normalizePhotoRef);
+  sample.isFollowupNew = !!sample.isFollowupNew;
+  sample.createdInProtocolId = sample.createdInProtocolId || "";
+  sample.originProtocolId = sample.originProtocolId || null;
   sample.overlapCheck = normalizeOverlapCheck(sample.overlapCheck || sample.overlapCalc || null);
   delete sample.overlapCalc;
   sample.createdAt = sample.createdAt || new Date().toISOString();
@@ -3000,6 +3027,24 @@ function activateCheck(check, manual = false) {
   if (!check) return;
   check.active = true;
   if (manual) check.manuallyActivated = true;
+  if (isFollowupProtocol() && !checkHasFollowupReference(check)) markFollowupNewCheck(check);
+}
+
+function checkHasFollowupReference(check) {
+  return (check?.samples || []).some((sample) => sample.sourceStatus || sample.sourceNote || sample.sourcePinId || sample.referencePhotos?.length);
+}
+
+function markFollowupNewCheck(check) {
+  check.isFollowupNew = true;
+  check.createdInProtocolId = state.current?.id || check.createdInProtocolId || "";
+  check.originProtocolId = null;
+}
+
+function isNewFollowupSample(check, sample) {
+  return !!(
+    isFollowupProtocol() &&
+    (check?.isFollowupNew || sample?.isFollowupNew || (!sample?.sourceStatus && !sample?.sourceNote && !sample?.sourcePinId && !sample?.referencePhotos?.length))
+  );
 }
 
 function renderChecklist() {
@@ -3107,20 +3152,21 @@ function sampleCard(check, sample) {
 }
 
 function followupSampleCard(check, sample) {
+  const isNew = isNewFollowupSample(check, sample);
   const sourceStatus = sample.sourceStatus || initialSampleStatus(sample) || "offen";
-  const currentStatus = sample.followupStatus || sample.status || "weiterhin offen";
+  const currentStatus = sample.followupStatus || sample.status || (isNew ? "neu hinzugekommen" : "weiterhin offen");
   return `
-    <section class="sample-card" data-sample="${sample.id}">
+    <section class="sample-card ${isNew ? "followup-new-sample" : ""}" data-sample="${sample.id}">
       <div class="sample-title">
-        <h4>${escapeHtml(check.title)} – Nachkontrolle ${sample.number}</h4>
+        <h4>${escapeHtml(check.title)} – ${isNew ? "Neu in dieser Nachbegehung" : `Nachkontrolle ${sample.number}`}</h4>
         ${statusBadge(currentStatus)}
       </div>
-      <div class="followup-reference">
+      ${isNew ? `<div class="followup-new-note"><strong>Neu festgestellt in Nachbegehung</strong><p class="muted">Dieser Prüfpunkt wurde erst in dieser Nachbegehung ergänzt.</p></div>` : `<div class="followup-reference">
         <strong>Referenz aus Erstabnahme</strong>
         <p>${statusBadge(sourceStatus)} ${escapeHtml(sample.location || "ohne Bereich")}${sample.pinId ? " · " + escapeHtml(samplePinMeta(sample)) : ""}</p>
         ${sample.sourceNote ? `<p>${escapeHtml(sample.sourceNote)}</p>` : `<p class="muted">Keine Referenzbemerkung vorhanden.</p>`}
         ${sample.referencePhotos?.length ? `<p class="muted">Referenzfotos: ${sample.referencePhotos.length}</p>${thumbs(sample.referencePhotos)}` : ""}
-      </div>
+      </div>`}
       ${comboField({ label: "Bereich / Achse / Bauteil", field: "location", list: "areaOptions", value: sample.location, placeholder: "z. B. Achse A/3, Bodenplatte Unterfahrt", dataAttr: "data-sample-field" })}
       <div class="status-row followup-status-row">${FOLLOWUP_STATUSES.map((status) => `
         <button class="status-btn ${currentStatus === status ? "active" : ""}" data-followup-status="${status}" type="button">${escapeHtml(status)}</button>
@@ -3704,11 +3750,18 @@ function addSample(checkId, seed = {}) {
   const check = state.current.checkpoints.find((item) => item.id === checkId);
   if (!check) return;
   activateCheck(check, true);
+  const followupNew = isFollowupProtocol() && !checkHasFollowupReference(check);
+  if (followupNew) markFollowupNewCheck(check);
   const sample = normalizeSample({
     ...seed,
     id: uid("sample"),
     checkItemId: check.id,
     number: nextSampleNumber(check),
+    status: followupNew ? (seed.status || "neu hinzugekommen") : seed.status,
+    followupStatus: followupNew ? (seed.followupStatus || "neu hinzugekommen") : seed.followupStatus,
+    isFollowupNew: followupNew || !!seed.isFollowupNew,
+    createdInProtocolId: followupNew ? state.current.id : seed.createdInProtocolId,
+    originProtocolId: followupNew ? null : seed.originProtocolId,
     photos: seed.photos ? seed.photos.map((photo) => ({ ...photo })) : [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -5267,6 +5320,8 @@ async function buildReportParts() {
 
         <h2>${followup ? "Nachkontrollierte Punkte" : "Checkliste und Prüfstellen"}</h2>
         ${checklistReport(p)}
+
+        ${followup ? `<h2>Neu festgestellte Punkte in der Nachbegehung</h2>${followupNewPointsReport(p)}` : ""}
 
         ${planAppendixHtml}
 
@@ -7048,9 +7103,15 @@ function issuesReport(issues) {
 }
 
 function checklistReport(protocol) {
-  const checks = protocol.checkpoints.filter(shouldIncludeCheckInReport);
+  const followup = isFollowupProtocol(protocol);
+  const checks = protocol.checkpoints
+    .filter(shouldIncludeCheckInReport)
+    .map((check) => followup ? { ...check, samples: (check.samples || []).filter((sample) => !isNewFollowupSample(check, sample)) } : check)
+    .filter((check) => !followup || check.samples.length || checkHasFollowupReference(check));
   if (!checks.length) {
-    return `<p>Keine Checkbereiche aktiviert oder dokumentiert.</p><p class="small">Nicht aufgeführte Prüfpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
+    return followup
+      ? `<p>Keine übernommenen offenen Punkte dokumentiert.</p>`
+      : `<p>Keine Checkbereiche aktiviert oder dokumentiert.</p><p class="small">Nicht aufgeführte Prüfpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
   }
   return `${checks.map((check) => `
     <section class="check-card">
@@ -7058,13 +7119,39 @@ function checklistReport(protocol) {
         <h3>${escapeHtml(check.title)}</h3>
         ${statusBadge(check.status || "offen / nicht bewertet")}
       </div>
-      ${check.samples?.length ? check.samples.map(sampleReport).join("") : `<p class="muted" style="padding:10px 12px">Dieser Prüfumfang wurde aktiviert, jedoch ohne Einzelprüfstelle dokumentiert.</p>`}
+      ${check.samples?.length ? check.samples.map((sample) => sampleReport(sample, check)).join("") : `<p class="muted" style="padding:10px 12px">Dieser Prüfumfang wurde aktiviert, jedoch ohne Einzelprüfstelle dokumentiert.</p>`}
     </section>
   `).join("")}<p class="small">Nicht aufgeführte Prüfpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
 }
 
-function sampleReport(sample) {
-  if (sample.sourceStatus || sample.followupStatus) return followupSampleReport(sample);
+function followupNewPoints(protocol) {
+  if (!isFollowupProtocol(protocol)) return [];
+  return protocol.checkpoints.flatMap((check) => (check.samples || [])
+    .filter((sample) => isNewFollowupSample(check, sample))
+    .map((sample) => ({ check, sample })));
+}
+
+function followupNewPointsReport(protocol) {
+  const items = followupNewPoints(protocol);
+  if (!items.length) return `<p>Keine neu festgestellten Punkte in dieser Nachbegehung dokumentiert.</p>`;
+  const grouped = new Map();
+  items.forEach(({ check, sample }) => {
+    if (!grouped.has(check.id)) grouped.set(check.id, { check, samples: [] });
+    grouped.get(check.id).samples.push(sample);
+  });
+  return [...grouped.values()].map(({ check, samples }) => `
+    <section class="check-card">
+      <div class="check-head">
+        <h3>${escapeHtml(check.title)}</h3>
+        <span class="status-badge neutral">Neu</span>
+      </div>
+      ${samples.map((sample) => sampleReport(sample, check)).join("")}
+    </section>
+  `).join("");
+}
+
+function sampleReport(sample, check = null) {
+  if (sample.sourceStatus || sample.followupStatus || isNewFollowupSample(check, sample)) return followupSampleReport(sample, check);
   return `
     <article class="sample-card">
       <div class="sample-title">
@@ -7082,18 +7169,19 @@ function sampleReport(sample) {
   `;
 }
 
-function followupSampleReport(sample) {
+function followupSampleReport(sample, check = null) {
+  const isNew = isNewFollowupSample(check, sample);
   const newNote = sample.followupNote || sample.note || "keine neue Bemerkung";
   return `
     <article class="sample-card">
       <div class="sample-title">
-        <span>Nachkontrolle ${sample.number}${sample.location ? " · " + escapeHtml(sample.location) : ""}</span>
-        ${statusBadge(sample.followupStatus || sample.status || "weiterhin offen")}
+        <span>${isNew ? "Neu festgestellt" : "Nachkontrolle"} ${sample.number}${sample.location ? " · " + escapeHtml(sample.location) : ""}</span>
+        ${statusBadge(sample.followupStatus || sample.status || (isNew ? "neu hinzugekommen" : "weiterhin offen"))}
       </div>
       <div class="sample-grid">
         <div>Bereich</div><div>${escapeHtml(sample.location || "ohne Angabe")}</div>
-        <div>Ursprünglicher Status</div><div>${statusBadge(sample.sourceStatus || "offen")}</div>
-        <div>Ursprüngliche Bemerkung</div><div>${escapeHtml(sample.sourceNote || "keine")}</div>
+        ${isNew ? `<div>Einordnung</div><div>Neu festgestellt in Nachbegehung</div>` : `<div>Ursprünglicher Status</div><div>${statusBadge(sample.sourceStatus || "offen")}</div>
+        <div>Ursprüngliche Bemerkung</div><div>${escapeHtml(sample.sourceNote || "keine")}</div>`}
         <div>Plan / Pin</div><div>${escapeHtml(pinName(sample.pinId) || pinName(sample.sourcePinId) || "kein Pin")}</div>
         <div>Status Nachbegehung</div><div>${statusBadge(sample.followupStatus || sample.status || "weiterhin offen")}</div>
         <div>Bemerkung Nachbegehung</div><div>${escapeHtml(newNote)}</div>
