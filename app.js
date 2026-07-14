@@ -3,12 +3,13 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v95";
+const APP_VERSION = "v96";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
+const FOLLOWUP_STATUSES = ["erledigt", "teilweise erledigt", "weiterhin offen", "nicht prüfbar", "neu hinzugekommen"];
 const OVERLAP_PLAN_MODE = "plan_value";
 const OVERLAP_EC2_MODE = "ec2_na";
 const EC2_NA_CONFIG = {
@@ -738,7 +739,9 @@ function blankProtocol(project = null, seed = {}) {
   return normalizeProtocol({
     id: seed.id || uid("protocol"),
     projectId: project?.id || seed.projectId || "",
-    type: "Bewehrungsabnahme",
+    type: seed.type || "initial",
+    parentProtocolId: seed.parentProtocolId || "",
+    followupCreatedAt: seed.followupCreatedAt || "",
     version: "0.3",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -807,6 +810,9 @@ function blankProtocol(project = null, seed = {}) {
 
 function normalizeProtocol(protocol) {
   protocol.version = protocol.version || "0.2";
+  protocol.type = protocol.type === "followup" ? "followup" : "initial";
+  protocol.parentProtocolId = protocol.parentProtocolId || "";
+  protocol.followupCreatedAt = protocol.followupCreatedAt || "";
   protocol.projectId = protocol.projectId || "";
   protocol.createdAt = protocol.createdAt || protocol.updatedAt || new Date().toISOString();
   protocol.head = protocol.head || {};
@@ -1028,6 +1034,15 @@ function normalizeSample(sample, checkItemId, number) {
   sample.pageNumber = sample.pageNumber || 1;
   sample.pinId = sample.pinId || "";
   sample.photos = (sample.photos || []).map(normalizePhotoRef);
+  sample.referencePhotos = (sample.referencePhotos || []).map(normalizePhotoRef);
+  sample.sourceStatus = sample.sourceStatus || "";
+  sample.sourceNote = sample.sourceNote || "";
+  sample.sourcePinId = sample.sourcePinId || "";
+  sample.sourcePlanId = sample.sourcePlanId || "";
+  sample.sourcePageNumber = sample.sourcePageNumber || 1;
+  sample.followupStatus = sample.followupStatus || "";
+  sample.followupNote = sample.followupNote || "";
+  sample.followupPhotos = (sample.followupPhotos || []).map(normalizePhotoRef);
   sample.overlapCheck = normalizeOverlapCheck(sample.overlapCheck || sample.overlapCalc || null);
   delete sample.overlapCalc;
   sample.createdAt = sample.createdAt || new Date().toISOString();
@@ -2110,6 +2125,7 @@ function acceptanceCard(p) {
       </div>
       <div class="card-actions">
         <button class="secondary-btn" data-open="${p.id}" type="button">Öffnen</button>
+        ${p.type === "followup" ? "" : `<button class="secondary-btn" data-create-followup="${p.id}" type="button">Nachbegehung aus offenen Punkten erstellen</button>`}
         <button class="secondary-btn" data-duplicate-acceptance="${p.id}" type="button">Duplizieren</button>
         <button class="danger-btn" data-delete="${p.id}" type="button">Abnahme löschen</button>
       </div>
@@ -3026,6 +3042,7 @@ function checkScopeRow(item) {
 }
 
 function sampleCard(check, sample) {
+  if (isFollowupProtocol()) return followupSampleCard(check, sample);
   return `
     <section class="sample-card" data-sample="${sample.id}">
       <div class="sample-title">
@@ -3049,6 +3066,44 @@ function sampleCard(check, sample) {
         <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
         <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
         <button class="small-btn" type="button" data-duplicate-sample="${sample.id}">Prüfstelle duplizieren</button>
+        <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
+      </div>
+    </section>
+  `;
+}
+
+function followupSampleCard(check, sample) {
+  const sourceStatus = sample.sourceStatus || initialSampleStatus(sample) || "offen";
+  const currentStatus = sample.followupStatus || sample.status || "weiterhin offen";
+  return `
+    <section class="sample-card" data-sample="${sample.id}">
+      <div class="sample-title">
+        <h4>${escapeHtml(check.title)} – Nachkontrolle ${sample.number}</h4>
+        ${statusBadge(currentStatus)}
+      </div>
+      <div class="followup-reference">
+        <strong>Referenz aus Erstabnahme</strong>
+        <p>${statusBadge(sourceStatus)} ${escapeHtml(sample.location || "ohne Bereich")}${sample.pinId ? " · " + escapeHtml(samplePinMeta(sample)) : ""}</p>
+        ${sample.sourceNote ? `<p>${escapeHtml(sample.sourceNote)}</p>` : `<p class="muted">Keine Referenzbemerkung vorhanden.</p>`}
+        ${sample.referencePhotos?.length ? `<p class="muted">Referenzfotos: ${sample.referencePhotos.length}</p>${thumbs(sample.referencePhotos)}` : ""}
+      </div>
+      ${comboField({ label: "Bereich / Achse / Bauteil", field: "location", list: "areaOptions", value: sample.location, placeholder: "z. B. Achse A/3, Bodenplatte Unterfahrt", dataAttr: "data-sample-field" })}
+      <div class="status-row followup-status-row">${FOLLOWUP_STATUSES.map((status) => `
+        <button class="status-btn ${currentStatus === status ? "active" : ""}" data-followup-status="${status}" type="button">${escapeHtml(status)}</button>
+      `).join("")}</div>
+      <label>Pin zuordnen
+        <select data-sample-field="pinId">${pinOptionsHtml()}</select>
+      </label>
+      <p class="muted">${escapeHtml(samplePinMeta(sample))}</p>
+      ${samplePlanMarkControls(check, sample)}
+      <label class="voice-field">Neue Bemerkung Nachbegehung
+        <textarea data-sample-field="note" rows="3">${escapeHtml(sample.note || sample.followupNote || "")}</textarea>
+        <button class="mic-btn" type="button" data-voice-sample="${sample.id}">Mikrofon</button>
+      </label>
+      ${samplePhotoGrid(sample)}
+      <div class="sample-actions">
+        <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
+        <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
         <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
       </div>
     </section>
@@ -3661,6 +3716,16 @@ function deleteSample(sampleId) {
 function updateCheckStatus(check) {
   if (!check.samples?.length) {
     check.status = "offen / nicht bewertet";
+    return check.status;
+  }
+  if (check.samples.some((sample) => sample.followupStatus || FOLLOWUP_STATUSES.includes(sample.status))) {
+    if (check.samples.some((sample) => ["weiterhin offen", "teilweise erledigt", "nicht prüfbar", "neu hinzugekommen"].includes(sample.followupStatus || sample.status))) {
+      check.status = "teilweise / Auflage";
+    } else if (check.samples.every((sample) => (sample.followupStatus || sample.status) === "erledigt")) {
+      check.status = "fertig / OK";
+    } else {
+      check.status = "offen / nicht bewertet";
+    }
     return check.status;
   }
   if (check.samples.some((sample) => sample.status === "nicht OK / Mangel")) {
@@ -5054,6 +5119,11 @@ async function buildReportParts() {
   const overviewPhotosHtml = await overviewPhotoReport(p);
   const planAppendixHtml = planAppendixReport(p);
   const photoReportHtml = await photoReport(p);
+  const followup = isFollowupProtocol(p);
+  const reportTitle = followup ? "Nachbegehung / Nachkontrolle" : "Bewehrungskontrolle / Bewehrungsabnahme";
+  const reportSubtitle = followup
+    ? "Kurzer Nachbegehungsbericht zu den aus der Erstabnahme übernommenen offenen Punkten, Auflagen und Mängeln."
+    : "Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.";
   const css = `
     @page{size:A4;margin:18mm 15mm 20mm}
     *{box-sizing:border-box}
@@ -5109,8 +5179,8 @@ async function buildReportParts() {
         <header class="report-header">
           <div>
             <div class="brand">Kai BewehrungsCheck · LTH Bau</div>
-            <h1>Bewehrungskontrolle / Bewehrungsabnahme</h1>
-            <p class="subtitle">Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.</p>
+            <h1>${escapeHtml(reportTitle)}</h1>
+            <p class="subtitle">${escapeHtml(reportSubtitle)}</p>
           </div>
           <aside class="doc-meta">
             <div><span>Datum</span><strong>${escapeHtml(formatDate(p.head.createdAt))}</strong></div>
@@ -5125,6 +5195,7 @@ async function buildReportParts() {
             ${infoRow("Projekt / Bauvorhaben", p.head.projectName)}
             ${infoRow("Abnahme", p.head.acceptanceTitle)}
             ${infoRow("Art der Abnahme", p.head.acceptanceType)}
+            ${followup ? infoRow("Bezug Erstabnahme", followupSourceLabel(p)) : ""}
             ${infoRow("Abnahme-ID / Protokoll-ID", p.id)}
             ${infoRow("Baustellenadresse", formatAddress(project?.address || p.head.siteAddress))}
             ${infoRow("Auftraggeber", companyReportText(clientCompany, project?.client || ""))}
@@ -5147,7 +5218,7 @@ async function buildReportParts() {
         <h2>Übersichtsfotos Baustelle</h2>
         ${overviewPhotosHtml}
 
-        <h2>Ergebnis</h2>
+        <h2>${followup ? "Ergebnis der Nachbegehung" : "Ergebnis"}</h2>
         <section class="result-box ${resultClass(p.result.resultStatus)}">
           ${statusBadge(p.result.resultStatus)}
           <p>${resultClause(p.result.resultStatus) || "Ergebnis gemäß Auswahl dokumentiert."}</p>
@@ -5157,10 +5228,10 @@ async function buildReportParts() {
         <h2>Verwendete Planunterlagen</h2>
         ${planOverviewReport(p)}
 
-        <h2>Auflagen / Mängel</h2>
+        <h2>${followup ? "Weiterhin offene Punkte" : "Auflagen / Mängel"}</h2>
         ${issuesReport(issues)}
 
-        <h2>Checkliste und Prüfstellen</h2>
+        <h2>${followup ? "Nachkontrollierte Punkte" : "Checkliste und Prüfstellen"}</h2>
         ${checklistReport(p)}
 
         ${planAppendixHtml}
@@ -6886,20 +6957,58 @@ function reportFileName(p) {
 }
 
 function sampleIssues(protocol) {
+  const followup = isFollowupProtocol(protocol);
   return protocol.checkpoints.flatMap((check) =>
     (check.samples || [])
-      .filter((sample) => sample.status === "teilweise / Auflage" || sample.status === "nicht OK / Mangel" || sample.overlapCheck?.resultStatus === "teilweise / Auflage" || sample.overlapCheck?.resultStatus === "nicht OK / Mangel")
+      .filter((sample) => followup ? isOpenFollowupStatus(sample.followupStatus || sample.status) : isInitialOpenSample(sample))
       .map((sample) => ({ check, sample }))
   );
+}
+
+function isFollowupProtocol(protocol = state.current) {
+  return protocol?.type === "followup";
+}
+
+function initialSampleStatus(sample = {}) {
+  return sample.overlapCheck?.resultStatus || sample.status || "";
+}
+
+function isInitialOpenStatus(status = "") {
+  const value = String(status).toLowerCase();
+  return !!(
+    value.includes("mangel") ||
+    value.includes("auflage") ||
+    value.includes("teilweise") ||
+    value.includes("offen") ||
+    value.includes("nicht prüfbar") ||
+    value.includes("nicht pr")
+  ) && !value.includes("nicht relevant");
+}
+
+function isInitialOpenSample(sample = {}) {
+  if (!isInitialOpenStatus(initialSampleStatus(sample))) return false;
+  return !!(sample.location || sample.note || sample.pinId || sample.photos?.length || sample.overlapCheck);
+}
+
+function isOpenFollowupStatus(status = "") {
+  const value = String(status).toLowerCase();
+  return value.includes("teilweise") || value.includes("weiterhin") || value.includes("offen") || value.includes("nicht prüfbar") || value.includes("nicht pr") || value.includes("neu hinzugekommen");
+}
+
+function followupSourceLabel(protocol) {
+  const source = state.protocols.find((item) => item.id === protocol?.parentProtocolId);
+  if (!source) return protocol?.parentProtocolId ? `Abnahme ${protocol.parentProtocolId.slice(-8).toUpperCase()}` : "ohne Bezug";
+  return `${acceptanceLabel(source)} vom ${formatDate(source.head?.createdAt || source.createdAt)}`;
 }
 
 function issuesReport(issues) {
   if (!issues.length) return `<p>Keine Auflagen / Mängel dokumentiert.</p>`;
   return `<ol class="issues-list">
     ${issues.map((issue) => {
-      const status = issue.sample.overlapCheck?.resultStatus || issue.sample.status;
-      const note = issue.sample.note || issue.sample.overlapCheck?.generatedText || "";
-      return `<li><strong>${escapeHtml(issue.check.title)} · Prüfstelle ${issue.sample.number}</strong><br>${statusBadge(status)} ${escapeHtml(issue.sample.location || "")}${issue.sample.pinId ? " · " + escapeHtml(pinName(issue.sample.pinId)) : ""}${note ? `<br>${escapeHtml(note)}` : ""}</li>`;
+      const followup = !!(issue.sample.sourceStatus || issue.sample.followupStatus);
+      const status = followup ? (issue.sample.followupStatus || issue.sample.status) : (issue.sample.overlapCheck?.resultStatus || issue.sample.status);
+      const note = followup ? (issue.sample.followupNote || issue.sample.note || issue.sample.sourceNote || "") : (issue.sample.note || issue.sample.overlapCheck?.generatedText || "");
+      return `<li><strong>${escapeHtml(issue.check.title)} · ${followup ? "Nachkontrolle" : "Prüfstelle"} ${issue.sample.number}</strong><br>${statusBadge(status)} ${escapeHtml(issue.sample.location || "")}${issue.sample.pinId ? " · " + escapeHtml(pinName(issue.sample.pinId)) : ""}${note ? `<br>${escapeHtml(note)}` : ""}</li>`;
     }).join("")}
   </ol>`;
 }
@@ -6921,6 +7030,7 @@ function checklistReport(protocol) {
 }
 
 function sampleReport(sample) {
+  if (sample.sourceStatus || sample.followupStatus) return followupSampleReport(sample);
   return `
     <article class="sample-card">
       <div class="sample-title">
@@ -6934,6 +7044,28 @@ function sampleReport(sample) {
         <div>Fotos</div><div>${sample.photos?.length ? `${sample.photos.length} Foto(s)` : "keine"}</div>
       </div>
       ${overlapPdfRows(sample)}
+    </article>
+  `;
+}
+
+function followupSampleReport(sample) {
+  const newNote = sample.followupNote || sample.note || "keine neue Bemerkung";
+  return `
+    <article class="sample-card">
+      <div class="sample-title">
+        <span>Nachkontrolle ${sample.number}${sample.location ? " · " + escapeHtml(sample.location) : ""}</span>
+        ${statusBadge(sample.followupStatus || sample.status || "weiterhin offen")}
+      </div>
+      <div class="sample-grid">
+        <div>Bereich</div><div>${escapeHtml(sample.location || "ohne Angabe")}</div>
+        <div>Ursprünglicher Status</div><div>${statusBadge(sample.sourceStatus || "offen")}</div>
+        <div>Ursprüngliche Bemerkung</div><div>${escapeHtml(sample.sourceNote || "keine")}</div>
+        <div>Plan / Pin</div><div>${escapeHtml(pinName(sample.pinId) || pinName(sample.sourcePinId) || "kein Pin")}</div>
+        <div>Status Nachbegehung</div><div>${statusBadge(sample.followupStatus || sample.status || "weiterhin offen")}</div>
+        <div>Bemerkung Nachbegehung</div><div>${escapeHtml(newNote)}</div>
+        <div>Neue Fotos</div><div>${sample.photos?.length ? `${sample.photos.length} Foto(s)` : "keine"}</div>
+        <div>Referenzfotos</div><div>${sample.referencePhotos?.length ? `${sample.referencePhotos.length} Foto(s)` : "keine"}</div>
+      </div>
     </article>
   `;
 }
@@ -7230,15 +7362,15 @@ function statusBadge(status = "offen / nicht bewertet") {
 
 function statusClassName(status = "") {
   if (status.includes("nicht OK") || status.includes("Nicht zur Betonage")) return "bad";
-  if (status.includes("teilweise") || status.includes("Auflage") || status.includes("Nachkontrolle")) return "partial";
-  if (status.includes("OK") || status.includes("freigegeben")) return "ok";
+  if (status.includes("teilweise") || status.includes("Auflage") || status.includes("Nachkontrolle") || status.includes("weiterhin offen") || status.includes("nicht prüfbar")) return "partial";
+  if (status.includes("OK") || status.includes("freigegeben") || status.includes("erledigt")) return "ok";
   return "neutral";
 }
 
 function resultClass(status = "") {
-  if (status === "Nicht zur Betonage freigegeben") return "bad";
-  if (status === "Zur Betonage freigegeben unter Auflagen" || status === "Nachkontrolle erforderlich") return "partial";
-  if (status === "Zur Betonage freigegeben") return "ok";
+  if (status === "Nicht zur Betonage freigegeben" || status === "weiterhin wesentliche Mängel offen") return "bad";
+  if (status === "Zur Betonage freigegeben unter Auflagen" || status === "Nachkontrolle erforderlich" || status === "teilweise erledigt, Rest offen" || status === "Nachkontrolle nicht abschließend möglich") return "partial";
+  if (status === "Zur Betonage freigegeben" || status === "alle offenen Punkte erledigt") return "ok";
   return "neutral";
 }
 
@@ -7259,6 +7391,10 @@ function resultClause(status) {
   if (status === "Nachkontrolle erforderlich") {
     return "Vor einer abschließenden Bewertung ist eine Nachkontrolle der dokumentierten Punkte erforderlich.";
   }
+  if (status === "alle offenen Punkte erledigt") return "Die nachkontrollierten Punkte wurden als erledigt dokumentiert.";
+  if (status === "teilweise erledigt, Rest offen") return "Ein Teil der offenen Punkte wurde erledigt; Restpunkte bleiben dokumentiert offen.";
+  if (status === "weiterhin wesentliche Mängel offen") return "Wesentliche Mängel sind weiterhin offen und erfordern weitere Maßnahmen.";
+  if (status === "Nachkontrolle nicht abschließend möglich") return "Die Nachkontrolle konnte nicht abschließend bewertet werden.";
   return "";
 }
 
@@ -7514,6 +7650,7 @@ function bindEvents() {
       const check = findCheckBySample(sample.id);
       activateCheck(check);
       sample[event.target.dataset.sampleField] = event.target.value;
+      if (isFollowupProtocol() && event.target.dataset.sampleField === "note") sample.followupNote = event.target.value;
       if (event.target.dataset.sampleField === "pinId") {
         const pin = state.current.pins.find((item) => item.id === event.target.value);
         const placement = pin ? (pinPlacements(pin).find((item) => item.isPrimary) || pinPlacements(pin)[0]) : null;
@@ -7654,6 +7791,8 @@ function bindEvents() {
     if (chooseAnotherPlan) $("#planInput").click();
     const duplicateAcceptance = event.target.closest("[data-duplicate-acceptance]");
     if (duplicateAcceptance) openDuplicateDialog(duplicateAcceptance.dataset.duplicateAcceptance);
+    const createFollowup = event.target.closest("[data-create-followup]");
+    if (createFollowup) createFollowupFromOpenPoints(createFollowup.dataset.createFollowup);
     const deleteProjectButton = event.target.closest("[data-delete-project]");
     if (deleteProjectButton && confirmProjectDeletion(deleteProjectButton.dataset.deleteProject)) {
       deleteProject(deleteProjectButton.dataset.deleteProject).then(renderList);
@@ -7793,6 +7932,20 @@ function bindEvents() {
       const sample = findSample(statusSample.closest("[data-sample]").dataset.sample);
       if (sample) {
         sample.status = statusSample.dataset.sampleStatus;
+        sample.updatedAt = new Date().toISOString();
+        const check = findCheckBySample(sample.id);
+        activateCheck(check);
+        if (check) updateCheckStatus(check);
+        persist();
+        renderChecklist();
+      }
+    }
+    const followupStatus = event.target.closest("[data-followup-status]");
+    if (followupStatus) {
+      const sample = findSample(followupStatus.closest("[data-sample]").dataset.sample);
+      if (sample) {
+        sample.followupStatus = followupStatus.dataset.followupStatus;
+        sample.status = sample.followupStatus;
         sample.updatedAt = new Date().toISOString();
         const check = findCheckBySample(sample.id);
         activateCheck(check);
@@ -8370,6 +8523,144 @@ async function duplicateProtocol(protocolId, options = duplicateDialogOptions())
   await persist();
   $("#duplicateDialog")?.close();
   openProtocol(copy);
+}
+
+
+async function createFollowupFromOpenPoints(protocolId) {
+  const source = state.protocols.find((protocol) => protocol.id === protocolId);
+  if (!source) return;
+  if (isFollowupProtocol(source)) {
+    alert("Aus einer Nachbegehung wird keine weitere Nachbegehung erstellt. Bitte die ursprüngliche Abnahme verwenden.");
+    return;
+  }
+  const items = sampleIssues(source);
+  if (!items.length) {
+    alert("Keine offenen Punkte, Auflagen oder Mängel für eine Nachbegehung gefunden.");
+    return;
+  }
+  const project = projectById(source.projectId);
+  const createdAt = nowLocalInput();
+  const copy = blankProtocol(project, {
+    head: source.head,
+    type: "followup",
+    parentProtocolId: source.id,
+    followupCreatedAt: new Date().toISOString()
+  });
+  copy.type = "followup";
+  copy.parentProtocolId = source.id;
+  copy.followupCreatedAt = new Date().toISOString();
+  copy.head.acceptanceTitle = `Nachbegehung ${source.head.acceptanceTitle || source.head.component || acceptanceLabel(source)}`;
+  copy.head.acceptanceType = "Nachbegehung / Nachkontrolle";
+  copy.head.acceptanceTypeId = "Nachbegehung / Nachkontrolle";
+  copy.head.acceptanceTypeSnapshot = { value: "Nachbegehung / Nachkontrolle", label: "Nachbegehung / Nachkontrolle" };
+  copy.head.createdAt = createdAt;
+  copy.weather.weatherDateTime = createdAt;
+  copy.result = {
+    resultStatus: "Nachkontrolle nicht abschließend möglich",
+    finalNote: `Nachbegehung zu Abnahme vom ${formatDate(source.head?.createdAt || source.createdAt)}.`,
+    inspectorName: source.result?.inspectorName || state.settings.defaultInspector || "",
+    signatureText: ""
+  };
+  const relevantPinIds = new Set(items.map(({ sample }) => sample.pinId).filter(Boolean));
+  const relevantPlanIds = new Set();
+  items.forEach(({ sample }) => {
+    if (sample.planId) relevantPlanIds.add(sample.planId);
+    const pin = source.pins.find((item) => item.id === sample.pinId);
+    pinPlacements(pin).forEach((placement) => relevantPlanIds.add(placement.planId));
+  });
+  const maps = { planIds: new Map(), pinIds: new Map(), checkIds: new Map(), sampleIds: new Map() };
+  if (relevantPlanIds.size) {
+    const duplicated = await duplicateSelectedPlanRecords(source, copy, [...relevantPlanIds]);
+    copy.plans = duplicated.plans;
+    maps.planIds = duplicated.planIdMap;
+    copy.activePlanId = copy.plans[0]?.id || "";
+  } else {
+    copy.plans = [];
+    copy.activePlanId = "";
+  }
+  copy.pins = (source.pins || [])
+    .filter((pin) => relevantPinIds.has(pin.id))
+    .map((pin) => {
+      const newPin = {
+        ...JSON.parse(JSON.stringify(pin)),
+        id: uid("pin"),
+        planId: maps.planIds.get(pin.planId) || "",
+        photos: (pin.photos || []).map(normalizePhotoRef),
+        placements: pinPlacements(pin).map((placement) => ({
+          ...placement,
+          id: uid("placement"),
+          planId: maps.planIds.get(placement.planId) || "",
+          pageNumber: placement.pageNumber || 1
+        })).filter((placement) => placement.planId),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      maps.pinIds.set(pin.id, newPin.id);
+      return newPin;
+    })
+    .filter((pin) => pin.planId || pin.placements.length);
+  copy.checkpoints = [];
+  source.checkpoints.forEach((sourceCheck) => {
+    const checkItems = items.filter(({ check }) => check.id === sourceCheck.id);
+    if (!checkItems.length) return;
+    const newCheck = {
+      id: uid("check-followup"),
+      title: sourceCheck.title,
+      active: true,
+      manuallyActivated: true,
+      status: "teilweise / Auflage",
+      note: "",
+      pinId: "",
+      photos: [],
+      samples: []
+    };
+    maps.checkIds.set(sourceCheck.id, newCheck.id);
+    checkItems.forEach(({ sample }, sampleIndex) => {
+      const oldPin = source.pins.find((pin) => pin.id === sample.pinId);
+      const mappedPinId = maps.pinIds.get(sample.pinId) || "";
+      const mappedPlanId = maps.planIds.get(sample.planId || oldPin?.planId || "") || "";
+      const newSample = normalizeSample({
+        id: uid("sample"),
+        checkItemId: newCheck.id,
+        number: sampleIndex + 1,
+        location: sample.location || "",
+        status: "weiterhin offen",
+        note: "",
+        planId: mappedPlanId,
+        pageNumber: sample.pageNumber || oldPin?.pageNumber || 1,
+        pinId: mappedPinId,
+        photos: [],
+        referencePhotos: (sample.photos || []).map(normalizePhotoRef),
+        sourceStatus: initialSampleStatus(sample),
+        sourceNote: sample.note || sample.overlapCheck?.generatedText || "",
+        sourcePinId: sample.pinId || "",
+        sourcePlanId: sample.planId || oldPin?.planId || "",
+        sourcePageNumber: sample.pageNumber || oldPin?.pageNumber || 1,
+        followupStatus: "weiterhin offen",
+        followupNote: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }, newCheck.id, sampleIndex + 1);
+      maps.sampleIds.set(sample.id, newSample.id);
+      newCheck.samples.push(newSample);
+      const newPin = copy.pins.find((pin) => pin.id === mappedPinId);
+      if (newPin) {
+        newPin.checkItemId = newCheck.id;
+        newPin.sampleId = newSample.id;
+        newPin.title = newPin.title || `${sourceCheck.title} · ${sample.location || `Prüfstelle ${sample.number}`}`;
+      }
+    });
+    updateCheckStatus(newCheck);
+    copy.checkpoints.push(newCheck);
+  });
+  copy.signatures = [];
+  copy.overviewPhotos = [];
+  copy.photos = [];
+  state.protocols.unshift(normalizeProtocol(copy));
+  state.currentProjectId = copy.projectId;
+  await persist();
+  openProtocol(copy);
+  alert("Nachbegehung aus offenen Punkten erstellt. Die ursprüngliche Abnahme bleibt unverändert.");
 }
 
 function openPlanImportDialog() {

@@ -1,15 +1,14 @@
-# Kai BewehrungsCheck
+﻿# Kai BewehrungsCheck
 
 Mobile-first PWA für Bewehrungsabnahmen auf der Baustelle.
 
-## Stabiler Zwischenstand
+## Aktueller stabiler Stand
 
-**Stable-Tag:** `v95-stable-a4-pdf-share`  
-**Release:** v95 stable – A4 PDF Workflow
+Stable-Tag: `v95-stable-a4-pdf-share`
 
-Dieser Stand ist der stabile Baustellenstand mit offiziellem A4-Berichtspfad.
+Beschreibung: Dies ist der stabile Baustellenstand mit offiziellem A4-Berichtspfad.
 
-### Funktioniert
+Funktioniert:
 
 - A4-Bericht ist offizieller PDF-Weg
 - PDF speichern öffnet A4-Bericht / Druckdialog
@@ -19,30 +18,25 @@ Dieser Stand ist der stabile Baustellenstand mit offiziellem A4-Berichtspfad.
 - Pins / Planviewer stabil
 - Backup/Restore vorhanden
 
-### Wichtige Regel
+Wichtige Regel: Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrückliche Freigabe reaktiviert werden.
 
-Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrückliche Freigabe reaktiviert werden.
-
-### Vor größeren Umbauten
+Vor größeren Umbauten:
 
 - Backup exportieren
-- Release v95 stable prüfen
+- Release `v95 stable` prüfen
 - keine Änderungen am A4-Berichtspfad ohne Freigabe
 
-### Nächste empfohlene Richtung
+Nächste empfohlene Richtung: PDF-Server-MVP, der denselben A4-Bericht serverseitig als echte PDF rendert.
 
-PDF-Server-MVP, der denselben A4-Bericht serverseitig als echte PDF rendert.
+## Stabiler Zwischenstand
+
+Tag: `v52-stable-before-v53`
+
+Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-v95 ist der aktuelle stabile Baustellenstand.
-
-Der offizielle PDF-Weg ist:
-PDF speichern → A4-Bericht → Druckdialog → Als PDF speichern
-
-Die gespeicherte PDF kann anschließend über „Gespeicherte PDF teilen“ ausgewählt und weitergegeben werden.
-
-Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und soll nicht ohne ausdrückliche Freigabe reaktiviert werden.
+Aktueller stabiler Release: `v95-stable-a4-pdf-share`. Der offizielle PDF-Weg ist der A4-Bericht über Vorschau/Druckdialog. Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg.
 
 ## Production-PWA
 
@@ -152,17 +146,14 @@ PDF konnte nicht gerendert werden. Bitte Planseite als JPG/PNG hochladen.
 
 ## PDF speichern / drucken
 
-Empfohlener PDF-Export:
+Offizieller PDF-Export:
 
-1. `PDF speichern` wählen.
-2. Die App öffnet den offiziellen A4-Bericht und den Druckdialog.
+1. `PDF speichern` antippen.
+2. A4-Bericht / Druckdialog öffnen lassen.
 3. Im Druckdialog Ziel `Als PDF speichern` wählen.
+4. Danach kann die gespeicherte PDF über `Gespeicherte PDF teilen` ausgewählt und weitergegeben werden.
 
-Alternativ kann der Bericht vorher über `A4-Vorschau` geprüft werden.
-
-Der Browserdruck ist der offizielle PDF-Weg, weil er das A4-Layout der Vorschau zuverlässig abbildet.
-
-Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg.
+Der A4-Bericht über Browserdruck ist der offizielle PDF-Weg, weil er das A4-Layout der Vorschau zuverlässig abbildet. Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrückliche Freigabe reaktiviert werden.
 
 ## Fotoanalyse / Stäbe zählen
 
@@ -199,3 +190,73 @@ http://localhost:4173/index.html
 ```
 
 Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll die App als gehostete HTTPS-PWA auf dem Handy installiert werden.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### v79
+- PDF teilen nutzt dieselbe zentrale PDF-Datei wie PDF herunterladen.
+- Wenn direktes Teilen nicht unterstützt wird oder fehlschlägt, wird die PDF automatisch heruntergeladen.
+- Technische Share-Diagnose wird in state.lastPdfShareDebug protokolliert.
+- Druckdialog/A4-Bericht und Pin-Darstellung bleiben unverändert.
+
+### v80
+- Direkt-PDF wurde inhaltlich und optisch näher an den Druckdialog-Bericht angeglichen.
+- Enthält strukturierte Projekt-/Prüfungsdaten, Wetter, Übersichtsfotos, Ergebnis, Planunterlagen, Auflagen/Mängel, Checkliste, Plananlagen, Fotodokumentation und Unterschriften.
+- PDF teilen verwendet weiterhin dieselbe Direkt-PDF wie PDF herunterladen; Druckdialog, Planviewer und Pins bleiben unverändert.
+
+### v81
+- Direkt-PDF-Hotfix: feste deutsche Sonderzeichen/Umlaute im Direkt-PDF repariert.
+- Auflagen/M?ngel im Direkt-PDF enthalten jetzt Pr?fpunkt, Pr?fstelle, Status, Pin/Plan und Bemerkung verst?ndlicher.
+- Mobile PDF-Aktionsleiste im Ergebnis-/Berichtsbereich l?uft nicht mehr rechts aus dem Bildschirm.
+- Druckdialog, Planviewer und Pin-Darstellung bleiben unver?ndert.
+
+### v82
+- Stammdatenfeld beim Prüfingenieur sichtbar von Büro auf Sachbearbeiter umbenannt.
+- Interne Datenfelder und Backup/Restore bleiben unver?ndert.
+
+### v95
+- Direkt-PDF Layout saubergezogen: harter Textumbruch, robuste einspaltige Projekt-/Prüfungskarten, gekapselte Überschriften für Auflagen, Checkpunkte, Plananlagen, Fotodokumentation und Unterschriften.
+- Druckdialog, Pins, Planviewer und PDF-Download/Teilen-Logik bleiben unverändert.
+
+### v88
+- Direkt-PDF Mini-Fix: Übersichtsfotos-Überschrift wird vor dem Abschnittsstart mit erster Fotozeile zusammengehalten; Plananlagen nutzen Breite/Höhe stärker aus.
+- Druckdialog, Pins, Planviewer und übrige PDF-Logik bleiben unverändert.
+
+### v87
+- Direkt-PDF Feinschliff: Orphan-Überschriften weiter reduziert, Übersichtsfotos mit erstem Inhalt zusammengehalten, Plananlagen größer und offene Checkpunkte kompakter dargestellt.
+- Druckdialog, Pins, Planviewer und PDF-Download/Teilen-Logik bleiben unverändert.
+
+### v86
+- Direkt-PDF Layout-Feinschliff: interne Bezeichnung entfernt, Orphan-Überschriften reduziert, Cards neutraler/ruhiger, Plananlagen größer und App-Version sichtbar im Header.
+- Druckdialog, Pins und Planviewer bleiben unverändert.
+
+### v85
+- Direkt-PDF mit echten Karten/Boxen: Rechteck-Rendering im Direkt-PDF aktiviert und zentrale Card-Komponenten für Projekt, Wetter, Ergebnis, Planunterlagen, Auflagen, Checkpunkte, Fotodokumentation und Unterschriften gestärkt.
+- Druckdialog, Planviewer und Pin-Funktionen bleiben unverändert.
+
+### v84
+- Direkt-PDF optisch näher am Druckdialog-Bericht: verbesserter Kopf, ruhigere Tabellen/Karten, Fotodokumentation und kompakter Unterschriftenbereich.
+- Gezeichnete Signaturen werden im Direkt-PDF aus gespeicherten Signaturdaten eingebettet; Druckdialog und Plan-/Pin-Funktionen bleiben unverändert.
+
+### v83
+- Direkt-PDF-Bildeinbettung robuster gemacht: Übersichtsfotos, Fotodokumentationsfotos und gezeichnete Signaturen werden gr??er/sichtbarer eingef?gt.
+- `state.lastPdfImageDebug` protokolliert gefundene/eingebettete Übersichtsfotos, Fotodokumentationsfotos und Signaturen.
+- Druckdialog, Pins, Planviewer und Checklogik bleiben unver?ndert.
+
+
