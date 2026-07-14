@@ -38,6 +38,15 @@ Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 Aktueller stabiler Release: `v95-stable-a4-pdf-share`. Der offizielle PDF-Weg ist der A4-Bericht über Vorschau/Druckdialog. Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg.
 
+
+## Einordnung in Kai BauSuite
+
+Der Kai BewehrungsCheck ist das erste Spezialmodul der geplanten Kai BauSuite.
+
+Gemeinsame Funktionen wie Projekte, Beteiligte/Stammdaten, Pläne, Pins, Fotos, Spracheingabe, Nachbegehungen, Unterschriften, Backup/Restore und Berichte sollen später als BauSuite-Kern wiederverwendet werden.
+
+Die Zielarchitektur ist in `docs/BAUSUITE_ARCHITECTURE.md` dokumentiert. Die laufende App wird dadurch nicht migriert oder umbenannt; der BewehrungsCheck bleibt der stabile Ausgangspunkt.
+
 ## Production-PWA
 
 Die App ist eine statische PWA. Für die Auslieferung genügt der Inhalt des Ordners `dist`.
@@ -258,5 +267,7 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 - Direkt-PDF-Bildeinbettung robuster gemacht: Übersichtsfotos, Fotodokumentationsfotos und gezeichnete Signaturen werden gr??er/sichtbarer eingef?gt.
 - `state.lastPdfImageDebug` protokolliert gefundene/eingebettete Übersichtsfotos, Fotodokumentationsfotos und Signaturen.
 - Druckdialog, Pins, Planviewer und Checklogik bleiben unver?ndert.
+
+
 
 
