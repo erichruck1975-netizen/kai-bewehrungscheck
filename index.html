@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BewehrungsCheck</title>
-  <link rel="manifest" href="manifest.webmanifest?v=96">
-  <link rel="stylesheet" href="styles.css?v=96">
+  <link rel="manifest" href="manifest.webmanifest?v=97">
+  <link rel="stylesheet" href="styles.css?v=97">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BewehrungsCheck <span class="version-badge" data-app-version>v96</span></h1>
+        <h1>Kai BewehrungsCheck <span class="version-badge" data-app-version>v97</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -74,7 +74,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v96</p>
+              <p id="appVersionInfo" class="muted">Version: v97</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -121,6 +121,7 @@
 
         <form id="protocolForm">
           <div id="headTab" class="tab-panel active">
+            <div id="followupContextBanner" class="followup-context" hidden></div>
             <div class="grid">
               <label>Projekt / Bauvorhaben<input name="projectName" required></label>
               <label>Baustellenadresse: Straße / Hausnummer<input name="siteStreet"></label>
@@ -539,7 +540,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=85"></script>
-  <script src="app.js?v=96"></script>
+  <script src="app.js?v=97"></script>
 </body>
 </html>
 

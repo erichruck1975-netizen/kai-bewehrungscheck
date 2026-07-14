@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v96";
+const APP_VERSION = "v97";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1178,6 +1178,24 @@ function updateMasterDataSaveStatus(message = "") {
   status.classList.toggle("dirty", state.masterDataDirty);
 }
 
+function showAppToast(message, { type = "success", timeout = 4200 } = {}) {
+  let toast = document.getElementById("appToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "appToast";
+    toast.className = "app-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  window.clearTimeout(state.toastTimer);
+  toast.className = `app-toast ${type} visible`;
+  toast.innerHTML = `<strong>${type === "success" ? "Erfolg" : "Hinweis"}</strong><span>${escapeHtml(message)}</span>`;
+  state.toastTimer = window.setTimeout(() => {
+    toast.classList.remove("visible");
+  }, timeout);
+}
+
 async function navigateToView(id) {
   if (activeViewId() === "masterDataView" && id !== "masterDataView") {
     const canLeave = await confirmLeaveMasterData();
@@ -1588,8 +1606,24 @@ function fillForm() {
     const field = $(`[name="${key}"]`);
     if (field) field.value = value || "";
   });
+  renderFollowupContextBanner();
   renderOverviewPhotos();
   renderSignatures();
+}
+
+function renderFollowupContextBanner() {
+  const banner = document.getElementById("followupContextBanner");
+  if (!banner) return;
+  if (!isFollowupProtocol(state.current)) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+  banner.hidden = false;
+  banner.innerHTML = `
+    <strong>Nachbegehung / Nachkontrolle</strong>
+    <span>Bezug: ${escapeHtml(followupSourceLabel(state.current))}</span>
+  `;
 }
 
 function renderOverviewPhotos() {
@@ -8660,7 +8694,7 @@ async function createFollowupFromOpenPoints(protocolId) {
   state.currentProjectId = copy.projectId;
   await persist();
   openProtocol(copy);
-  alert("Nachbegehung aus offenen Punkten erstellt. Die ursprüngliche Abnahme bleibt unverändert.");
+  showAppToast("Nachbegehung erstellt. Die ursprüngliche Abnahme bleibt unverändert.");
 }
 
 function openPlanImportDialog() {
