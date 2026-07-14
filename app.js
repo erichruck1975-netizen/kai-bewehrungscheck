@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v98";
+const APP_VERSION = "v99";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1258,6 +1258,46 @@ async function confirmLeaveMasterData() {
   return false;
 }
 
+function activateProtocolTab(tabId) {
+  $$(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === tabId));
+  $$(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tabId));
+  if (tabId === "checkTab") renderChecklist();
+  if (tabId === "planTab") renderPlan();
+  if (tabId === "resultTab") {
+    renderOverviewPhotos();
+    renderSignatures();
+  }
+}
+
+function returnToResultAfterPrint() {
+  if (state.reportReturnDone) return;
+  state.reportReturnDone = true;
+  const dialog = $("#reportDialog");
+  if (dialog?.open) dialog.close();
+  document.body.classList.remove("report-open");
+  activateProtocolTab("resultTab");
+}
+
+function armReturnToResultAfterPrint() {
+  state.reportReturnDone = false;
+  const done = () => {
+    cleanup();
+    window.setTimeout(returnToResultAfterPrint, 50);
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === "visible") done();
+  };
+  const cleanup = () => {
+    window.removeEventListener("afterprint", done);
+    window.removeEventListener("focus", done);
+    document.removeEventListener("visibilitychange", onVisibility);
+  };
+  window.addEventListener("afterprint", done, { once: true });
+  window.addEventListener("focus", done, { once: true });
+  document.addEventListener("visibilitychange", onVisibility);
+  window.setTimeout(done, 2500);
+}
+
 function openProtocol(protocol) {
   state.current = normalizeProtocol(protocol);
   state.currentProjectId = state.current.projectId || "";
@@ -1881,7 +1921,9 @@ function editSignature(id) {
   renderSignatures();
 }
 
-function saveSignature(id) {
+function saveSignature(id, event = null) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
   const card = $(`[data-signature="${id}"]`);
   const signature = findSignature(id);
   if (!card || !signature) return;
@@ -1890,11 +1932,28 @@ function saveSignature(id) {
   });
   syncSignatureSnapshots(signature);
   const canvas = $(`[data-signature-pad="${id}"]`, card);
-  if (canvas && state.signatureEditId === id) signature.signatureData = canvas.toDataURL("image/png");
+  const wasEditing = state.signatureEditId === id;
+  if (canvas && wasEditing) signature.signatureData = canvas.toDataURL("image/png");
   signature.signedAt = signature.signedAt || nowLocalInput();
-  if (state.signatureEditId === id) state.signatureEditId = "";
+  state.signatureEditId = "";
+  lockSignatureCardNow(card, canvas);
   persist();
   renderSignatures();
+}
+
+function lockSignatureCardNow(card, canvas = null) {
+  const wrap = card?.querySelector?.(".signature-pad-wrap");
+  if (wrap) {
+    wrap.classList.remove("editing");
+    wrap.classList.add("locked");
+  }
+  const pad = canvas || card?.querySelector?.(".signature-pad");
+  if (pad) {
+    pad.style.pointerEvents = "none";
+    pad.style.touchAction = "auto";
+  }
+  const hint = card?.querySelector?.(".signature-mode-hint");
+  if (hint) hint.textContent = "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche.";
 }
 function syncSignatureSnapshots(signature) {
   const person = ownPersonSelection(signature.name || "");
@@ -5473,6 +5532,7 @@ async function savePdfFromA4Report() {
   await openReportDialog({ printHint: true });
   setReportPreviewMode("a4");
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  armReturnToResultAfterPrint();
   await printReportA4();
 }
 
@@ -7731,14 +7791,7 @@ function bindEvents() {
   }));
   $$(".tab").forEach((btn) => btn.addEventListener("click", () => {
     saveFromForm();
-    $$(".tab").forEach((tab) => tab.classList.toggle("active", tab === btn));
-    $$(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === btn.dataset.tab));
-    if (btn.dataset.tab === "checkTab") renderChecklist();
-    if (btn.dataset.tab === "planTab") renderPlan();
-    if (btn.dataset.tab === "resultTab") {
-      renderOverviewPhotos();
-      renderSignatures();
-    }
+    activateProtocolTab(btn.dataset.tab);
   }));
   $("#protocolForm").addEventListener("input", (event) => {
     if (event.target.matches("[data-plan-field]")) {
@@ -8151,7 +8204,7 @@ function bindEvents() {
     const resetSig = event.target.closest("[data-reset-signature]");
     if (resetSig) resetSignature(resetSig.dataset.resetSignature);
     const saveSig = event.target.closest("[data-save-signature]");
-    if (saveSig) saveSignature(saveSig.dataset.saveSignature);
+    if (saveSig) saveSignature(saveSig.dataset.saveSignature, event);
     const deleteSig = event.target.closest("[data-delete-signature]");
     if (deleteSig && confirm("Diese Unterschrift wirklich löschen?")) deleteSignature(deleteSig.dataset.deleteSignature);
     const pdfSave = event.target.closest("#pdfSaveBtn");
