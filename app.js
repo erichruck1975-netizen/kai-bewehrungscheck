@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v101";
+const APP_VERSION = "v102";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1218,9 +1218,10 @@ function normalizeOverlapCheck(overlapCheck) {
 
 function showView(id) {
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === id));
-  $("#backBtn").classList.toggle("hidden", id === "homeView");
+  updateAppHeader(id);
   renderBrowserWarnings();
   if (id === "homeView") renderHomeProjects();
+  if (id === "projectHubView") renderProjectHub();
   if (id === "listView") renderList();
   if (id === "siteControlView") renderSiteControlView();
   if (id === "masterDataView") {
@@ -1229,6 +1230,22 @@ function showView(id) {
   }
 }
 
+function updateAppHeader(viewId = activeViewId()) {
+  const eyebrow = $(".appbar-title .eyebrow");
+  const back = $("#backBtn");
+  const labels = {
+    homeView: "BauSuite Startseite",
+    projectHubView: "Projektzentrale",
+    listView: "Bewehrungsabnahme",
+    siteControlView: "Baustellenkontrolle",
+    siteControlEditorView: "Baustellenkontrolle",
+    editorView: "Bewehrungsabnahme",
+    masterDataView: "Stammdaten",
+    settingsView: "Einstellungen / Backup"
+  };
+  if (eyebrow) eyebrow.textContent = labels[viewId] || "Kai BauSuite";
+  if (back) back.classList.toggle("hidden", viewId === "homeView");
+}
 function activeViewId() {
   return $(".view.active")?.id || "homeView";
 }
@@ -2088,13 +2105,14 @@ function acceptanceLabel(protocol) {
 
 function projectStats(project) {
   const acceptances = rebarProtocolsForProject(project.id);
-  const latest = acceptances.reduce((value, protocol) => {
+  const siteControls = siteControlProtocolsForProject(project.id);
+  const allProtocols = [...acceptances, ...siteControls];
+  const latest = allProtocols.reduce((value, protocol) => {
     const stamp = protocol.updatedAt || protocol.createdAt || protocol.head?.createdAt || "";
     return stamp > value ? stamp : value;
   }, project.updatedAt || project.createdAt || "");
-  return { acceptances, latest };
+  return { acceptances, siteControls, latest };
 }
-
 function renderDatalists() {
   const master = normalizeMasterData(state.masterData);
   state.masterData = master;
@@ -2332,28 +2350,73 @@ function renderHomeProjects() {
   const list = $("#homeProjectList");
   if (!list) return;
   if (!state.projects.length) {
-    list.innerHTML = `<div class="panel"><p class="muted">Noch keine Projekte vorhanden.</p></div>`;
+    list.innerHTML = `<div class="empty-card muted">Noch keine Projekte vorhanden. Lege ein Projekt an, danach wählst du darin das passende Modul.</div>`;
     return;
   }
-  list.innerHTML = `
-    <div class="section-head"><h2>Vorhandene Projekte</h2><button class="small-btn" data-nav="listView" type="button">Alle anzeigen</button></div>
-    ${state.projects.slice(0, 5).map((project) => {
-      const stats = projectStats(project);
-      return `
-        <article class="project-card compact-project-card">
-          <div>
-            <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
-            <div class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</div>
-            <div class="muted">${stats.acceptances.length} Abnahme(n) · zuletzt bearbeitet ${escapeHtml(formatDate(stats.latest))}</div>
-          </div>
-          <div class="card-actions">
-            <button class="secondary-btn" data-open-project="${project.id}" type="button">Projekt öffnen</button>
-            <button class="secondary-btn" data-edit-project="${project.id}" type="button">Projekt bearbeiten</button>
-          </div>
-        </article>
-      `;
-    }).join("")}
-  `;
+  const projects = [...state.projects].sort((a, b) => String(projectStats(b).latest || "").localeCompare(String(projectStats(a).latest || "")));
+  list.innerHTML = projects.slice(0, 6).map((project) => {
+    const stats = projectStats(project);
+    return `
+      <article class="project-card compact-project-card">
+        <div>
+          <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
+          <div class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</div>
+          <div class="muted">${stats.acceptances.length} Bewehrungsabnahme(n) · ${stats.siteControls.length} Baustellenkontrolle(n)</div>
+          <div class="muted">Zuletzt bearbeitet: ${escapeHtml(formatDate(stats.latest))}</div>
+        </div>
+        <div class="card-actions">
+          <button class="primary-btn" data-open-project="${project.id}" type="button">Projekt öffnen</button>
+          <button class="secondary-btn" data-edit-project="${project.id}" type="button">Projekt bearbeiten</button>
+        </div>
+      </article>`;
+  }).join("");
+}
+
+function renderProjectHub() {
+  const hub = $("#projectHubContent");
+  if (!hub) return;
+  const project = projectById(state.currentProjectId) || state.projects[0] || null;
+  if (!project) {
+    hub.innerHTML = `<div class="panel"><p class="muted">Kein Projekt gewählt.</p><button class="primary-btn" id="projectHubNewProjectBtn" type="button">Neues Projekt</button></div>`;
+    return;
+  }
+  state.currentProjectId = project.id;
+  const stats = projectStats(project);
+  const openRebar = stats.acceptances.reduce((sum, protocol) => sum + sampleIssues(protocol).length, 0);
+  const openSite = stats.siteControls.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
+  hub.innerHTML = `
+    <section class="panel project-hub-summary">
+      <div>
+        <h2>${escapeHtml(project.name || "Unbenanntes Projekt")}</h2>
+        <p class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</p>
+        ${project.client || project.clientSnapshot?.name ? `<p class="muted">Auftraggeber: ${escapeHtml(project.clientSnapshot?.name || project.client || "")}</p>` : ""}
+        <p class="muted">Zuletzt bearbeitet: ${escapeHtml(formatDate(stats.latest))}</p>
+      </div>
+      <button class="secondary-btn" data-edit-project="${project.id}" type="button">Projekt bearbeiten</button>
+    </section>
+    <section class="panel">
+      <h3>Module</h3>
+      <div class="module-card-grid">
+        ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, Mängel, Aufgaben, Fotos", "site")}
+        ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung prüfen, Pins, Nachbegehung, A4-Bericht", "rebar")}
+        ${moduleCard("PL", "Pläne", "Projektpläne verwalten und anzeigen", "plans")}
+        ${moduleCard("PD", "Projektstammdaten", "Projekt, Beteiligte, Auftraggeber, Ansprechpartner", "projectData")}
+        ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} offene Punkte aus Abnahmen und Kontrollen`, "openPoints")}
+        ${moduleCard("BS", "Zur BauSuite", "Zurück zur Startseite", "home")}
+      </div>
+    </section>
+    <section class="panel">
+      <div class="section-head"><h3>Bewehrungsabnahmen</h3><button class="primary-btn" data-new-acceptance="${project.id}" type="button">+ Neue Abnahme</button></div>
+      <div class="acceptance-list">${stats.acceptances.length ? stats.acceptances.map((p) => acceptanceCard(p)).join("") : `<div class="empty-card muted">Noch keine Bewehrungsabnahme in diesem Projekt.</div>`}</div>
+    </section>
+    <section class="panel">
+      <div class="section-head"><h3>Baustellenkontrollen</h3><button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button></div>
+      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
+    </section>`;
+}
+
+function moduleCard(code, title, subtitle, action) {
+  return `<button class="module-card" type="button" data-project-module="${escapeAttr(action)}"><span class="module-code">${escapeHtml(code)}</span><span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(subtitle)}</small></span></button>`;
 }
 
 function renderList() {
@@ -5406,7 +5469,7 @@ function renderSiteControlView() {
   if (!state.projects.length) {
     list.innerHTML = `<div class="panel"><p class="muted">Noch keine Projekte vorhanden. Bitte zuerst ein Projekt anlegen.</p><button class="primary-btn" id="siteNewProjectBtn" type="button">Neues Projekt</button></div>`;
   } else {
-    list.innerHTML = state.projects.map((project) => {
+    list.innerHTML = [...state.projects].sort((a, b) => (b.id === state.currentProjectId) - (a.id === state.currentProjectId)).map((project) => {
       const protocols = siteControlProtocolsForProject(project.id);
       const openCount = protocols.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
       return `
@@ -8167,14 +8230,21 @@ function bindEvents() {
   bindOptional("#backBtn", "click", async () => {
     if ($("#siteControlEditorView")?.classList.contains("active")) {
       saveSiteControlForm();
-      renderSiteControlView();
-      await navigateToView("siteControlView");
+      await navigateToView(state.currentProjectId ? "projectHubView" : "siteControlView");
       return;
     }
     if ($("#editorView")?.classList.contains("active")) {
       saveFromForm();
       renderList();
-      await navigateToView("listView");
+      await navigateToView(state.currentProjectId ? "projectHubView" : "listView");
+      return;
+    }
+    if ($("#projectHubView")?.classList.contains("active")) {
+      await navigateToView("homeView");
+      return;
+    }
+    if (($("#listView")?.classList.contains("active") || $("#siteControlView")?.classList.contains("active")) && state.currentProjectId) {
+      await navigateToView("projectHubView");
       return;
     }
     await navigateToView("homeView");
@@ -8394,6 +8464,18 @@ function bindEvents() {
     if (sitePdfSave) savePdfFromA4Report();
     const sitePdfPreview = event.target.closest("#sitePdfPreviewBtn");
     if (sitePdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
+    const projectModule = event.target.closest("[data-project-module]");
+    if (projectModule) {
+      const action = projectModule.dataset.projectModule;
+      if (action === "home") navigateToView("homeView");
+      if (action === "rebar") navigateToView("listView");
+      if (action === "site") navigateToView("siteControlView");
+      if (action === "projectData") openProjectDialog(state.currentProjectId);
+      if (action === "plans") showAppToast("Projektpläne werden im n?chsten Schritt zentralisiert.", { type: "info" });
+      if (action === "openPoints") showAppToast("Offene Punkte sind in den Listen der Projektzentrale sichtbar.", { type: "info" });
+    }
+    const projectHubNewProject = event.target.closest("#projectHubNewProjectBtn");
+    if (projectHubNewProject) createProject();
     const addMaster = event.target.closest("[data-add-master]");
     if (addMaster) addMasterItem(addMaster.dataset.addMaster);
     const deleteMaster = event.target.closest("[data-delete-master]");
@@ -8411,7 +8493,7 @@ function bindEvents() {
     const openProject = event.target.closest("[data-open-project]");
     if (openProject) {
       state.currentProjectId = openProject.dataset.openProject;
-      navigateToView("listView");
+      navigateToView("projectHubView");
     }
     const editProject = event.target.closest("[data-edit-project]");
     if (editProject) openProjectDialog(editProject.dataset.editProject);

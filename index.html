@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=101">
-  <link rel="stylesheet" href="styles.css?v=101">
+  <link rel="manifest" href="manifest.webmanifest?v=102">
+  <link rel="stylesheet" href="styles.css?v=102">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,40 +15,58 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v101</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v102</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
 
     <main>
       <section id="homeView" class="view active">
-        <div class="site-signal">
+        <div class="site-signal compact-hero">
           <div>
             <h2>Kai BauSuite</h2>
-            <p>Projekt öffnen, Modul wählen, Baustelle dokumentieren und A4-Bericht erzeugen.</p>
+            <p>Projekte öffnen · Module wählen · Baustelle dokumentieren</p>
           </div>
         </div>
-        <div class="home-actions">
-          <button class="primary-tile" data-nav="siteControlView" type="button">
-            <span>BK</span>
-            <span>Baustellenkontrolle<small>Begehung, Mängel, Aufgaben, Fotos</small></span>
-          </button>
-          <button class="primary-tile secondary" data-nav="listView" type="button">
-            <span>BA</span>
-            <span>Bewehrungsabnahme<small>BewehrungsCheck öffnen</small></span>
-          </button>
-          <button class="primary-tile secondary" data-nav="masterDataView" type="button">
-            <span>Daten</span>
-            <span>Stammdaten<small>Firmen, Prüfer, Bauteile</small></span>
-          </button>
-          <button class="primary-tile secondary" data-nav="settingsView" type="button">
-            <span>Info</span>
-            <span>Einstellungen / Backup<small>Datensicherung und PWA-Info</small></span>
-          </button>
-        </div>
-        <div id="homeProjectList" class="home-project-list"></div>
+        <section class="home-section panel">
+          <div class="section-head">
+            <h2>Projekte</h2>
+            <div class="result-actions">
+              <button class="primary-btn" id="newProjectBtn" type="button">Neues Projekt</button>
+              <button class="secondary-btn" data-nav="listView" type="button">Alle Projekte anzeigen</button>
+            </div>
+          </div>
+          <div id="homeProjectList" class="home-project-list"></div>
+        </section>
+        <section class="home-section panel">
+          <h2>Globale Funktionen</h2>
+          <div class="module-card-grid">
+            <button class="module-card" data-nav="masterDataView" type="button"><span class="module-code">ST</span><span><strong>Stammdaten</strong><small>Firmen, Prüfer, Bauteile</small></span></button>
+            <button class="module-card" data-nav="settingsView" type="button"><span class="module-code">SET</span><span><strong>Einstellungen</strong><small>Backup, Import/Export, Speicher</small></span></button>
+          </div>
+        </section>
+        <section class="home-section panel module-hint">
+          <h2>Module</h2>
+          <p class="muted">Module werden innerhalb eines Projekts gestartet. Bitte zuerst ein Projekt öffnen.</p>
+          <div class="module-card-grid disabled-modules">
+            <button class="module-card" type="button" data-project-required><span class="module-code">BK</span><span><strong>Baustellenkontrolle</strong><small>Begehungen, Mängel, Aufgaben, Fotos</small></span></button>
+            <button class="module-card" type="button" data-project-required><span class="module-code">BA</span><span><strong>Bewehrungsabnahme</strong><small>Bewehrung prüfen, Pins, Nachbegehung, A4-Bericht</small></span></button>
+          </div>
+        </section>
       </section>
 
+
+
+      <section id="projectHubView" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Projektzentrale</h2>
+            <p class="muted">Projekt öffnen, Modul wählen, offene Punkte im Blick behalten.</p>
+          </div>
+          <button class="small-btn" data-nav="homeView" type="button">Zur BauSuite</button>
+        </div>
+        <div id="projectHubContent" class="project-hub"></div>
+      </section>
 
       <section id="siteControlView" class="view">
         <div class="section-head">
@@ -116,7 +134,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v101</p>
+              <p id="appVersionInfo" class="muted">Version: v102</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -581,8 +599,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=101"></script>
-  <script src="app.js?v=101"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=102"></script>
+  <script src="app.js?v=102"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
