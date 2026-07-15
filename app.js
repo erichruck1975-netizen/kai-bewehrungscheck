@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v100";
+const APP_VERSION = "v101";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -8150,10 +8150,21 @@ function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
+
+function bindOptional(selector, eventName, handler, options) {
+  const element = $(selector);
+  if (!element) {
+    console.warn(`UI-Element nicht gefunden, Listener ?bersprungen: ${selector}`);
+    return null;
+  }
+  element.addEventListener(eventName, handler, options);
+  return element;
+}
+
 function bindEvents() {
-  $("#newProjectBtn").addEventListener("click", createProject);
-  $("#newFromListBtn").addEventListener("click", createProject);
-  $("#backBtn").addEventListener("click", async () => {
+  bindOptional("#newProjectBtn", "click", createProject);
+  bindOptional("#newFromListBtn", "click", createProject);
+  bindOptional("#backBtn", "click", async () => {
     if ($("#siteControlEditorView")?.classList.contains("active")) {
       saveSiteControlForm();
       renderSiteControlView();
@@ -8168,7 +8179,7 @@ function bindEvents() {
     }
     await navigateToView("homeView");
   });
-  $("#saveBtn").addEventListener("click", async () => {
+  bindOptional("#saveBtn", "click", async () => {
     if ($("#masterDataView")?.classList.contains("active")) {
       const saved = await saveMasterData();
       if (saved) await navigateToView("homeView");
@@ -8190,7 +8201,7 @@ function bindEvents() {
     saveFromForm();
     activateProtocolTab(btn.dataset.tab);
   }));
-  $("#protocolForm").addEventListener("input", (event) => {
+  bindOptional("#protocolForm", "input", (event) => {
     if (event.target.matches("[data-plan-field]")) {
       const plan = selectedPlan();
       if (plan) {
@@ -8262,7 +8273,7 @@ function bindEvents() {
     }
     saveFromForm({ persistNow: false });
   });
-  $("#protocolForm").addEventListener("change", (event) => {
+  bindOptional("#protocolForm", "change", (event) => {
     if (event.target.matches("[data-plan-field]")) {
       renderPlanListStatus();
       persist();
@@ -8316,9 +8327,9 @@ function bindEvents() {
       saveSiteControlForm();
     });
   }
-  $("#masterDataPanel").addEventListener("input", handleMasterDataInput);
-  $("#masterDataPanel").addEventListener("change", handleMasterDataInput);
-  $("#markPinSheet").addEventListener("input", (event) => {
+  bindOptional("#masterDataPanel", "input", handleMasterDataInput);
+  bindOptional("#masterDataPanel", "change", handleMasterDataInput);
+  bindOptional("#markPinSheet", "input", (event) => {
     if (!event.target.matches("[data-mark-pin-field]")) return;
     const pin = state.current?.pins.find((item) => item.id === state.selectedPinId);
     if (!pin) return;
@@ -8332,7 +8343,7 @@ function bindEvents() {
     schedulePersist();
     renderMarkPins();
   });
-  $("#markPinSheet").addEventListener("change", (event) => {
+  bindOptional("#markPinSheet", "change", (event) => {
     if (!event.target.matches("[data-mark-pin-field]")) return;
     const pin = state.current?.pins.find((item) => item.id === state.selectedPinId);
     if (!pin) return;
@@ -8664,94 +8675,94 @@ function bindEvents() {
     const deletePlanButton = event.target.closest("[data-delete-plan]");
     if (deletePlanButton && confirm("Plan wirklich löschen? Zugeordnete Pins auf diesem Plan werden ebenfalls entfernt.")) deletePlanById(deletePlanButton.dataset.deletePlan);
   });
-  $("#addPlanBtn").addEventListener("click", () => $("#planInput").click());
-  $("#importPlansBtn").addEventListener("click", openPlanImportDialog);
-  $("#addSignatureBtn").addEventListener("click", addSignature);
-  $("#createProjectConfirmBtn").addEventListener("click", createProjectFromDialog);
-  $("#projectClientToMasterBtn").addEventListener("click", () => addProjectFieldToMaster("client"));
-  $("#projectContractorToMasterBtn").addEventListener("click", () => addProjectFieldToMaster("contractor"));
-  $("#projectInspectorToMasterBtn").addEventListener("click", () => addProjectFieldToMaster("inspector"));
-  $("#projectDefaultInspectorToMasterBtn").addEventListener("click", () => addProjectFieldToMaster("defaultInspector"));
-  $("#createAcceptanceConfirmBtn").addEventListener("click", createProtocolFromDialog);
-  $("#acceptanceTypeToMasterBtn").addEventListener("click", () => saveLookupFromAcceptanceDialog("acceptanceTypes", "#acceptanceTypeInput", "eine Abnahmeart"));
-  $("#acceptanceComponentToMasterBtn").addEventListener("click", () => saveLookupFromAcceptanceDialog("components", "#acceptanceComponentInput", "ein Bauteil"));
-  $("#acceptanceFloorToMasterBtn").addEventListener("click", () => saveLookupFromAcceptanceDialog("floors", "#acceptanceFloorInput", "ein Geschoss"));
-  $("#acceptanceAreaToMasterBtn").addEventListener("click", () => saveLookupFromAcceptanceDialog("areaAxes", "#acceptanceAreaInput", "einen Bereich oder eine Achse"));
-  $("#cancelAcceptanceBtn").addEventListener("click", closeAcceptanceDialog);
-  $("#acceptanceDialog").addEventListener("click", (event) => {
+  bindOptional("#addPlanBtn", "click", () => $("#planInput").click());
+  bindOptional("#importPlansBtn", "click", openPlanImportDialog);
+  bindOptional("#addSignatureBtn", "click", addSignature);
+  bindOptional("#createProjectConfirmBtn", "click", createProjectFromDialog);
+  bindOptional("#projectClientToMasterBtn", "click", () => addProjectFieldToMaster("client"));
+  bindOptional("#projectContractorToMasterBtn", "click", () => addProjectFieldToMaster("contractor"));
+  bindOptional("#projectInspectorToMasterBtn", "click", () => addProjectFieldToMaster("inspector"));
+  bindOptional("#projectDefaultInspectorToMasterBtn", "click", () => addProjectFieldToMaster("defaultInspector"));
+  bindOptional("#createAcceptanceConfirmBtn", "click", createProtocolFromDialog);
+  bindOptional("#acceptanceTypeToMasterBtn", "click", () => saveLookupFromAcceptanceDialog("acceptanceTypes", "#acceptanceTypeInput", "eine Abnahmeart"));
+  bindOptional("#acceptanceComponentToMasterBtn", "click", () => saveLookupFromAcceptanceDialog("components", "#acceptanceComponentInput", "ein Bauteil"));
+  bindOptional("#acceptanceFloorToMasterBtn", "click", () => saveLookupFromAcceptanceDialog("floors", "#acceptanceFloorInput", "ein Geschoss"));
+  bindOptional("#acceptanceAreaToMasterBtn", "click", () => saveLookupFromAcceptanceDialog("areaAxes", "#acceptanceAreaInput", "einen Bereich oder eine Achse"));
+  bindOptional("#cancelAcceptanceBtn", "click", closeAcceptanceDialog);
+  bindOptional("#acceptanceDialog", "click", (event) => {
     if (event.target === event.currentTarget) closeAcceptanceDialog();
   });
-  $("#acceptanceDialog").addEventListener("cancel", () => {
+  bindOptional("#acceptanceDialog", "cancel", () => {
     state.pendingAcceptanceProjectId = "";
   });
-  $("#acceptanceDialog").addEventListener("close", () => {
+  bindOptional("#acceptanceDialog", "close", () => {
     const returnFocus = state.acceptanceDialogReturnFocus;
     state.acceptanceDialogReturnFocus = null;
     if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
   });
-  $("#cancelDuplicateBtn").addEventListener("click", () => $("#duplicateDialog").close());
-  $("#createDuplicateBtn").addEventListener("click", () => duplicateProtocol($("#duplicateSourceInput").value));
-  $("#duplicateTypeInput").addEventListener("change", (event) => {
+  bindOptional("#cancelDuplicateBtn", "click", () => $("#duplicateDialog").close());
+  bindOptional("#createDuplicateBtn", "click", () => duplicateProtocol($("#duplicateSourceInput").value));
+  bindOptional("#duplicateTypeInput", "change", (event) => {
     $("#duplicateHint").textContent = event.target.value === "Nachkontrolle"
       ? "Für Nachkontrollen können Planunterlagen oder offene Auflagen bewusst per Checkbox übernommen werden. Automatisch wird nichts Planbezogenes übernommen."
       : "Planunterlagen, Pins, Fotos, Ergebnis und Unterschriften werden standardmäßig nicht übernommen.";
   });
-  $("#cancelPlanImportBtn").addEventListener("click", () => $("#planImportDialog").close());
-  $("#confirmPlanImportBtn").addEventListener("click", importSelectedPlans);
-  $("#planImportSourceInput").addEventListener("change", renderPlanImportOptions);
-  $("#saveMasterDataBtn").addEventListener("click", () => saveMasterData());
-  $("#saveLeaveMasterDataBtn").addEventListener("click", () => {
+  bindOptional("#cancelPlanImportBtn", "click", () => $("#planImportDialog").close());
+  bindOptional("#confirmPlanImportBtn", "click", importSelectedPlans);
+  bindOptional("#planImportSourceInput", "change", renderPlanImportOptions);
+  bindOptional("#saveMasterDataBtn", "click", () => saveMasterData());
+  bindOptional("#saveLeaveMasterDataBtn", "click", () => {
     $("#unsavedMasterDataDialog").close("save");
     state.pendingMasterDataLeaveResolve?.("save");
     state.pendingMasterDataLeaveResolve = null;
   });
-  $("#discardMasterDataBtn").addEventListener("click", () => {
+  bindOptional("#discardMasterDataBtn", "click", () => {
     $("#unsavedMasterDataDialog").close("discard");
     state.pendingMasterDataLeaveResolve?.("discard");
     state.pendingMasterDataLeaveResolve = null;
   });
-  $("#cancelLeaveMasterDataBtn").addEventListener("click", () => {
+  bindOptional("#cancelLeaveMasterDataBtn", "click", () => {
     $("#unsavedMasterDataDialog").close("cancel");
     state.pendingMasterDataLeaveResolve?.("cancel");
     state.pendingMasterDataLeaveResolve = null;
   });
-  $("#unsavedMasterDataDialog").addEventListener("cancel", (event) => {
+  bindOptional("#unsavedMasterDataDialog", "cancel", (event) => {
     event.preventDefault();
     $("#unsavedMasterDataDialog").close("cancel");
     state.pendingMasterDataLeaveResolve?.("cancel");
     state.pendingMasterDataLeaveResolve = null;
   });
-  $("#unsavedMasterDataDialog").addEventListener("close", (event) => {
+  bindOptional("#unsavedMasterDataDialog", "close", (event) => {
     if (state.pendingMasterDataLeaveResolve) {
       state.pendingMasterDataLeaveResolve(event.target.returnValue || "cancel");
       state.pendingMasterDataLeaveResolve = null;
     }
   });
-  $("#pinModeBtn").addEventListener("click", () => {
+  bindOptional("#pinModeBtn", "click", () => {
     if (!selectedPlan()) return alert("Bitte zuerst einen Plan hinzufügen.");
     if (!isPlanRenderable(selectedPlan())) return alert("Bitte zuerst einen Plan laden.");
     state.pinMode = !state.pinMode;
     if (state.pinMode) state.placementModePinId = "";
     renderPlanControls();
   });
-  $("#zoomOutBtn").addEventListener("click", () => changeZoom(-0.25));
-  $("#zoomInBtn").addEventListener("click", () => changeZoom(0.25));
-  $("#zoomResetBtn").addEventListener("click", () => setPlanZoom(1));
-  $("#zoomFitBtn").addEventListener("click", fitPlanToView);
-  $("#planTopBtn").addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
-  $("#markBackBtn").addEventListener("click", closePlanMarkDialog);
-  $("#markPinBtn").addEventListener("click", () => {
+  bindOptional("#zoomOutBtn", "click", () => changeZoom(-0.25));
+  bindOptional("#zoomInBtn", "click", () => changeZoom(0.25));
+  bindOptional("#zoomResetBtn", "click", () => setPlanZoom(1));
+  bindOptional("#zoomFitBtn", "click", fitPlanToView);
+  bindOptional("#planTopBtn", "click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  bindOptional("#markBackBtn", "click", closePlanMarkDialog);
+  bindOptional("#markPinBtn", "click", () => {
     state.mark.movePinId = "";
     state.mark.active = true;
     hideMarkPinSheet();
     renderMarkSelectors();
     renderMarkPins();
   });
-  $("#markZoomOutBtn").addEventListener("click", () => setMarkZoom((state.mark.zoom || 1) / 1.25));
-  $("#markZoomInBtn").addEventListener("click", () => setMarkZoom((state.mark.zoom || 1) * 1.25));
-  $("#markZoomResetBtn").addEventListener("click", () => setMarkZoom(1));
-  $("#markFitBtn").addEventListener("click", fitMarkPlan);
-  $("#markPlanSelect").addEventListener("change", (event) => {
+  bindOptional("#markZoomOutBtn", "click", () => setMarkZoom((state.mark.zoom || 1) / 1.25));
+  bindOptional("#markZoomInBtn", "click", () => setMarkZoom((state.mark.zoom || 1) * 1.25));
+  bindOptional("#markZoomResetBtn", "click", () => setMarkZoom(1));
+  bindOptional("#markFitBtn", "click", fitMarkPlan);
+  bindOptional("#markPlanSelect", "change", (event) => {
     state.mark.planId = event.target.value;
     state.mark.pageNumber = 1;
     state.mark.zoom = 1;
@@ -8762,7 +8773,7 @@ function bindEvents() {
     renderMarkSelectors();
     renderMarkPlan();
   });
-  $("#markPageSelect").addEventListener("change", (event) => {
+  bindOptional("#markPageSelect", "change", (event) => {
     state.mark.pageNumber = Number(event.target.value) || 1;
     state.mark.panX = 0;
     state.mark.panY = 0;
@@ -8771,27 +8782,27 @@ function bindEvents() {
     renderMarkSelectors();
     renderMarkPlan();
   });
-  $("#planMarkDialog").addEventListener("cancel", (event) => {
+  bindOptional("#planMarkDialog", "cancel", (event) => {
     event.preventDefault();
     closePlanMarkDialog();
   });
-  $("#closeReportBtn").addEventListener("click", () => $("#reportDialog").close());
-  $("#reportDialog").addEventListener("close", () => document.body.classList.remove("report-open"));
-  $("#reportReadModeBtn").addEventListener("click", () => setReportPreviewMode("read"));
-  $("#reportA4ModeBtn").addEventListener("click", () => setReportPreviewMode("a4"));
-  $("#downloadReportPdfBtn").addEventListener("click", savePdfFromA4Report);
-  $("#shareReportBtn").addEventListener("click", triggerSavedPdfSharePicker);
-  $("#copyWhatsappTextBtn").addEventListener("click", shareReportText);
-  $("#saveReportHtmlBtn").addEventListener("click", saveReportHtml);
-  $("#printReportBtn").addEventListener("click", () => {
+  bindOptional("#closeReportBtn", "click", () => $("#reportDialog").close());
+  bindOptional("#reportDialog", "close", () => document.body.classList.remove("report-open"));
+  bindOptional("#reportReadModeBtn", "click", () => setReportPreviewMode("read"));
+  bindOptional("#reportA4ModeBtn", "click", () => setReportPreviewMode("a4"));
+  bindOptional("#downloadReportPdfBtn", "click", savePdfFromA4Report);
+  bindOptional("#shareReportBtn", "click", triggerSavedPdfSharePicker);
+  bindOptional("#copyWhatsappTextBtn", "click", shareReportText);
+  bindOptional("#saveReportHtmlBtn", "click", saveReportHtml);
+  bindOptional("#printReportBtn", "click", () => {
     if (typeof window.print === "function") {
       savePdfFromA4Report();
     } else {
       alert("Bitte über Browser-Menü Drucken / Als PDF speichern verwenden.");
     }
   });
-  $("#planSelect").addEventListener("change", (event) => switchPlan(event.target.value));
-  $("#pageSelect").addEventListener("change", (event) => {
+  bindOptional("#planSelect", "change", (event) => switchPlan(event.target.value));
+  bindOptional("#pageSelect", "change", (event) => {
     const plan = selectedPlan();
     if (!plan) return;
     plan.currentPage = Number(event.target.value);
@@ -8802,29 +8813,29 @@ function bindEvents() {
     renderPlan();
     renderPinEditor();
   });
-  $("#planInput").addEventListener("change", (event) => {
+  bindOptional("#planInput", "change", (event) => {
     handlePlanFiles(Array.from(event.target.files));
     event.target.value = "";
   });
-  $("#photoCameraBtn").addEventListener("click", () => {
+  bindOptional("#photoCameraBtn", "click", () => {
     const input = $("#photoCameraInput");
     input.value = "";
     input.click();
   });
-  $("#photoGalleryBtn").addEventListener("click", () => {
+  bindOptional("#photoGalleryBtn", "click", () => {
     const input = $("#photoGalleryInput");
     input.value = "";
     input.click();
   });
-  $("#photoCameraInput").addEventListener("change", async (event) => {
+  bindOptional("#photoCameraInput", "change", async (event) => {
     await addPhotos(Array.from(event.target.files));
     event.target.value = "";
   });
-  $("#photoGalleryInput").addEventListener("change", async (event) => {
+  bindOptional("#photoGalleryInput", "change", async (event) => {
     await addPhotos(Array.from(event.target.files));
     event.target.value = "";
   });
-  $("#overviewCameraInput").addEventListener("change", async (event) => {
+  bindOptional("#overviewCameraInput", "change", async (event) => {
     try {
       state.photoTarget = { kind: "overview", id: state.current?.id || "" };
       await addPhotos(Array.from(event.target.files || []));
@@ -8835,7 +8846,7 @@ function bindEvents() {
       event.target.value = "";
     }
   });
-  $("#overviewGalleryInput").addEventListener("change", async (event) => {
+  bindOptional("#overviewGalleryInput", "change", async (event) => {
     try {
       state.photoTarget = { kind: "overview", id: state.current?.id || "" };
       await addPhotos(Array.from(event.target.files || []));
@@ -8846,20 +8857,20 @@ function bindEvents() {
       event.target.value = "";
     }
   });
-  $("#cancelBarCountBtn").addEventListener("click", () => $("#barCountDialog").close());
-  $("#saveBarCountBtn").addEventListener("click", saveBarCountAnalysis);
-  $("#weatherBtn").addEventListener("click", fetchWeather);
-  $("#exportJsonBtn").addEventListener("click", exportJson);
-  $("#exportFullBackupBtn").addEventListener("click", exportFullBackup);
-  $("#importFullBackupBtn").addEventListener("click", () => $("#fullBackupInput").click());
-  $("#fullBackupInput").addEventListener("change", (event) => importFullBackup(event.target.files?.[0]));
-  $("#exportProjectPackageBtn").addEventListener("click", exportProjectPackage);
-  $("#importProjectPackageBtn").addEventListener("click", () => $("#projectPackageInput").click());
-  $("#projectPackageInput").addEventListener("change", (event) => importProjectPackage(event.target.files?.[0]));
-  $("#defaultInspector").addEventListener("input", (event) => { state.settings.defaultInspector = event.target.value; persist(); });
-  $("#defaultCompany").addEventListener("input", (event) => { state.settings.defaultCompany = event.target.value; persist(); });
-  $("#storageCheckBtn").addEventListener("click", checkStorage);
-  $("#clearAllBtn").addEventListener("click", () => {
+  bindOptional("#cancelBarCountBtn", "click", () => $("#barCountDialog").close());
+  bindOptional("#saveBarCountBtn", "click", saveBarCountAnalysis);
+  bindOptional("#weatherBtn", "click", fetchWeather);
+  bindOptional("#exportJsonBtn", "click", exportJson);
+  bindOptional("#exportFullBackupBtn", "click", exportFullBackup);
+  bindOptional("#importFullBackupBtn", "click", () => $("#fullBackupInput").click());
+  bindOptional("#fullBackupInput", "change", (event) => importFullBackup(event.target.files?.[0]));
+  bindOptional("#exportProjectPackageBtn", "click", exportProjectPackage);
+  bindOptional("#importProjectPackageBtn", "click", () => $("#projectPackageInput").click());
+  bindOptional("#projectPackageInput", "change", (event) => importProjectPackage(event.target.files?.[0]));
+  bindOptional("#defaultInspector", "input", (event) => { state.settings.defaultInspector = event.target.value; persist(); });
+  bindOptional("#defaultCompany", "input", (event) => { state.settings.defaultCompany = event.target.value; persist(); });
+  bindOptional("#storageCheckBtn", "click", checkStorage);
+  bindOptional("#clearAllBtn", "click", () => {
     if (confirm("Wirklich alle lokalen Testdaten löschen?")) {
       state.protocols = [];
       state.projects = [];
@@ -9684,24 +9695,34 @@ async function cacheRuntimeAssets() {
 }
 
 async function boot() {
-  await load();
-  normalizeResultPdfActions();
-  bindEvents();
-  bindMarkGestures();
-  bindVoice();
-  updateAppVersionDisplay();
-  updateDeviceStorageInfo();
-  renderBrowserWarnings();
-  renderHomeProjects();
-  renderList();
-  renderSiteControlView();
-  window.addEventListener("resize", updateReportPreviewFrame);
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").then(() => cacheRuntimeAssets()).catch(() => {});
+  try {
+    await load();
+  } catch (error) {
+    showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`);
+    return;
+  }
+  try {
+    normalizeResultPdfActions();
+    bindEvents();
+    bindMarkGestures();
+    bindVoice();
+    updateAppVersionDisplay();
+    updateDeviceStorageInfo();
+    renderBrowserWarnings();
+    renderHomeProjects();
+    renderList();
+    renderSiteControlView();
+    window.addEventListener("resize", updateReportPreviewFrame);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").then(() => cacheRuntimeAssets()).catch(() => {});
+    }
+  } catch (error) {
+    console.error("App-Initialisierung fehlgeschlagen", error);
+    showStorageWarning(`App konnte nicht vollst?ndig gestartet werden: ${error.message || error}`);
   }
 }
 
-boot().catch((error) => showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`));
+boot();
 
 
 

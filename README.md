@@ -4,37 +4,19 @@ Mobile-first PWA für Bewehrungsabnahmen auf der Baustelle.
 
 ## Aktueller stabiler Stand
 
-**Stable-Tag:** `v99-stable-followup-full-workflow`  
-**Release:** v99 stable – vollständiger Baustellenworkflow
+Stable-Tag: `v95-stable-a4-pdf-share`
 
-Beschreibung: Dies ist der stabile Baustellenstand mit vollständigem Erstabnahme- und Nachbegehungsworkflow.
+Beschreibung: Dies ist der stabile Baustellenstand mit offiziellem A4-Berichtspfad.
 
-### Funktioniert
+Funktioniert:
 
-- Erstabnahmen
-- Nachbegehungen aus offenen Punkten
-- neue Punkte in Nachbegehungen
-- Spracheingabe stabil
+- A4-Bericht ist offizieller PDF-Weg
+- PDF speichern öffnet A4-Bericht / Druckdialog
+- gespeicherte PDF kann ausgewählt und geteilt werden
+- Berichtstext teilen funktioniert
+- Spracheingabe-Fix aus v91 enthalten
 - Pins / Planviewer stabil
-- Fotos
-- Unterschriften mit einfachem Fertig-Klick
-- A4-Bericht / PDF speichern
-- Rücksprung nach PDF speichern in den Ergebnisbereich
-- gespeicherte PDF teilen
 - Backup/Restore vorhanden
-
-### Aktueller Teststand
-
-**v100** ist der aktuelle BauSuite-Teststand.
-
-Enthalten:
-- Kai BauSuite Startseite
-- Modul Bewehrungsabnahme
-- Modul Baustellenkontrolle MVP
-- Stammdaten direkt erreichbar
-- Einstellungen / Backup direkt erreichbar
-
-v100 ist noch nicht als stabiler Release markiert. Falls v100 Probleme macht, zurück auf `v99-stable-followup-full-workflow`.
 
 Wichtige Regel: Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrückliche Freigabe reaktiviert werden.
 
