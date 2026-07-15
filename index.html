@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=106">
-  <link rel="stylesheet" href="styles.css?v=106">
+  <link rel="manifest" href="manifest.webmanifest?v=107">
+  <link rel="stylesheet" href="styles.css?v=107">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v106</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v107</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -155,7 +155,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v106</p>
+              <p id="appVersionInfo" class="muted">Version: v107</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -169,7 +169,8 @@
             </details>
             <input id="fullBackupInput" class="visually-hidden" type="file" accept="application/json">
             <input id="projectPackageInput" class="visually-hidden" type="file" accept="application/json">
-            <p id="storageCheckResult" class="muted"></p>
+            <p class="muted">Die Prüfung liest den vorhandenen IndexedDB-Bestand. „Datenbestand neu laden“ löscht nichts und importiert nichts.</p>
+            <p id="storageCheckResult" class="muted storage-diagnostics"></p>
           </section>
           <div class="info-box browser-warning-box">
             <strong>Browser-Hinweis</strong>
@@ -640,8 +641,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=106"></script>
-  <script src="app.js?v=106"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=107"></script>
+  <script src="app.js?v=107"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>

@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v106";
+const APP_VERSION = "v107";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -153,6 +153,7 @@ const state = {
   protocols: [],
   masterData: null,
   masterDataDirty: false,
+  dataLoaded: false,
   masterDataSection: "",
   pendingMasterDataLeaveResolve: null,
   settings: {},
@@ -252,24 +253,34 @@ function uid(prefix = "id") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function load() {
+async function load({ persistRepairs = true } = {}) {
+  state.dataLoaded = false;
   state.db = await openDatabase();
   state.projects = (await idbGetAll("projects")).map(normalizeProject);
   state.protocols = (await idbGetAll("protocols")).map(normalizeProtocol);
   state.masterData = normalizeMasterData(await idbGet("masterData", "app"));
   state.settings = await idbGet("settings", "app") || JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  let migrated = false;
   if (!state.protocols.length) {
     await migrateLocalStorageData();
+    migrated = true;
   }
-  ensureProjectStructure();
-  $("#defaultInspector").value = state.settings.defaultInspector || "";
-  $("#defaultCompany").value = state.settings.defaultCompany || "";
+  const structureChanged = ensureProjectStructure();
+  state.dataLoaded = true;
+  syncSettingsInputs();
+  renderDatalists();
+  if (persistRepairs && (migrated || structureChanged)) await persist();
+}
+
+function syncSettingsInputs() {
+  const defaultInspector = $("#defaultInspector");
+  if (defaultInspector) defaultInspector.value = state.settings.defaultInspector || "";
+  const defaultCompany = $("#defaultCompany");
+  if (defaultCompany) defaultCompany.value = state.settings.defaultCompany || "";
   if ($("#dropboxBaseFolder")) $("#dropboxBaseFolder").value = state.settings.dropboxBaseFolder || "";
-  if ($("#dropboxPlanFolder")) $("#dropboxPlanFolder").value = state.settings.dropboxPlanFolder || "Pläne";
+  if ($("#dropboxPlanFolder")) $("#dropboxPlanFolder").value = state.settings.dropboxPlanFolder || "Pl?ne";
   if ($("#dropboxPhotoFolder")) $("#dropboxPhotoFolder").value = state.settings.dropboxPhotoFolder || "Fotos";
   if ($("#dropboxReportFolder")) $("#dropboxReportFolder").value = state.settings.dropboxReportFolder || "Berichte";
-  renderDatalists();
-  await persist();
 }
 
 function persist() {
@@ -285,6 +296,10 @@ function schedulePersist(delay = 450) {
 }
 
 async function persistAsync() {
+  if (!state.dataLoaded) {
+    console.warn("Persist übersprungen: Datenbestand wurde noch nicht erfolgreich geladen.");
+    return;
+  }
   try {
     await Promise.all([
       ...state.projects.map((project) => idbPut("projects", normalizeProject(project))),
@@ -641,6 +656,7 @@ function ownPersonSelection(value = "") {
 }
 
 function ensureProjectStructure() {
+  let changed = false;
   state.projects = state.projects.map(normalizeProject);
   const projectById = new Map(state.projects.map((project) => [project.id, project]));
   for (const protocol of state.protocols) {
@@ -655,9 +671,11 @@ function ensureProjectStructure() {
       protocol.projectId = project.id;
       state.projects.unshift(project);
       projectById.set(project.id, project);
+      changed = true;
     }
     syncProtocolProjectFields(protocol, projectById.get(protocol.projectId), { overwriteProtocol: false });
   }
+  return changed;
 }
 
 function syncProtocolProjectFields(protocol, project, { overwriteProtocol = true } = {}) {
@@ -2601,7 +2619,7 @@ function renderProjectDirectory() {
     return haystack.includes(search);
   }) : projects;
   if (!filtered.length) {
-    list.innerHTML = `<div class="empty-card muted">${state.projects.length ? "Kein Projekt zur Suche gefunden." : "Noch keine Projekte vorhanden. Lege ein Projekt an, danach w?hlst du darin das passende Modul."}</div>`;
+    list.innerHTML = `<div class="empty-card muted">${state.projects.length ? "Kein Projekt zur Suche gefunden." : "Noch keine Projekte vorhanden. Lege ein Projekt an, danach wählst du darin das passende Modul."}</div>`;
     return;
   }
   list.innerHTML = filtered.map((project) => projectDirectoryCard(project)).join("");
@@ -2612,7 +2630,7 @@ function renderProjectHub() {
   if (!hub) return;
   const project = projectById(state.currentProjectId) || state.projects[0] || null;
   if (!project) {
-    hub.innerHTML = `<div class="panel"><p class="muted">Kein Projekt gew?hlt.</p><button class="primary-btn" id="projectHubNewProjectBtn" type="button">Neues Projekt</button></div>`;
+    hub.innerHTML = `<div class="panel"><p class="muted">Kein Projekt gewählt.</p><button class="primary-btn" id="projectHubNewProjectBtn" type="button">Neues Projekt</button></div>`;
     return;
   }
   state.currentProjectId = project.id;
@@ -2633,7 +2651,7 @@ function renderProjectHub() {
       <h3>Module</h3>
       <div class="module-card-grid">
         ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, Mängel, Aufgaben, Fotos", "site")}
-        ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung pr?fen, Pins, Nachbegehung, A4-Bericht", "rebar")}
+        ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung prüfen, Pins, Nachbegehung, A4-Bericht", "rebar")}
         ${moduleCard("PL", "Pläne", "Projektpläne verwalten und anzeigen", "plans")}
         ${moduleCard("PI", "Projekt bearbeiten", "Projektkopf, Adresse, Beteiligte, Zuordnungen", "projectData")}
         ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} Mängel, Aufgaben, Auflagen`, "openPoints")}
@@ -2684,7 +2702,7 @@ function renderProjectPlansView() {
   if (!container) return;
   const project = projectById(state.currentProjectId) || null;
   if (!project) {
-    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gew?hlt. Bitte zuerst ein Projekt Öffnen.</p></section>`;
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt Öffnen.</p></section>`;
     return;
   }
   const entries = projectPlanEntries(project.id);
@@ -9356,6 +9374,7 @@ function bindEvents() {
   bindOptional("#dropboxPhotoFolder", "input", (event) => { state.settings.dropboxPhotoFolder = event.target.value || "Fotos"; persist(); });
   bindOptional("#dropboxReportFolder", "input", (event) => { state.settings.dropboxReportFolder = event.target.value || "Berichte"; persist(); });
   bindOptional("#storageCheckBtn", "click", checkStorage);
+  bindOptional("#reloadDataInventoryBtn", "click", reloadDataInventoryFromDb);
   bindOptional("#clearAllBtn", "click", () => {
     if (confirm("Wirklich alle lokalen Testdaten löschen?")) {
       state.protocols = [];
@@ -9873,28 +9892,66 @@ async function clearAllData() {
   state.objectUrls.clear();
 }
 
+async function collectDataInventory() {
+  const protocols = (await idbGetAll("protocols")).map(normalizeProtocol);
+  const projects = (await idbGetAll("projects")).map(normalizeProject);
+  const masterData = normalizeMasterData(await idbGet("masterData", "app"));
+  const plans = await idbGetAll("plans");
+  const photos = await idbGetAll("photos");
+  const rebar = protocols.filter((protocol) => !isSiteControlProtocol(protocol));
+  const followups = protocols.filter((protocol) => protocol.type === "followup");
+  const siteControls = protocols.filter(isSiteControlProtocol);
+  const pins = protocols.reduce((sum, protocol) => sum + (protocol.pins || []).length, 0);
+  const masterEntries = masterData.companies.length + masterData.inspectors.length + masterData.ownPersons.length + masterData.components.length + masterData.floors.length + masterData.acceptanceTypes.length + masterData.areaAxes.length + masterData.signatureRoles.length;
+  return {
+    projects: projects.length,
+    protocols: protocols.length,
+    rebar: rebar.length,
+    followups: followups.length,
+    siteControls: siteControls.length,
+    plans: plans.length,
+    pins,
+    photos: photos.length,
+    masterEntries,
+    masterData,
+    stores: Array.from(state.db?.objectStoreNames || []),
+    dbName: DB_NAME,
+    dbVersion: DB_VERSION,
+    appVersion: APP_VERSION
+  };
+}
+
 async function checkStorage() {
   try {
-    const projectCount = await idbCount("projects");
-    const protocolCount = await idbCount("protocols");
-    const masterCount = await idbCount("masterData");
-    const planCount = await idbCount("plans");
-    const photoCount = await idbCount("photos");
-    const masterData = normalizeMasterData(await idbGet("masterData", "app"));
-    $("#storageCheckResult").textContent = [
-      "IndexedDB verfügbar: ja",
-      `${projectCount} Projekt(e)`,
-      `${protocolCount} Abnahme(n)`,
-      `${planCount} Plan-Datei(en)`,
-      `${photoCount} Foto(s)`,
-      `${masterCount} Stammdaten-Satz`,
-      `${masterData.companies.length} Firma/Firmen`,
-      `${masterData.inspectors.length} Prüfingenieur(e)`,
-      `${masterData.ownPersons.length} eigene Person(en)`,
-      `letzte Stammdaten-Speicherung: ${masterData.lastSavedAt ? formatDate(masterData.lastSavedAt) : "noch nicht manuell gespeichert"}`
-    ].join(" · ");
+    const info = await collectDataInventory();
+    $("#storageCheckResult").innerHTML = `
+      <strong>Datenbestand</strong><br>
+      ${info.projects} Projekt(e) ? ${info.rebar} Bewehrungsabnahme(n) ? ${info.followups} Nachbegehung(en) ? ${info.siteControls} Baustellenkontrolle(n)<br>
+      ${info.plans} Plan-Datei(en) ? ${info.pins} Pin(s) ? ${info.photos} Foto(s) ? ${info.masterEntries} Stammdaten-Eintrag(e)<br>
+      DB: ${escapeHtml(info.dbName)} v${info.dbVersion} ? Stores: ${escapeHtml(info.stores.join(", "))}<br>
+      App: ${escapeHtml(info.appVersion)} ? letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}
+    `;
   } catch (error) {
-    $("#storageCheckResult").textContent = `IndexedDB verfügbar: nein oder fehlerhaft (${error?.message || error}).`;
+    $("#storageCheckResult").textContent = `IndexedDB verf?gbar: nein oder fehlerhaft (${error?.message || error}).`;
+  }
+}
+
+async function reloadDataInventoryFromDb() {
+  try {
+    await load({ persistRepairs: false });
+    state.current = state.current ? state.protocols.find((protocol) => protocol.id === state.current.id) || null : null;
+    renderHomeProjects();
+    if ($("#projectDirectoryView")?.classList.contains("active")) renderProjectDirectory();
+    if ($("#projectHubView")?.classList.contains("active")) renderProjectHub();
+    if ($("#listView")?.classList.contains("active")) renderList();
+    if ($("#siteControlView")?.classList.contains("active")) renderSiteControlView();
+    renderDatalists();
+    if ($("#masterDataView")?.classList.contains("active")) renderMasterData();
+    if ($("#settingsView")?.classList.contains("active")) await checkStorage();
+    showAppToast("Datenbestand neu aus IndexedDB geladen.", { type: "success" });
+  } catch (error) {
+    console.error("Datenbestand neu laden fehlgeschlagen", error);
+    showStorageWarning(`Datenbestand konnte nicht neu geladen werden: ${error?.message || error}`);
   }
 }
 
@@ -10213,7 +10270,7 @@ async function boot() {
     }
   } catch (error) {
     console.error("App-Initialisierung fehlgeschlagen", error);
-    showStorageWarning(`App konnte nicht vollst?ndig gestartet werden: ${error.message || error}`);
+    showStorageWarning(`App konnte nicht vollständig gestartet werden: ${error.message || error}`);
   }
 }
 
