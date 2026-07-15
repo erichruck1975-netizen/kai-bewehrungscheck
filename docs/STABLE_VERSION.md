@@ -1,16 +1,22 @@
-# Stabiler Stand
+# Stabiler Stand und aktueller BauSuite-MVP
 
-Aktueller stabiler Stand: `v95-stable-a4-pdf-share`
+## Freigegebener Stable-Tag
 
-## Beschreibung
+Aktueller stabiler Baustellenstand: `v95-stable-a4-pdf-share`
 
-Dies ist der stabile Baustellenstand mit offiziellem A4-Berichtspfad.
+Dieser Stand bleibt die Referenz fuer den offiziellen A4-Berichtspfad des BewehrungsChecks.
 
-## Funktioniert
+## Aktueller Entwicklungsstand
+
+Aktueller BauSuite-MVP-Stand: `v100`
+
+v100 fuehrt die BauSuite-Startseite und das erste Modul `Baustellenkontrolle` als MVP ein. Der bestehende BewehrungsCheck bleibt als Modul `Bewehrungsabnahme` erhalten.
+
+## Funktioniert im Stable-Stand
 
 - A4-Bericht ist offizieller PDF-Weg
-- PDF speichern öffnet A4-Bericht / Druckdialog
-- gespeicherte PDF kann ausgewählt und geteilt werden
+- PDF speichern oeffnet A4-Bericht / Druckdialog
+- gespeicherte PDF kann ausgewaehlt und geteilt werden
 - Berichtstext teilen funktioniert
 - Spracheingabe-Fix aus v91 enthalten
 - Pins / Planviewer stabil
@@ -18,14 +24,17 @@ Dies ist der stabile Baustellenstand mit offiziellem A4-Berichtspfad.
 
 ## Wichtige Regel
 
-Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrückliche Freigabe reaktiviert werden.
+Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrueckliche Freigabe reaktiviert werden.
 
-## Vor größeren Umbauten
+Vor groesseren Umbauten:
 
 - Backup exportieren
-- Release `v95 stable` prüfen
-- keine Änderungen am A4-Berichtspfad ohne Freigabe
+- Stable-Stand `v95-stable-a4-pdf-share` pruefen
+- keine Aenderungen am A4-Berichtspfad ohne Freigabe
 
-## Nächste empfohlene Richtung
+## v100-Ergaenzung
 
-PDF-Server-MVP, der denselben A4-Bericht serverseitig als echte PDF rendert.
+- Kai BauSuite Startseite
+- Modul Bewehrungsabnahme als bestehender BewehrungsCheck
+- Modul Baustellenkontrolle fuer allgemeine Begehungen, Feststellungen, Aufgaben, Fotos und offenen Punkte
+- Baustellenkontrolle nutzt den bestehenden Projekt-, Foto-, Backup- und A4-Druckdialog-Unterbau

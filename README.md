@@ -4,47 +4,40 @@ Mobile-first PWA für Bewehrungsabnahmen auf der Baustelle.
 
 ## Aktueller stabiler Stand
 
-**Stable-Tag:** `v99-stable-followup-full-workflow`  
-**Release:** v99 stable – vollständiger Baustellenworkflow
+Stable-Tag: `v95-stable-a4-pdf-share`
 
-Beschreibung: Dies ist der stabile Baustellenstand mit vollständigem Erstabnahme- und Nachbegehungsworkflow.
+Beschreibung: Dies ist der stabile Baustellenstand mit offiziellem A4-Berichtspfad.
 
-### Funktioniert
+Funktioniert:
 
-- Erstabnahmen
-- Nachbegehungen aus offenen Punkten
-- neue Punkte in Nachbegehungen
-- Spracheingabe stabil
+- A4-Bericht ist offizieller PDF-Weg
+- PDF speichern öffnet A4-Bericht / Druckdialog
+- gespeicherte PDF kann ausgewählt und geteilt werden
+- Berichtstext teilen funktioniert
+- Spracheingabe-Fix aus v91 enthalten
 - Pins / Planviewer stabil
-- Fotos
-- Unterschriften mit einfachem Fertig-Klick
-- A4-Bericht / PDF speichern
-- Rücksprung nach PDF speichern in den Ergebnisbereich
-- gespeicherte PDF teilen
 - Backup/Restore vorhanden
 
-### Wichtige Regel
+Wichtige Regel: Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrückliche Freigabe reaktiviert werden.
 
-Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg und darf nicht ohne ausdrückliche Freigabe reaktiviert werden.
-
-### Vor größeren Umbauten
+Vor größeren Umbauten:
 
 - Backup exportieren
-- Release `v99-stable-followup-full-workflow` prüfen
+- Release `v95 stable` prüfen
 - keine Änderungen am A4-Berichtspfad ohne Freigabe
-- keine Änderungen an Spracheingabe, Pin-/Planviewer-Logik oder Nachbegehungslogik ohne Freigabe
 
-### Nächste empfohlene Richtung
+Nächste empfohlene Richtung: PDF-Server-MVP, der denselben A4-Bericht serverseitig als echte PDF rendert.
 
-Überführung in Kai BauSuite / gemeinsamer BauSuite-Kern.
+## Stabiler Zwischenstand
+
+Tag: `v52-stable-before-v53`
+
+Stabiler Chrome-Teststand vor v53-Erweiterungen.
 
 ## Aktueller Entwicklungsstand
 
-Aktueller stabiler Release: `v99-stable-followup-full-workflow`.
+Aktueller stabiler Release: `v95-stable-a4-pdf-share`. Der offizielle PDF-Weg ist der A4-Bericht über Vorschau/Druckdialog. Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg.
 
-Der offizielle PDF-Weg ist der A4-Bericht über Vorschau/Druckdialog. Der alte Direkt-PDF-Renderer ist nicht mehr Hauptweg.
-
-Der BewehrungsCheck wird als erstes Spezialmodul in die geplante Kai BauSuite eingeordnet.
 
 ## Einordnung in Kai BauSuite
 
@@ -53,6 +46,20 @@ Der Kai BewehrungsCheck ist das erste Spezialmodul der geplanten Kai BauSuite.
 Gemeinsame Funktionen wie Projekte, Beteiligte/Stammdaten, Pläne, Pins, Fotos, Spracheingabe, Nachbegehungen, Unterschriften, Backup/Restore und Berichte sollen später als BauSuite-Kern wiederverwendet werden.
 
 Die Zielarchitektur ist in `docs/BAUSUITE_ARCHITECTURE.md` dokumentiert. Die laufende App wird dadurch nicht migriert oder umbenannt; der BewehrungsCheck bleibt der stabile Ausgangspunkt.
+
+## Production-PWA
+
+Die App ist eine statische PWA. Für die Auslieferung genügt der Inhalt des Ordners `dist`.
+
+Hosting ist auf normalem HTTPS-Webspace möglich, zum Beispiel:
+
+- Netlify
+- Vercel
+- GitHub Pages
+- eigener Webspace oder Subdomain
+
+Wichtig: Für PWA-Installation und Service Worker muss die App über HTTPS ausgeliefert werden. `localhost` ist nur für Entwicklung und Tests gedacht.
+
 ## Build
 
 Der Build kopiert die statischen App-Dateien in `dist`:

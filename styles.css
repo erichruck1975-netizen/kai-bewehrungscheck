@@ -2235,3 +2235,16 @@ dialog button {
 .followup-new-sample {
   border-color: #b9d7f0;
 }
+
+
+.primary-tile small { display:block; margin-top:4px; color:inherit; opacity:.78; font-size:13px; font-weight:600; }
+.site-module-card, .site-item-card { border:1px solid var(--line); border-radius:8px; background:#fff; }
+.site-quick-actions { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:10px 0 14px; }
+.site-item-list { display:grid; gap:12px; margin-top:12px; }
+.site-item-card { padding:12px; }
+.site-item-head { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:10px; }
+.site-item-head h4 { margin:0; }
+.site-photo-actions { justify-content:flex-start; flex-wrap:wrap; margin:10px 0; }
+.compact-photo-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.site-open-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center; padding:8px 0; border-top:1px solid var(--line); }
+@media (max-width: 720px) { .site-quick-actions { grid-template-columns:1fr; } .site-open-row { grid-template-columns:1fr; } .compact-photo-grid { grid-template-columns:1fr; } }

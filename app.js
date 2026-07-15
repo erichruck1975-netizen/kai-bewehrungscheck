@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v99";
+const APP_VERSION = "v100";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -30,6 +30,15 @@ const EC2_NA_CONFIG = {
   eta1: { good: 1.0, moderate: 0.7, unknown: 0.7 },
   alpha6: { le25: 1.0, p33: 1.15, p50: 1.4, gt50: 1.5, unknown: 1.5 }
 };
+const PROTOCOL_KIND_REBAR = "rebar-inspection";
+const PROTOCOL_KIND_SITE_CONTROL = "site-control";
+
+const SITE_CONTROL_TYPES = ["Mangel", "Aufgabe", "Hinweis", "Foto-Doku", "Klärungspunkt"];
+const SITE_CONTROL_TRADES = ["Rohbau", "Bewehrung", "Schalung", "Betonage", "TGA", "Elektro", "Abdichtung", "Ausbau", "Planung", "Bauleitung", "Sonstige"];
+const SITE_CONTROL_PRIORITIES = ["normal", "hoch", "kritisch"];
+const SITE_CONTROL_STATUSES = ["offen", "in Bearbeitung", "erledigt", "zur Klärung", "nicht prüfbar"];
+const SITE_CONTROL_REASONS = ["Regelbegehung", "Mangelkontrolle", "Fotodokumentation", "Abstimmung", "Nachbegehung", "Sonstige"];
+
 const CHECK_ITEMS = [
   "Schalung / Sauberkeit",
   "untere Bewehrungslage",
@@ -132,7 +141,11 @@ const DEFAULT_MASTER_DATA = {
   floors: ["UG", "EG", "1. OG", "2. OG", "DG", "Tiefgarage", "Untergeschoss", "Sonstige"],
   acceptanceTypes: ["Erstabnahme", "Nachkontrolle", "Teilabnahme", "Ergänzung"],
   areaAxes: ["Achse A/1", "Achse B/2", "Randbereich", "Mittelbereich", "Wandanschluss", "Deckenfeld", "Unterzug", "Stütze", "Sonstige"],
-  signatureRoles: ["Abnehmender / Bewehrungskontrolle", "Verantwortlicher vor Ort", "Polier", "Bauleiter", "Eisenflechter", "Betonbauer", "Prüfingenieur", "Sonstige"]
+  signatureRoles: ["Abnehmender / Bewehrungskontrolle", "Verantwortlicher vor Ort", "Polier", "Bauleiter", "Eisenflechter", "Betonbauer", "Prüfingenieur", "Sonstige"],
+  trades: SITE_CONTROL_TRADES,
+  siteControlTypes: SITE_CONTROL_TYPES,
+  siteControlReasons: SITE_CONTROL_REASONS,
+  siteControlPriorities: SITE_CONTROL_PRIORITIES
 };
 
 const state = {
@@ -448,7 +461,11 @@ function normalizeMasterData(masterData = {}) {
     floors: uniqueValues(source.floors || DEFAULT_MASTER_DATA.floors),
     acceptanceTypes: uniqueValues(source.acceptanceTypes || DEFAULT_MASTER_DATA.acceptanceTypes),
     areaAxes: uniqueValues(source.areaAxes || DEFAULT_MASTER_DATA.areaAxes),
-    signatureRoles: uniqueValues(source.signatureRoles || DEFAULT_MASTER_DATA.signatureRoles)
+    signatureRoles: uniqueValues(source.signatureRoles || DEFAULT_MASTER_DATA.signatureRoles),
+    trades: uniqueValues(source.trades || DEFAULT_MASTER_DATA.trades),
+    siteControlTypes: uniqueValues(source.siteControlTypes || DEFAULT_MASTER_DATA.siteControlTypes),
+    siteControlReasons: uniqueValues(source.siteControlReasons || DEFAULT_MASTER_DATA.siteControlReasons),
+    siteControlPriorities: uniqueValues(source.siteControlPriorities || DEFAULT_MASTER_DATA.siteControlPriorities)
   };
 }
 
@@ -663,6 +680,14 @@ function protocolsForProject(projectId) {
     .sort((a, b) => String(b.head?.createdAt || b.updatedAt || "").localeCompare(String(a.head?.createdAt || a.updatedAt || "")));
 }
 
+function rebarProtocolsForProject(projectId) {
+  return protocolsForProject(projectId).filter((protocol) => !isSiteControlProtocol(protocol));
+}
+
+function siteControlProtocolsForProject(projectId) {
+  return protocolsForProject(projectId).filter(isSiteControlProtocol);
+}
+
 async function migrateProtocolAssets(protocol) {
   for (const plan of protocol.plans) {
     if (plan.dataUrl) {
@@ -740,6 +765,7 @@ function blankProtocol(project = null, seed = {}) {
     id: seed.id || uid("protocol"),
     projectId: project?.id || seed.projectId || "",
     type: seed.type || "initial",
+    kind: seed.kind || PROTOCOL_KIND_REBAR,
     parentProtocolId: seed.parentProtocolId || "",
     followupCreatedAt: seed.followupCreatedAt || "",
     version: "0.3",
@@ -810,6 +836,7 @@ function blankProtocol(project = null, seed = {}) {
 
 function normalizeProtocol(protocol) {
   protocol.version = protocol.version || "0.2";
+  protocol.kind = protocol.kind || PROTOCOL_KIND_REBAR;
   protocol.type = protocol.type === "followup" ? "followup" : "initial";
   protocol.parentProtocolId = protocol.parentProtocolId || "";
   protocol.followupCreatedAt = protocol.followupCreatedAt || "";
@@ -972,8 +999,45 @@ function normalizeProtocol(protocol) {
     signatureText: "",
     ...(protocol.result || {})
   };
+  protocol.siteControl = normalizeSiteControlMeta(protocol.siteControl || {}, protocol);
+  protocol.siteItems = normalizeSiteControlItems(protocol.siteItems || [], protocol.id);
   syncResultLookupFields(protocol);
   return protocol;
+}
+
+function isSiteControlProtocol(protocol = state.current) {
+  return (protocol?.kind || PROTOCOL_KIND_REBAR) === PROTOCOL_KIND_SITE_CONTROL;
+}
+
+function normalizeSiteControlMeta(meta = {}, protocol = {}) {
+  return {
+    reason: meta.reason || protocol.head?.acceptanceType || "Regelbegehung",
+    area: meta.area || protocol.head?.areaAxes || "",
+    participants: meta.participants || protocol.head?.peoplePresent || "",
+    weather: meta.weather || protocol.weather?.weatherCondition || "",
+    finalNote: meta.finalNote || protocol.result?.finalNote || ""
+  };
+}
+
+function normalizeSiteControlItems(items = [], protocolId = "") {
+  return (items || []).map((item, index) => ({
+    id: item.id || uid("siteitem"),
+    protocolId: item.protocolId || protocolId,
+    number: item.number || index + 1,
+    type: item.type || "Hinweis",
+    trade: item.trade || "",
+    location: item.location || "",
+    responsible: item.responsible || "",
+    dueDate: item.dueDate || "",
+    priority: item.priority || "normal",
+    status: item.status || "offen",
+    description: item.description || item.note || "",
+    planReference: item.planReference || "",
+    pinId: item.pinId || "",
+    photos: (item.photos || []).map(normalizePhotoRef),
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
+  }));
 }
 
 function ensureFollowupCatalogChecks(protocol) {
@@ -1158,6 +1222,7 @@ function showView(id) {
   renderBrowserWarnings();
   if (id === "homeView") renderHomeProjects();
   if (id === "listView") renderList();
+  if (id === "siteControlView") renderSiteControlView();
   if (id === "masterDataView") {
     renderDatalists();
     renderMasterData();
@@ -1275,6 +1340,11 @@ function returnToResultAfterPrint() {
   const dialog = $("#reportDialog");
   if (dialog?.open) dialog.close();
   document.body.classList.remove("report-open");
+  if (isSiteControlProtocol()) {
+    showView("siteControlEditorView");
+    renderSiteControlEditor();
+    return;
+  }
   activateProtocolTab("resultTab");
 }
 
@@ -1299,6 +1369,10 @@ function armReturnToResultAfterPrint() {
 }
 
 function openProtocol(protocol) {
+  if (isSiteControlProtocol(protocol)) {
+    openSiteControlProtocol(protocol);
+    return;
+  }
   state.current = normalizeProtocol(protocol);
   state.currentProjectId = state.current.projectId || "";
   const project = projectById(state.currentProjectId);
@@ -1526,7 +1600,7 @@ async function openAcceptanceDialog(projectId) {
   $("#acceptanceContractorInput").value = project.contractor || state.settings.defaultCompany || "";
   $("#acceptanceInspectorInput").value = project.defaultInspector || defaultOwnPerson()?.name || state.settings.defaultInspector || "";
   const sourceSelect = $("#acceptancePlanSourceInput");
-  const acceptances = protocolsForProject(project.id);
+  const acceptances = rebarProtocolsForProject(project.id);
   sourceSelect.innerHTML = `<option value="">Keine Planunterlagen übernehmen</option>${acceptances.map((protocol) => `<option value="${protocol.id}">${escapeHtml(protocol.head.acceptanceTitle || protocol.head.component || formatDate(protocol.head.createdAt))}</option>`).join("")}`;
   $("#acceptanceDialog").showModal();
 }
@@ -2013,7 +2087,7 @@ function acceptanceLabel(protocol) {
 
 
 function projectStats(project) {
-  const acceptances = protocolsForProject(project.id);
+  const acceptances = rebarProtocolsForProject(project.id);
   const latest = acceptances.reduce((value, protocol) => {
     const stamp = protocol.updatedAt || protocol.createdAt || protocol.head?.createdAt || "";
     return stamp > value ? stamp : value;
@@ -2035,6 +2109,7 @@ function renderDatalists() {
   setDatalist("areaOptions", master.areaAxes);
   setDatalist("tradeRoleOptions", tradeRoleOptions());
   setDatalist("signatureCategoryOptions", signatureCategoryOptions());
+  setDatalist("tradeOptions", state.masterData.trades || SITE_CONTROL_TRADES);
   const roleList = $("#signatureRoleOptions");
   if (roleList) roleList.innerHTML = master.signatureRoles.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("");
 }
@@ -4246,6 +4321,16 @@ async function addPhotos(files) {
     const check = findCheckBySample(target.id);
     if (check) updateCheckStatus(check);
   }
+  if (target.kind === "siteItem") {
+    const item = findSiteControlItem(target.id);
+    if (item) {
+      item.photos.push(...photos);
+      item.updatedAt = new Date().toISOString();
+      persist();
+      renderSiteControlEditor();
+      return;
+    }
+  }
   saveFromForm();
   renderPinEditor();
   renderChecklist();
@@ -5164,6 +5249,9 @@ function getVoiceTargetText(btn) {
   if (btn.dataset.voiceSample) {
     return findSample(btn.dataset.voiceSample)?.note || "";
   }
+  if (btn.dataset.voiceSiteItem) {
+    return findSiteControlItem(btn.dataset.voiceSiteItem)?.description || "";
+  }
   return "";
 }
 
@@ -5171,7 +5259,8 @@ function insertVoiceText(btn, text) {
   if (btn.dataset.voiceFor) {
     const field = $(`[name="${btn.dataset.voiceFor}"]`);
     field.value = appendVoiceText(field.value, text);
-    saveFromForm();
+    if (isSiteControlProtocol() && field.closest("#siteControlForm")) saveSiteControlForm();
+    else saveFromForm();
   }
   if (btn.dataset.voicePin) {
     const pin = state.current.pins.find((item) => item.id === btn.dataset.voicePin);
@@ -5208,6 +5297,14 @@ function insertVoiceText(btn, text) {
     sample.updatedAt = new Date().toISOString();
     saveFromForm();
     renderChecklist();
+  }
+  if (btn.dataset.voiceSiteItem) {
+    const item = findSiteControlItem(btn.dataset.voiceSiteItem);
+    if (!item) return;
+    item.description = appendVoiceText(item.description, text);
+    item.updatedAt = new Date().toISOString();
+    persist();
+    renderSiteControlEditor();
   }
 }
 
@@ -5251,7 +5348,296 @@ function weatherCode(code) {
   return map[code] || "Wettercode " + (code ?? "");
 }
 
+
+function siteStatusClass(status = "") {
+  const value = String(status || "").toLowerCase();
+  if (value.includes("erledigt")) return "ok";
+  if (value.includes("klär") || value.includes("bearbeitung")) return "partial";
+  if (value.includes("offen") || value.includes("mangel") || value.includes("kritisch")) return "bad";
+  return "neutral";
+}
+
+function findSiteControlItem(id) {
+  return (state.current?.siteItems || []).find((item) => item.id === id) || null;
+}
+
+function siteControlItemIsOpen(item = {}) {
+  const status = String(item.status || "").toLowerCase();
+  return !status.includes("erledigt");
+}
+
+function createBlankSiteControl(projectId) {
+  const project = projectById(projectId);
+  const protocol = blankProtocol(project, {
+    kind: PROTOCOL_KIND_SITE_CONTROL,
+    head: {
+      acceptanceTitle: `Baustellenkontrolle ${(nowLocalInput() || "").slice(0, 10)}`,
+      acceptanceType: "Baustellenkontrolle",
+      areaAxes: ""
+    }
+  });
+  protocol.kind = PROTOCOL_KIND_SITE_CONTROL;
+  protocol.checkpoints = [];
+  protocol.plans = [];
+  protocol.pins = [];
+  protocol.siteControl = normalizeSiteControlMeta({ reason: "Regelbegehung" }, protocol);
+  protocol.siteItems = [];
+  protocol.result.resultStatus = "Baustellenkontrolle dokumentiert";
+  protocol.result.finalNote = "";
+  state.protocols.unshift(protocol);
+  state.currentProjectId = protocol.projectId;
+  persist();
+  openSiteControlProtocol(protocol);
+  showAppToast("Baustellenkontrolle gestartet.");
+}
+
+function openSiteControlProtocol(protocol) {
+  state.current = normalizeProtocol(protocol);
+  state.currentProjectId = state.current.projectId || "";
+  const project = projectById(state.currentProjectId);
+  if (project) syncProtocolProjectFields(state.current, project, { overwriteProtocol: false });
+  showView("siteControlEditorView");
+  renderSiteControlEditor();
+}
+
+function renderSiteControlView() {
+  const list = $("#siteControlProjectList");
+  if (!list) return;
+  if (!state.projects.length) {
+    list.innerHTML = `<div class="panel"><p class="muted">Noch keine Projekte vorhanden. Bitte zuerst ein Projekt anlegen.</p><button class="primary-btn" id="siteNewProjectBtn" type="button">Neues Projekt</button></div>`;
+  } else {
+    list.innerHTML = state.projects.map((project) => {
+      const protocols = siteControlProtocolsForProject(project.id);
+      const openCount = protocols.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
+      return `
+        <article class="project-card site-module-card">
+          <div class="section-head">
+            <div>
+              <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
+              <div class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</div>
+              <div class="muted">${protocols.length} Baustellenkontrolle(n) · ${openCount} offene Punkte</div>
+            </div>
+            <button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button>
+          </div>
+          <div class="acceptance-list">
+            ${protocols.length ? protocols.map((protocol) => `
+              <article class="acceptance-card">
+                <div>
+                  <strong>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</strong>
+                  <div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div>
+                  <div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div>
+                </div>
+                <div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button></div>
+              </article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}
+          </div>
+        </article>`;
+    }).join("");
+  }
+  renderSiteControlOpenItems();
+}
+
+function renderSiteControlOpenItems() {
+  const target = $("#siteControlOpenItems");
+  if (!target) return;
+  const openItems = [];
+  state.protocols.filter(isSiteControlProtocol).forEach((protocol) => {
+    (protocol.siteItems || []).filter(siteControlItemIsOpen).forEach((item) => openItems.push({ protocol, item }));
+  });
+  target.innerHTML = `
+    <section class="panel site-open-dashboard">
+      <div class="section-head"><h3>Offene Punkte Baustellenkontrolle</h3><span class="status-badge ${openItems.length ? "bad" : "ok"}">${openItems.length}</span></div>
+      ${openItems.length ? openItems.slice(0, 12).map(({ protocol, item }) => `
+        <div class="site-open-row">
+          <strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong>
+          <span>${escapeHtml(projectById(protocol.projectId)?.name || protocol.head.projectName || "Projekt")}</span>
+          <button class="small-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button>
+        </div>`).join("") : `<p class="muted">Keine offenen Baustellenkontrollpunkte.</p>`}
+    </section>`;
+}
+
+function renderSiteControlEditor() {
+  const protocol = state.current;
+  if (!isSiteControlProtocol(protocol)) return;
+  const form = $("#siteControlForm");
+  if (!form) return;
+  const project = projectById(protocol.projectId);
+  const meta = protocol.siteControl = normalizeSiteControlMeta(protocol.siteControl, protocol);
+  form.elements.siteTitle.value = protocol.head.acceptanceTitle || "";
+  form.elements.siteDate.value = protocol.head.createdAt || nowLocalInput();
+  form.elements.siteProject.value = project?.name || protocol.head.projectName || "";
+  form.elements.siteAddress.value = formatAddress(project?.address || protocol.head.siteAddress, { multiline: false });
+  form.elements.siteReason.value = meta.reason || "Regelbegehung";
+  form.elements.siteArea.value = meta.area || "";
+  form.elements.siteParticipants.value = meta.participants || "";
+  form.elements.siteWeather.value = meta.weather || "";
+  form.elements.siteFinalNote.value = meta.finalNote || "";
+  const title = $("#siteControlModeBanner");
+  if (title) title.innerHTML = `<strong>Baustellenkontrolle</strong><span>${escapeHtml(project?.name || protocol.head.projectName || "Projekt")}</span>`;
+  renderSiteControlItems();
+  hydratePhotoThumbs($("#siteControlItemList"));
+}
+
+function saveSiteControlForm({ persistNow = true } = {}) {
+  if (!isSiteControlProtocol()) return;
+  const form = $("#siteControlForm");
+  if (!form) return;
+  const p = state.current;
+  p.head.acceptanceTitle = form.elements.siteTitle.value || "Baustellenkontrolle";
+  p.head.createdAt = form.elements.siteDate.value || p.head.createdAt || nowLocalInput();
+  p.siteControl = {
+    reason: form.elements.siteReason.value || "Regelbegehung",
+    area: form.elements.siteArea.value || "",
+    participants: form.elements.siteParticipants.value || "",
+    weather: form.elements.siteWeather.value || "",
+    finalNote: form.elements.siteFinalNote.value || ""
+  };
+  p.head.acceptanceType = "Baustellenkontrolle";
+  p.head.areaAxes = p.siteControl.area;
+  p.head.peoplePresent = p.siteControl.participants;
+  p.weather.weatherCondition = p.siteControl.weather;
+  p.result.finalNote = p.siteControl.finalNote;
+  p.updatedAt = new Date().toISOString();
+  if (persistNow) persist(); else schedulePersist();
+}
+
+function addSiteControlItem(type = "Hinweis") {
+  saveSiteControlForm({ persistNow: false });
+  const now = new Date().toISOString();
+  const item = normalizeSiteControlItems([{
+    type,
+    priority: type === "Mangel" ? "hoch" : "normal",
+    status: "offen",
+    createdAt: now,
+    updatedAt: now
+  }], state.current.id)[0];
+  state.current.siteItems.push(item);
+  persist();
+  renderSiteControlEditor();
+}
+
+function renderSiteControlItems() {
+  const list = $("#siteControlItemList");
+  if (!list || !isSiteControlProtocol()) return;
+  const items = state.current.siteItems || [];
+  list.innerHTML = items.length ? items.map(siteControlItemCard).join("") : `<div class="empty-card muted">Noch keine Feststellung. Nutze oben + Mangel, + Aufgabe, + Hinweis oder + Foto-Doku.</div>`;
+}
+
+function siteControlOptions(values, current) {
+  return uniqueValues(values).map((value) => `<option value="${escapeAttr(value)}" ${value === current ? "selected" : ""}>${escapeHtml(value)}</option>`).join("");
+}
+
+function siteControlItemCard(item) {
+  const photos = item.photos || [];
+  return `
+    <article class="site-item-card" data-site-item="${item.id}">
+      <div class="site-item-head">
+        <h4>${escapeHtml(item.type)} ${item.number ? `#${item.number}` : ""}</h4>
+        <span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span>
+      </div>
+      <div class="grid site-item-grid">
+        <label>Typ<select data-site-item-field="type">${siteControlOptions(state.masterData.siteControlTypes || SITE_CONTROL_TYPES, item.type)}</select></label>
+        <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
+        <label>Bereich / Ort<input data-site-item-field="location" value="${escapeAttr(item.location)}"></label>
+        <label>Zuständig<input data-site-item-field="responsible" list="companyOptions" value="${escapeAttr(item.responsible)}"></label>
+        <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
+        <label>Priorität<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
+        <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
+        <label>Planbezug / Pin<input data-site-item-field="planReference" value="${escapeAttr(item.planReference)}" placeholder="z. B. Plan B-002, P3"></label>
+      </div>
+      <label class="voice-field">Beschreibung / Feststellung
+        <textarea data-site-item-field="description" rows="4">${escapeHtml(item.description)}</textarea>
+        <button class="mic-btn" type="button" data-voice-site-item="${item.id}">Mikrofon</button>
+      </label>
+      <div class="result-actions site-photo-actions">
+        <button class="secondary-btn" type="button" data-site-photo-camera="${item.id}">Foto aufnehmen</button>
+        <button class="secondary-btn" type="button" data-site-photo-gallery="${item.id}">Foto aus Galerie auswählen</button>
+        <button class="danger-btn" type="button" data-delete-site-item="${item.id}">Feststellung löschen</button>
+      </div>
+      <div class="photo-grid compact-photo-grid">
+        ${photos.map((photo) => `
+          <figure class="photo-tool-card">
+            <img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
+            <figcaption><span>${escapeHtml(photo.name || "Foto")}</span><button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto löschen</button></figcaption>
+          </figure>`).join("")}
+      </div>
+    </article>`;
+}
+
+function updateSiteControlItemField(element) {
+  const item = findSiteControlItem(element.closest("[data-site-item]")?.dataset.siteItem || "");
+  if (!item) return;
+  item[element.dataset.siteItemField] = element.value || "";
+  item.updatedAt = new Date().toISOString();
+  persist();
+  if (element.dataset.siteItemField === "status") renderSiteControlItems();
+}
+
+function triggerSiteControlPhotoPicker(itemId, source) {
+  state.photoTarget = { kind: "siteItem", id: itemId };
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  if (source === "camera") input.setAttribute("capture", "environment");
+  if (source === "gallery") input.multiple = true;
+  input.className = "visually-hidden";
+  input.addEventListener("change", async () => {
+    await addPhotos(Array.from(input.files || []));
+    input.remove();
+  }, { once: true });
+  document.body.appendChild(input);
+  input.click();
+}
+
+async function buildSiteControlReportParts() {
+  saveSiteControlForm({ persistNow: false });
+  const p = state.current;
+  const project = projectById(p.projectId);
+  const items = p.siteItems || [];
+  const openItems = items.filter(siteControlItemIsOpen);
+  const photoCards = [];
+  for (const item of items) {
+    for (const photo of item.photos || []) {
+      const url = await reportPhotoDataUrl(photo.id, { maxWidth: 1400, maxHeight: 1400, type: "image/jpeg", quality: 0.75 });
+      if (url) photoCards.push({ item, photo, url });
+    }
+  }
+  const css = `
+    @page{size:A4;margin:18mm 15mm 20mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2933;margin:0;line-height:1.45;background:#fff;font-size:12px}.print-btn{position:fixed;right:18px;top:18px;z-index:20;background:#1f4e79;color:#fff;border:0;border-radius:4px;padding:10px 14px;font-weight:700}.save-hint{position:sticky;top:0;z-index:19;background:#fff7d6;border-bottom:1px solid #e6c65c;color:#4f3b00;padding:12px 18px;font-size:13px;font-weight:700}.report-export,.report-page{width:190mm;max-width:190mm;margin:0 auto;background:#fff}.report-header{display:grid;grid-template-columns:1fr auto;gap:18px;border-bottom:3px solid #1f4e79;padding-bottom:18px;margin-bottom:22px}.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#5b6773;font-weight:700}h1{font-size:28px;line-height:1.15;margin:6px 0 8px;color:#17212b}h2{font-size:17px;color:#17212b;margin:24px 0 12px;padding-bottom:7px;border-bottom:1.5px solid #aab4bf;break-after:avoid}h3{font-size:14px;margin:0 0 8px;color:#17212b}.muted{color:#697586}.doc-meta{min-width:185px;border:1px solid #d8dee6;border-radius:6px;padding:10px 12px;background:#f7f9fb}.doc-meta div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e4e8ee;padding:4px 0}.doc-meta div:last-child{border-bottom:0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 20px}.info-card,.site-report-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;margin:10px 0 14px}.info-card h3,.site-report-card h3{background:#f3f6f9;margin:0;padding:9px 11px;border-bottom:1px solid #d8dee6;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}.info-row{display:grid;grid-template-columns:48mm 1fr;gap:10px;padding:8px 11px;border-bottom:1px solid #edf0f3}.info-row:last-child{border-bottom:0}.info-row strong{color:#52606d;font-size:11px}.status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;border:1px solid transparent}.status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.site-item-title{display:flex;justify-content:space-between;gap:10px;align-items:start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}.site-item-body{padding:10px 12px}.site-item-body p{white-space:pre-wrap}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.info-grid{grid-template-columns:1fr 1fr}.site-report-card,.photo{break-inside:avoid;page-break-inside:avoid}}
+  `;
+  const rows = [
+    ["Projekt", project?.name || p.head.projectName],
+    ["Adresse", formatAddress(project?.address || p.head.siteAddress)],
+    ["Datum / Uhrzeit", formatDate(p.head.createdAt)],
+    ["Anlass", p.siteControl?.reason],
+    ["Bereich", p.siteControl?.area],
+    ["Teilnehmer", p.siteControl?.participants],
+    ["Wetter / Bedingungen", p.siteControl?.weather]
+  ];
+  const itemHtml = items.length ? items.map((item) => `
+    <article class="site-report-card">
+      <div class="site-item-title"><div><strong>${escapeHtml(item.type)}</strong><div class="muted">${escapeHtml([item.trade, item.location].filter(Boolean).join(" · ") || "ohne Zuordnung")}</div></div><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div>
+      <div class="site-item-body">
+        ${infoRow("Zuständig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("Priorität", item.priority)}${infoRow("Planbezug / Pin", item.planReference)}
+        <p>${escapeHtml(item.description || "Keine Beschreibung erfasst.")}</p>
+      </div>
+    </article>`).join("") : `<p class="muted">Keine Feststellungen dokumentiert.</p>`;
+  const photoHtml = photoCards.length ? `<div class="photo-grid">${photoCards.map(({ item, photo, url }) => `<figure class="photo"><img src="${url}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><p><strong>${escapeHtml(item.type)}</strong> · ${escapeHtml(item.location || "ohne Bereich")}</p><p>${escapeHtml(photo.name || "Foto")}</p></figcaption></figure>`).join("")}</div>` : `<p class="muted">Keine Fotos dokumentiert.</p>`;
+  const body = `
+    <div class="report-export"><main class="report-page">
+      <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(p.head.createdAt))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
+      <section class="info-grid"><div class="info-card"><h3>Projekt</h3>${rows.slice(0,3).map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Kontrolle</h3>${rows.slice(3).map(([k,v]) => infoRow(k,v)).join("")}</div></section>
+      <h2>Ergebnis / Zusammenfassung</h2><section class="info-card">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
+      <h2>Offene Punkte</h2>${openItems.length ? openItems.map((item) => `<article class="site-report-card"><div class="site-item-title"><strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="site-item-body"><p>${escapeHtml(item.description || "")}</p></div></article>`).join("") : `<p class="muted">Keine offenen Punkte dokumentiert.</p>`}
+      <h2>Feststellungen / Aufgaben</h2>${itemHtml}
+      <h2 class="page-break">Fotodokumentation</h2>${photoHtml}
+      <footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(p.head.createdAt))}</span><span>Kai BauSuite</span></footer>
+    </main></div>`;
+  const title = sanitizeFileName(`Baustellenkontrolle_${project?.name || p.head.projectName || "Projekt"}_${(p.head.createdAt || "").slice(0,10)}`);
+  return { css, body, title, fileName: `${title}.pdf` };
+}
+
 async function buildReportParts() {
+  if (isSiteControlProtocol()) return buildSiteControlReportParts();
   saveFromForm();
   await ensureReportPlanImages();
   const p = state.current;
@@ -7768,6 +8154,12 @@ function bindEvents() {
   $("#newProjectBtn").addEventListener("click", createProject);
   $("#newFromListBtn").addEventListener("click", createProject);
   $("#backBtn").addEventListener("click", async () => {
+    if ($("#siteControlEditorView")?.classList.contains("active")) {
+      saveSiteControlForm();
+      renderSiteControlView();
+      await navigateToView("siteControlView");
+      return;
+    }
     if ($("#editorView")?.classList.contains("active")) {
       saveFromForm();
       renderList();
@@ -7780,6 +8172,11 @@ function bindEvents() {
     if ($("#masterDataView")?.classList.contains("active")) {
       const saved = await saveMasterData();
       if (saved) await navigateToView("homeView");
+      return;
+    }
+    if ($("#siteControlEditorView")?.classList.contains("active")) {
+      saveSiteControlForm();
+      showAppToast("Lokal gespeichert.");
       return;
     }
     saveFromForm();
@@ -7902,6 +8299,23 @@ function bindEvents() {
       applyCheckScopeTemplate({ confirmUser: true });
     }
   });
+  const siteControlForm = $("#siteControlForm");
+  if (siteControlForm) {
+    siteControlForm.addEventListener("input", (event) => {
+      if (event.target.matches("[data-site-item-field]")) {
+        updateSiteControlItemField(event.target);
+        return;
+      }
+      saveSiteControlForm({ persistNow: false });
+    });
+    siteControlForm.addEventListener("change", (event) => {
+      if (event.target.matches("[data-site-item-field]")) {
+        updateSiteControlItemField(event.target);
+        return;
+      }
+      saveSiteControlForm();
+    });
+  }
   $("#masterDataPanel").addEventListener("input", handleMasterDataInput);
   $("#masterDataPanel").addEventListener("change", handleMasterDataInput);
   $("#markPinSheet").addEventListener("input", (event) => {
@@ -7937,6 +8351,38 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     const dynamicNav = event.target.closest("[data-nav]");
     if (dynamicNav) navigateToView(dynamicNav.dataset.nav);
+    const siteNewProject = event.target.closest("#siteNewProjectBtn");
+    if (siteNewProject) createProject();
+    const newSiteControl = event.target.closest("[data-new-site-control]");
+    if (newSiteControl) createBlankSiteControl(newSiteControl.dataset.newSiteControl);
+    const openSiteControl = event.target.closest("[data-open-site-control]");
+    if (openSiteControl) openSiteControlProtocol(state.protocols.find((p) => p.id === openSiteControl.dataset.openSiteControl));
+    const addSiteItem = event.target.closest("[data-add-site-item]");
+    if (addSiteItem) addSiteControlItem(addSiteItem.dataset.addSiteItem);
+    const sitePhotoCamera = event.target.closest("[data-site-photo-camera]");
+    if (sitePhotoCamera) triggerSiteControlPhotoPicker(sitePhotoCamera.dataset.sitePhotoCamera, "camera");
+    const sitePhotoGallery = event.target.closest("[data-site-photo-gallery]");
+    if (sitePhotoGallery) triggerSiteControlPhotoPicker(sitePhotoGallery.dataset.sitePhotoGallery, "gallery");
+    const deleteSitePhoto = event.target.closest("[data-delete-site-photo]");
+    if (deleteSitePhoto && confirm("Dieses Foto löschen?")) {
+      const item = findSiteControlItem(deleteSitePhoto.dataset.deleteSitePhoto);
+      if (item) {
+        item.photos = item.photos.filter((photo) => photo.id !== deleteSitePhoto.dataset.photoId);
+        idbDelete("photos", deleteSitePhoto.dataset.photoId);
+        persist();
+        renderSiteControlEditor();
+      }
+    }
+    const deleteSiteItem = event.target.closest("[data-delete-site-item]");
+    if (deleteSiteItem && confirm("Diese Feststellung löschen?")) {
+      state.current.siteItems = (state.current.siteItems || []).filter((item) => item.id !== deleteSiteItem.dataset.deleteSiteItem);
+      persist();
+      renderSiteControlEditor();
+    }
+    const sitePdfSave = event.target.closest("#sitePdfSaveBtn");
+    if (sitePdfSave) savePdfFromA4Report();
+    const sitePdfPreview = event.target.closest("#sitePdfPreviewBtn");
+    if (sitePdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
     const addMaster = event.target.closest("[data-add-master]");
     if (addMaster) addMasterItem(addMaster.dataset.addMaster);
     const deleteMaster = event.target.closest("[data-delete-master]");
@@ -9248,6 +9694,7 @@ async function boot() {
   renderBrowserWarnings();
   renderHomeProjects();
   renderList();
+  renderSiteControlView();
   window.addEventListener("resize", updateReportPreviewFrame);
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").then(() => cacheRuntimeAssets()).catch(() => {});

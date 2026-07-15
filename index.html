@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
-  <title>Kai BewehrungsCheck</title>
-  <link rel="manifest" href="manifest.webmanifest?v=99">
-  <link rel="stylesheet" href="styles.css?v=99">
+  <title>Kai BauSuite</title>
+  <link rel="manifest" href="manifest.webmanifest?v=100">
+  <link rel="stylesheet" href="styles.css?v=100">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BewehrungsCheck <span class="version-badge" data-app-version>v99</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v100</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -24,29 +24,71 @@
       <section id="homeView" class="view active">
         <div class="site-signal">
           <div>
-            <h2>Bewehrungsabnahme auf der Baustelle</h2>
-            <p>Projekt öffnen, Stammdaten nutzen, Abnahme dokumentieren und Protokoll erzeugen.</p>
+            <h2>Kai BauSuite</h2>
+            <p>Projekt öffnen, Modul wählen, Baustelle dokumentieren und A4-Bericht erzeugen.</p>
           </div>
         </div>
         <div class="home-actions">
-          <button class="primary-tile" id="newProjectBtn" type="button">
-            <span>+</span>
-            Neues Projekt
+          <button class="primary-tile" data-nav="siteControlView" type="button">
+            <span>BK</span>
+            <span>Baustellenkontrolle<small>Begehung, Mängel, Aufgaben, Fotos</small></span>
           </button>
           <button class="primary-tile secondary" data-nav="listView" type="button">
-            <span>Liste</span>
-            Projekte
+            <span>BA</span>
+            <span>Bewehrungsabnahme<small>BewehrungsCheck öffnen</small></span>
           </button>
           <button class="primary-tile secondary" data-nav="masterDataView" type="button">
             <span>Daten</span>
-            Stammdaten
+            <span>Stammdaten<small>Firmen, Prüfer, Bauteile</small></span>
           </button>
           <button class="primary-tile secondary" data-nav="settingsView" type="button">
             <span>Info</span>
-            Einstellungen
+            <span>Einstellungen / Backup<small>Datensicherung und PWA-Info</small></span>
           </button>
         </div>
         <div id="homeProjectList" class="home-project-list"></div>
+      </section>
+
+
+      <section id="siteControlView" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Baustellenkontrolle</h2>
+            <p class="muted">Allgemeine Baustellenbegehungen, Feststellungen, Aufgaben, Fotos und offene Punkte.</p>
+          </div>
+          <button class="small-btn" data-nav="homeView" type="button">BauSuite</button>
+        </div>
+        <div id="siteControlProjectList" class="protocol-list"></div>
+        <div id="siteControlOpenItems" class="home-project-list"></div>
+      </section>
+
+      <section id="siteControlEditorView" class="view">
+        <div id="siteControlModeBanner" class="followup-context"></div>
+        <form id="siteControlForm">
+          <div class="panel"><div class="grid">
+            <label>Protokollbezeichnung<input name="siteTitle"></label>
+            <label>Datum / Uhrzeit<input name="siteDate" type="datetime-local"></label>
+            <label>Projekt<input name="siteProject" disabled></label>
+            <label>Adresse<input name="siteAddress" disabled></label>
+            <label>Anlass<select name="siteReason"><option>Regelbegehung</option><option>Mangelkontrolle</option><option>Fotodokumentation</option><option>Abstimmung</option><option>Nachbegehung</option><option>Sonstige</option></select></label>
+            <label>Bereich / Ort<input name="siteArea" list="areaOptions"></label>
+            <label>Teilnehmer<textarea name="siteParticipants" rows="2"></textarea></label>
+            <label>Wetter / Bedingungen<textarea name="siteWeather" rows="2"></textarea></label>
+          </div></div>
+          <div class="panel"><div class="section-head"><h3>Feststellungen / Aufgaben</h3></div>
+            <div class="site-quick-actions">
+              <button class="primary-btn" type="button" data-add-site-item="Mangel">+ Mangel</button>
+              <button class="secondary-btn" type="button" data-add-site-item="Aufgabe">+ Aufgabe</button>
+              <button class="secondary-btn" type="button" data-add-site-item="Hinweis">+ Hinweis</button>
+              <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
+              <button class="secondary-btn" type="button" data-add-site-item="KlÃ¤rungspunkt">+ KlÃ¤rungspunkt</button>
+            </div>
+            <div id="siteControlItemList" class="site-item-list"></div>
+          </div>
+          <div class="panel"><label class="voice-field">Ergebnis / Schlussbemerkung<textarea name="siteFinalNote" rows="4"></textarea><button class="mic-btn" type="button" data-voice-for="siteFinalNote">Mikrofon</button></label>
+            <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Übersicht</button></div>
+          </div>
+        </form>
       </section>
 
       <section id="listView" class="view">
@@ -74,7 +116,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v99</p>
+              <p id="appVersionInfo" class="muted">Version: v100</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -539,8 +581,9 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=85"></script>
-  <script src="app.js?v=99"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=100"></script>
+  <script src="app.js?v=100"></script>
+  <datalist id="tradeOptions"></datalist>
 </body>
 </html>
 
