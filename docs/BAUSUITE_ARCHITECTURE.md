@@ -324,3 +324,18 @@ Die BauSuite bereitet Dropbox als spätere Planablage vor, ohne eine automatisch
 - Offline-Grundsatz: Für die Baustelle bleibt eine lokale IndexedDB-Kopie von Plänen/Fotos wichtig.
 - Sptere Erweiterung: Dropbox OAuth/API, Projektordner verbinden, Planstnde erkennen, lokale Offline-Kopie aktualisieren.
 
+## Stammdaten-Struktur ab v106
+
+Die Stammdaten werden in der Oberfläche in Untermenüs geführt, ohne bestehende Speicherstrukturen umzubenennen oder Daten zu migrieren. Die Gliederung bereitet den BauSuite-Kern vor:
+
+- Firmen
+- Personen / Ansprechpartner
+- Gewerke
+- Rollen / Funktionen
+- Prüfer / Prüfingenieure
+- Standardwerte
+- Standardtexte
+- Planablage / Dropbox
+
+Diese Ordnung ist eine UI-Struktur. Das bestehende BewehrungsCheck-Datenmodell bleibt unverändert lauffähig.
+

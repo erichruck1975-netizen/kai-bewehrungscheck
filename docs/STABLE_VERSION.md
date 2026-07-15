@@ -45,3 +45,9 @@ Stabiler Rettungsstand bleibt: `v99-stable-followup-full-workflow`.
 
 v104 ist ein Teststand für zentralisierte Projektpläne und vorbereitete Dropbox-Pfade/Links. Der alte stabile A4-/Nachbegehungs-Workflow bleibt die Referenz für produktive Baustellentests.
 
+## Teststand v106
+
+Stabiler Rettungsstand bleibt: `v99-stable-followup-full-workflow`.
+
+`v106` ist ein Teststand für die BauSuite-Stammdaten-Untermenüs. Die vorhandenen Stammdaten, Backup/Restore und der A4-Berichtspfad bleiben unverändert.
+

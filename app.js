@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v105";
+const APP_VERSION = "v106";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -153,6 +153,7 @@ const state = {
   protocols: [],
   masterData: null,
   masterDataDirty: false,
+  masterDataSection: "",
   pendingMasterDataLeaveResolve: null,
   settings: {},
   currentProjectId: "",
@@ -1253,7 +1254,7 @@ function updateAppHeader(viewId = activeViewId()) {
     siteControlView: "Baustellenkontrolle",
     siteControlEditorView: "Baustellenkontrolle",
     editorView: "Bewehrungsabnahme",
-    masterDataView: "Stammdaten",
+    masterDataView: state.masterDataSection ? `Stammdaten \u00b7 ${masterDataSectionMeta(state.masterDataSection)?.title || "Detail"}` : "Stammdaten",
     settingsView: "Einstellungen / Backup"
   };
   if (eyebrow) eyebrow.textContent = labels[viewId] || "Kai BauSuite";
@@ -1319,6 +1320,7 @@ function showAppToast(message, { type = "success", timeout = 4200 } = {}) {
 }
 
 async function navigateToView(id) {
+  if (id === "masterDataView" && activeViewId() !== "masterDataView") state.masterDataSection = "";
   if (activeViewId() === "masterDataView" && id !== "masterDataView") {
     const canLeave = await confirmLeaveMasterData();
     if (!canLeave) return false;
@@ -2259,22 +2261,152 @@ function comboField({ label, field, value = "", list = "", placeholder = "", typ
   return `<label class="${escapeAttr(className)}">${escapeHtml(label)}${input}${extra}</label>`;
 }
 
+
+const MASTER_DATA_SECTIONS = [
+  { id: "companies", code: "FI", title: "Firmen", description: "Auftraggeber, ausf\u00fchrende Firmen, Nachunternehmer" },
+  { id: "persons", code: "PE", title: "Personen / Ansprechpartner", description: "Bauleiter, Ansprechpartner, Pr\u00fcfer, Kontakte" },
+  { id: "trades", code: "GW", title: "Gewerke", description: "Rohbau, Elektro, Heizung, Fassade usw." },
+  { id: "roles", code: "RO", title: "Rollen / Funktionen", description: "Auftraggeber, Bauherr, Pr\u00fcfer, Bauleiter, Zust\u00e4ndiger" },
+  { id: "inspectors", code: "PI", title: "Pr\u00fcfer / Pr\u00fcfingenieure", description: "Pr\u00fcfingenieure, Sachbearbeiter, Pr\u00fcfb\u00fcros" },
+  { id: "defaults", code: "ST", title: "Standardwerte", description: "Fristen, Priorit\u00e4ten, Status, Feststellungstypen" },
+  { id: "standardTexts", code: "TX", title: "Standardtexte", description: "Textbausteine f\u00fcr M\u00e4ngel, Aufgaben, Hinweise und Schlussbemerkungen" },
+  { id: "planStorage", code: "PL", title: "Planablage / Dropbox", description: "Dropbox-Basisordner, Planordner, Fotoordner, Berichtordner" }
+];
+
+function masterDataSectionMeta(sectionId) {
+  return MASTER_DATA_SECTIONS.find((section) => section.id === sectionId) || null;
+}
+
 function renderMasterData() {
   const panel = $("#masterDataPanel");
   if (!panel) return;
   const master = normalizeMasterData(state.masterData);
   state.masterData = master;
   updateMasterDataSaveStatus();
-  panel.innerHTML = `
-    ${masterSection("Eigene Firma / Abnehmende", "ownPersons", master.ownPersons, personMasterFields())}
-    ${masterSection("Firmen", "companies", master.companies, companyMasterFields())}
-    ${masterSection("Prüfingenieur / Prüfer", "inspectors", master.inspectors, inspectorMasterFields())}
-    ${lookupMasterSection("Standard-Bauteile", "components", master.components)}
-    ${lookupMasterSection("Standard-Geschosse", "floors", master.floors)}
-    ${lookupMasterSection("Standard-Abnahmearten", "acceptanceTypes", master.acceptanceTypes)}
-    ${lookupMasterSection("Standard-Bereiche / Achsen", "areaAxes", master.areaAxes)}
-    ${lookupMasterSection("Unterschriftenrollen", "signatureRoles", master.signatureRoles)}
+  panel.innerHTML = state.masterDataSection
+    ? renderMasterDataDetail(state.masterDataSection, master)
+    : renderMasterDataOverview(master);
+}
+
+function renderMasterDataOverview(master) {
+  return `
+    <section class="panel master-overview">
+      <div class="master-overview-head">
+        <div>
+          <h3>Stammdaten</h3>
+          <p class="muted">Zentrale Daten f\u00fcr Projekte, Firmen, Personen und Module.</p>
+        </div>
+      </div>
+      <div class="master-menu-grid">
+        ${MASTER_DATA_SECTIONS.map((section) => `
+          <button class="master-menu-card" type="button" data-master-section="${section.id}">
+            <span class="master-menu-code">${escapeHtml(section.code)}</span>
+            <span>
+              <strong>${escapeHtml(section.title)}</strong>
+              <small>${escapeHtml(section.description)}</small>
+              <em>${escapeHtml(masterDataSectionSummary(section.id, master))}</em>
+            </span>
+          </button>
+        `).join("")}
+        <button class="master-menu-card master-menu-card-secondary" type="button" data-nav="homeView">
+          <span class="master-menu-code">&larr;</span>
+          <span>
+            <strong>Zur\u00fcck zur BauSuite</strong>
+            <small>Startseite und Module \u00f6ffnen</small>
+          </span>
+        </button>
+      </div>
+    </section>
   `;
+}
+
+function masterDataSectionSummary(sectionId, master) {
+  if (sectionId === "companies") return `${master.companies.length} Eintrag${master.companies.length === 1 ? "" : "e"}`;
+  if (sectionId === "persons") return `${master.ownPersons.length} Eintrag${master.ownPersons.length === 1 ? "" : "e"}`;
+  if (sectionId === "inspectors") return `${master.inspectors.length} Eintrag${master.inspectors.length === 1 ? "" : "e"}`;
+  if (sectionId === "trades") return `${master.components.length} Bauteilwerte`;
+  if (sectionId === "roles") return `${master.signatureRoles.length} Rollen`;
+  if (sectionId === "defaults") return `${master.acceptanceTypes.length + master.floors.length + master.areaAxes.length} Standardwerte`;
+  if (sectionId === "planStorage") return state.settings?.dropboxBaseFolder ? "Basisordner gesetzt" : "Noch nicht eingerichtet";
+  return "Vorbereitet";
+}
+
+function renderMasterDataDetail(sectionId, master) {
+  const meta = masterDataSectionMeta(sectionId);
+  const body = renderMasterDataSectionBody(sectionId, master);
+  return `
+    <section class="panel master-detail-head">
+      <button class="secondary-btn" type="button" data-master-overview>Zur\u00fcck zur \u00dcbersicht</button>
+      <div>
+        <h3>${escapeHtml(meta?.title || "Stammdaten")}</h3>
+        <p class="muted">${escapeHtml(meta?.description || "Stammdaten bearbeiten")}</p>
+      </div>
+    </section>
+    ${body}
+  `;
+}
+
+function renderMasterDataSectionBody(sectionId, master) {
+  if (sectionId === "companies") {
+    return masterSection("Firmen", "companies", master.companies, companyMasterFields());
+  }
+  if (sectionId === "persons") {
+    return masterSection("Personen / Ansprechpartner", "ownPersons", master.ownPersons, personMasterFields());
+  }
+  if (sectionId === "inspectors") {
+    return masterSection("Pr\u00fcfer / Pr\u00fcfingenieure", "inspectors", master.inspectors, inspectorMasterFields());
+  }
+  if (sectionId === "trades") {
+    return `
+      ${lookupMasterSection("Standard-Bauteile / Gewerke", "components", master.components)}
+      <section class="panel master-info-card"><p class="muted">Diese Werte werden f\u00fcr Bauteile, Gewerke und wiederkehrende Auswahlfelder genutzt.</p></section>
+    `;
+  }
+  if (sectionId === "roles") {
+    return lookupMasterSection("Rollen / Funktionen", "signatureRoles", master.signatureRoles);
+  }
+  if (sectionId === "defaults") {
+    return `
+      ${lookupMasterSection("Standard-Abnahmearten", "acceptanceTypes", master.acceptanceTypes)}
+      ${lookupMasterSection("Standard-Geschosse", "floors", master.floors)}
+      ${lookupMasterSection("Standard-Bereiche / Achsen", "areaAxes", master.areaAxes)}
+    `;
+  }
+  if (sectionId === "standardTexts") {
+    return `
+      <section class="panel master-section master-info-card">
+        <h3>Standardtexte</h3>
+        <p>Textbausteine f\u00fcr M\u00e4ngel, Aufgaben, Hinweise und Schlussbemerkungen sind als BauSuite-Erweiterung vorbereitet.</p>
+        <p class="muted">Bestehende Berichtstexte und Pr\u00fcfpunkt-Bemerkungen bleiben unver\u00e4ndert. Es wird hier bewusst keine neue Datenstruktur erzwungen.</p>
+      </section>
+    `;
+  }
+  if (sectionId === "planStorage") {
+    return renderPlanStorageMasterDataSection();
+  }
+  return `<section class="panel master-section"><p class="muted">Dieser Stammdatenbereich ist vorbereitet.</p></section>`;
+}
+
+function renderPlanStorageMasterDataSection() {
+  return `
+    <section class="panel master-section">
+      <div class="section-head">
+        <h3>Planablage / Dropbox</h3>
+      </div>
+      <p class="muted">Die App speichert Pl\u00e4ne und Fotos lokal auf diesem Ger\u00e4t. Diese Pfade dienen als strukturierte Ablagehinweise f\u00fcr Dropbox, Planordner und Berichtordner.</p>
+      <div class="grid compact-grid">
+        ${masterSettingInput("dropboxBaseFolder", "Dropbox-Basisordner", "z. B. /Kai BauSuite/Projekte")}
+        ${masterSettingInput("dropboxPlanFolder", "Planordner", "Pl\u00e4ne")}
+        ${masterSettingInput("dropboxPhotoFolder", "Fotoordner", "Fotos")}
+        ${masterSettingInput("dropboxReportFolder", "Berichtordner", "Berichte")}
+      </div>
+      <p class="field-hint">Dropbox wird vorbereitet. Aktuell werden keine Dateien automatisch synchronisiert oder aus Dropbox geladen.</p>
+    </section>
+  `;
+}
+
+function masterSettingInput(key, label, placeholder = "") {
+  return `<label>${escapeHtml(label)}<input data-master-setting="${escapeAttr(key)}" value="${escapeAttr(state.settings?.[key] || "")}" placeholder="${escapeAttr(placeholder)}"></label>`;
 }
 
 function masterSection(title, collection, items, fields) {
@@ -7624,6 +7756,13 @@ function syncMasterDataFromDom() {
 }
 
 function handleMasterDataInput(event) {
+  if (event.target.matches("[data-master-setting]")) {
+    const key = event.target.dataset.masterSetting;
+    state.settings[key] = event.target.value;
+    persist();
+    updateMasterDataSaveStatus("Planablage gespeichert");
+    return true;
+  }
   if (event.target.matches("[data-master-field]")) {
     const card = event.target.closest("[data-master-item]");
     const collection = card.dataset.masterItem;
@@ -8461,6 +8600,12 @@ function bindEvents() {
       await navigateToView("projectHubView");
       return;
     }
+    if ($("#masterDataView")?.classList.contains("active") && state.masterDataSection) {
+      state.masterDataSection = "";
+      renderMasterData();
+      updateAppHeader("masterDataView");
+      return;
+    }
     if ($("#projectHubView")?.classList.contains("active")) {
       await navigateToView("projectDirectoryView");
       return;
@@ -8717,6 +8862,20 @@ function bindEvents() {
     }
     const projectHubNewProject = event.target.closest("#projectHubNewProjectBtn");
     if (projectHubNewProject) createProject();
+    const masterSectionButton = event.target.closest("[data-master-section]");
+    if (masterSectionButton) {
+      state.masterDataSection = masterSectionButton.dataset.masterSection;
+      renderMasterData();
+      updateAppHeader("masterDataView");
+      return;
+    }
+    const masterOverviewButton = event.target.closest("[data-master-overview]");
+    if (masterOverviewButton) {
+      state.masterDataSection = "";
+      renderMasterData();
+      updateAppHeader("masterDataView");
+      return;
+    }
     const addMaster = event.target.closest("[data-add-master]");
     if (addMaster) addMasterItem(addMaster.dataset.addMaster);
     const deleteMaster = event.target.closest("[data-delete-master]");

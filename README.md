@@ -275,3 +275,9 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 - Die automatische Dropbox-Synchronisierung ist vorbereitet, aber noch nicht aktiv.
 - Hochgeladene Pläne und Offline-Kopien in IndexedDB bleiben weiterhin maßgebend für die Baustellennutzung.
 
+## Teststand v106
+
+`v106` strukturiert die Stammdaten in mobile Untermenüs. Der Einstieg zeigt nur noch eine Übersicht für Firmen, Personen / Ansprechpartner, Gewerke, Rollen / Funktionen, Prüfer / Prüfingenieure, Standardwerte, Standardtexte und Planablage / Dropbox.
+
+Die bestehenden Stammdatenstrukturen bleiben unverändert. Der stabile Baustellenstand bleibt die Referenz; der alte Direkt-PDF-Renderer ist weiterhin nicht Hauptweg.
+
