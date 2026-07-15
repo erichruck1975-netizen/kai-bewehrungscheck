@@ -2264,3 +2264,97 @@ dialog button {
 .project-hub-summary h2 { margin:0 0 6px; }
 @media (min-width: 760px) { .module-card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width: 620px) { .project-hub-summary, .home-section .section-head { display:grid; align-items:start; } .module-card { grid-template-columns:56px minmax(0,1fr); } .module-card .module-code { width:48px; } }
+
+
+/* v103 BauSuite start and project directory polish */
+.home-main-menu {
+  margin-top: 12px;
+}
+
+.main-menu-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.main-menu-card {
+  min-height: 92px;
+}
+
+.project-directory-toolbar {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.project-search-label {
+  margin: 0;
+}
+
+.project-directory-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.project-directory-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.project-directory-card h3 {
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+}
+
+.project-directory-card p {
+  margin: 0;
+}
+
+.project-directory-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-top: 4px !important;
+}
+
+.project-directory-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.project-directory-actions .primary-btn,
+.project-directory-actions .secondary-btn {
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+.project-hub .module-card-grid {
+  align-items: stretch;
+}
+
+@media (max-width: 720px) {
+  .project-directory-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .project-directory-card {
+    grid-template-columns: 1fr;
+  }
+
+  .project-directory-actions {
+    justify-content: stretch;
+  }
+
+  .project-directory-actions .primary-btn,
+  .project-directory-actions .secondary-btn {
+    flex: 1 1 120px;
+  }
+}

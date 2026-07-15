@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=102">
-  <link rel="stylesheet" href="styles.css?v=102">
+  <link rel="manifest" href="manifest.webmanifest?v=103">
+  <link rel="stylesheet" href="styles.css?v=103">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v102</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v103</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -25,34 +25,31 @@
         <div class="site-signal compact-hero">
           <div>
             <h2>Kai BauSuite</h2>
-            <p>Projekte öffnen · Module wählen · Baustelle dokumentieren</p>
+            <p>Projekte verwalten · Baustelle dokumentieren · Berichte erstellen</p>
           </div>
         </div>
-        <section class="home-section panel">
-          <div class="section-head">
-            <h2>Projekte</h2>
-            <div class="result-actions">
-              <button class="primary-btn" id="newProjectBtn" type="button">Neues Projekt</button>
-              <button class="secondary-btn" data-nav="listView" type="button">Alle Projekte anzeigen</button>
-            </div>
-          </div>
-          <div id="homeProjectList" class="home-project-list"></div>
-        </section>
-        <section class="home-section panel">
-          <h2>Globale Funktionen</h2>
-          <div class="module-card-grid">
-            <button class="module-card" data-nav="masterDataView" type="button"><span class="module-code">ST</span><span><strong>Stammdaten</strong><small>Firmen, Prüfer, Bauteile</small></span></button>
-            <button class="module-card" data-nav="settingsView" type="button"><span class="module-code">SET</span><span><strong>Einstellungen</strong><small>Backup, Import/Export, Speicher</small></span></button>
+        <section class="home-section panel home-main-menu">
+          <div class="module-card-grid main-menu-grid">
+            <button class="module-card main-menu-card" data-nav="projectDirectoryView" type="button"><span class="module-code">PJ</span><span><strong>Projektverwaltung</strong><small>Projekte anlegen, öffnen und bearbeiten</small></span></button>
+            <button class="module-card main-menu-card" data-nav="masterDataView" type="button"><span class="module-code">ST</span><span><strong>Stammdaten</strong><small>Firmen, Personen, Gewerke, Prüfer</small></span></button>
+            <button class="module-card main-menu-card" data-nav="settingsView" type="button"><span class="module-code">SET</span><span><strong>Einstellungen / Backup</strong><small>Sicherung, Import/Export, Speicher</small></span></button>
           </div>
         </section>
-        <section class="home-section panel module-hint">
-          <h2>Module</h2>
-          <p class="muted">Module werden innerhalb eines Projekts gestartet. Bitte zuerst ein Projekt öffnen.</p>
-          <div class="module-card-grid disabled-modules">
-            <button class="module-card" type="button" data-project-required><span class="module-code">BK</span><span><strong>Baustellenkontrolle</strong><small>Begehungen, Mängel, Aufgaben, Fotos</small></span></button>
-            <button class="module-card" type="button" data-project-required><span class="module-code">BA</span><span><strong>Bewehrungsabnahme</strong><small>Bewehrung prüfen, Pins, Nachbegehung, A4-Bericht</small></span></button>
+      </section>
+
+      <section id="projectDirectoryView" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Projektverwaltung</h2>
+            <p class="muted">Projekte anlegen, suchen, öffnen und bearbeiten.</p>
           </div>
+          <button class="small-btn" data-nav="homeView" type="button">Zur Startseite</button>
+        </div>
+        <section class="panel project-directory-toolbar">
+          <button class="primary-btn" id="newProjectBtn" type="button">Neues Projekt</button>
+          <label class="project-search-label">Projekt suchen<input id="projectSearchInput" type="search" placeholder="Name, Adresse, Auftraggeber"></label>
         </section>
+        <div id="projectDirectoryList" class="project-directory-list"></div>
       </section>
 
 
@@ -63,7 +60,7 @@
             <h2>Projektzentrale</h2>
             <p class="muted">Projekt öffnen, Modul wählen, offene Punkte im Blick behalten.</p>
           </div>
-          <button class="small-btn" data-nav="homeView" type="button">Zur BauSuite</button>
+          <button class="small-btn" data-nav="projectDirectoryView" type="button">Zur Projektverwaltung</button>
         </div>
         <div id="projectHubContent" class="project-hub"></div>
       </section>
@@ -74,7 +71,7 @@
             <h2>Baustellenkontrolle</h2>
             <p class="muted">Allgemeine Baustellenbegehungen, Feststellungen, Aufgaben, Fotos und offene Punkte.</p>
           </div>
-          <button class="small-btn" data-nav="homeView" type="button">BauSuite</button>
+          <button class="small-btn" data-nav="projectHubView" type="button">Projektzentrale</button>
         </div>
         <div id="siteControlProjectList" class="protocol-list"></div>
         <div id="siteControlOpenItems" class="home-project-list"></div>
@@ -134,7 +131,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v102</p>
+              <p id="appVersionInfo" class="muted">Version: v103</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -599,8 +596,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=102"></script>
-  <script src="app.js?v=102"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=103"></script>
+  <script src="app.js?v=103"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>

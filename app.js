@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v102";
+const APP_VERSION = "v103";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1220,7 +1220,7 @@ function showView(id) {
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === id));
   updateAppHeader(id);
   renderBrowserWarnings();
-  if (id === "homeView") renderHomeProjects();
+  if (id === "projectDirectoryView") renderProjectDirectory();
   if (id === "projectHubView") renderProjectHub();
   if (id === "listView") renderList();
   if (id === "siteControlView") renderSiteControlView();
@@ -1234,7 +1234,8 @@ function updateAppHeader(viewId = activeViewId()) {
   const eyebrow = $(".appbar-title .eyebrow");
   const back = $("#backBtn");
   const labels = {
-    homeView: "BauSuite Startseite",
+    homeView: "Startseite",
+    projectDirectoryView: "Projektverwaltung",
     projectHubView: "Projektzentrale",
     listView: "Bewehrungsabnahme",
     siteControlView: "Baustellenkontrolle",
@@ -2111,7 +2112,9 @@ function projectStats(project) {
     const stamp = protocol.updatedAt || protocol.createdAt || protocol.head?.createdAt || "";
     return stamp > value ? stamp : value;
   }, project.updatedAt || project.createdAt || "");
-  return { acceptances, siteControls, latest };
+  const openRebar = acceptances.reduce((sum, protocol) => sum + sampleIssues(protocol).length, 0);
+  const openSite = siteControls.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
+  return { acceptances, siteControls, latest, openPoints: openRebar + openSite };
 }
 function renderDatalists() {
   const master = normalizeMasterData(state.masterData);
@@ -2347,29 +2350,48 @@ function acceptanceCard(p) {
 }
 
 function renderHomeProjects() {
-  const list = $("#homeProjectList");
+  renderProjectDirectory();
+}
+
+function projectDirectoryCard(project) {
+  const stats = projectStats(project);
+  const address = formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen";
+  return `
+    <article class="project-directory-card" data-project="${escapeAttr(project.id)}">
+      <div class="project-directory-main">
+        <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
+        <p class="muted">${escapeHtml(address)}</p>
+        <p class="project-directory-meta">${stats.acceptances.length} BA ? ${stats.siteControls.length} BK ? ${stats.openPoints} offene Punkte ? zuletzt ${escapeHtml(formatDate(stats.latest))}</p>
+      </div>
+      <div class="project-directory-actions">
+        <button class="primary-btn" data-open-project="${escapeAttr(project.id)}" type="button">?ffnen</button>
+        <button class="secondary-btn" data-edit-project="${escapeAttr(project.id)}" type="button">Bearbeiten</button>
+      </div>
+    </article>`;
+}
+
+function renderProjectDirectory() {
+  const list = $("#projectDirectoryList");
   if (!list) return;
-  if (!state.projects.length) {
-    list.innerHTML = `<div class="empty-card muted">Noch keine Projekte vorhanden. Lege ein Projekt an, danach wählst du darin das passende Modul.</div>`;
+  const search = ($("#projectSearchInput")?.value || "").trim().toLowerCase();
+  const projects = [...state.projects].sort((a, b) => String(projectStats(b).latest || "").localeCompare(String(projectStats(a).latest || "")));
+  const filtered = search ? projects.filter((project) => {
+    const stats = projectStats(project);
+    const haystack = [
+      project.name,
+      formatAddress(project.address || project.siteAddress, { multiline: false }),
+      project.client,
+      project.clientSnapshot?.name,
+      String(stats.acceptances.length),
+      String(stats.siteControls.length)
+    ].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(search);
+  }) : projects;
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-card muted">${state.projects.length ? "Kein Projekt zur Suche gefunden." : "Noch keine Projekte vorhanden. Lege ein Projekt an, danach w?hlst du darin das passende Modul."}</div>`;
     return;
   }
-  const projects = [...state.projects].sort((a, b) => String(projectStats(b).latest || "").localeCompare(String(projectStats(a).latest || "")));
-  list.innerHTML = projects.slice(0, 6).map((project) => {
-    const stats = projectStats(project);
-    return `
-      <article class="project-card compact-project-card">
-        <div>
-          <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
-          <div class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</div>
-          <div class="muted">${stats.acceptances.length} Bewehrungsabnahme(n) · ${stats.siteControls.length} Baustellenkontrolle(n)</div>
-          <div class="muted">Zuletzt bearbeitet: ${escapeHtml(formatDate(stats.latest))}</div>
-        </div>
-        <div class="card-actions">
-          <button class="primary-btn" data-open-project="${project.id}" type="button">Projekt öffnen</button>
-          <button class="secondary-btn" data-edit-project="${project.id}" type="button">Projekt bearbeiten</button>
-        </div>
-      </article>`;
-  }).join("");
+  list.innerHTML = filtered.map((project) => projectDirectoryCard(project)).join("");
 }
 
 function renderProjectHub() {
@@ -2377,7 +2399,7 @@ function renderProjectHub() {
   if (!hub) return;
   const project = projectById(state.currentProjectId) || state.projects[0] || null;
   if (!project) {
-    hub.innerHTML = `<div class="panel"><p class="muted">Kein Projekt gewählt.</p><button class="primary-btn" id="projectHubNewProjectBtn" type="button">Neues Projekt</button></div>`;
+    hub.innerHTML = `<div class="panel"><p class="muted">Kein Projekt gew?hlt.</p><button class="primary-btn" id="projectHubNewProjectBtn" type="button">Neues Projekt</button></div>`;
     return;
   }
   state.currentProjectId = project.id;
@@ -2397,12 +2419,13 @@ function renderProjectHub() {
     <section class="panel">
       <h3>Module</h3>
       <div class="module-card-grid">
-        ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, Mängel, Aufgaben, Fotos", "site")}
-        ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung prüfen, Pins, Nachbegehung, A4-Bericht", "rebar")}
-        ${moduleCard("PL", "Pläne", "Projektpläne verwalten und anzeigen", "plans")}
-        ${moduleCard("PD", "Projektstammdaten", "Projekt, Beteiligte, Auftraggeber, Ansprechpartner", "projectData")}
-        ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} offene Punkte aus Abnahmen und Kontrollen`, "openPoints")}
-        ${moduleCard("BS", "Zur BauSuite", "Zurück zur Startseite", "home")}
+        ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, M?ngel, Aufgaben, Fotos", "site")}
+        ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung pr?fen, Pins, Nachbegehung, A4-Bericht", "rebar")}
+        ${moduleCard("PL", "Pl?ne", "Projektpl?ne verwalten und anzeigen", "plans")}
+        ${moduleCard("PI", "Projekt bearbeiten", "Projektkopf, Adresse, Beteiligte, Zuordnungen", "projectData")}
+        ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} M?ngel, Aufgaben, Auflagen`, "openPoints")}
+        ${moduleCard("BP", "Berichte / Protokolle", "Vorhandene Berichte und Protokolle", "reports")}
+        ${moduleCard("PV", "Zur?ck zur Projektverwaltung", "Projektliste und Projektwahl", "directory")}
       </div>
     </section>
     <section class="panel">
@@ -2411,7 +2434,7 @@ function renderProjectHub() {
     </section>
     <section class="panel">
       <div class="section-head"><h3>Baustellenkontrollen</h3><button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button></div>
-      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
+      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} ? ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) ? ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">?ffnen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
     </section>`;
 }
 
@@ -8240,11 +8263,15 @@ function bindEvents() {
       return;
     }
     if ($("#projectHubView")?.classList.contains("active")) {
-      await navigateToView("homeView");
+      await navigateToView("projectDirectoryView");
       return;
     }
     if (($("#listView")?.classList.contains("active") || $("#siteControlView")?.classList.contains("active")) && state.currentProjectId) {
       await navigateToView("projectHubView");
+      return;
+    }
+    if ($("#projectDirectoryView")?.classList.contains("active")) {
+      await navigateToView("homeView");
       return;
     }
     await navigateToView("homeView");
@@ -8399,6 +8426,7 @@ function bindEvents() {
   }
   bindOptional("#masterDataPanel", "input", handleMasterDataInput);
   bindOptional("#masterDataPanel", "change", handleMasterDataInput);
+  bindOptional("#projectSearchInput", "input", renderProjectDirectory);
   bindOptional("#markPinSheet", "input", (event) => {
     if (!event.target.matches("[data-mark-pin-field]")) return;
     const pin = state.current?.pins.find((item) => item.id === state.selectedPinId);
@@ -8468,11 +8496,13 @@ function bindEvents() {
     if (projectModule) {
       const action = projectModule.dataset.projectModule;
       if (action === "home") navigateToView("homeView");
+      if (action === "directory") navigateToView("projectDirectoryView");
       if (action === "rebar") navigateToView("listView");
       if (action === "site") navigateToView("siteControlView");
       if (action === "projectData") openProjectDialog(state.currentProjectId);
       if (action === "plans") showAppToast("Projektpläne werden im n?chsten Schritt zentralisiert.", { type: "info" });
       if (action === "openPoints") showAppToast("Offene Punkte sind in den Listen der Projektzentrale sichtbar.", { type: "info" });
+      if (action === "reports") showAppToast("Berichte und Protokolle findest du aktuell in den jeweiligen Modulen.", { type: "info" });
     }
     const projectHubNewProject = event.target.closest("#projectHubNewProjectBtn");
     if (projectHubNewProject) createProject();
