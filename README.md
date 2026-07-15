@@ -231,13 +231,13 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 
 ### v81
 - Direkt-PDF-Hotfix: feste deutsche Sonderzeichen/Umlaute im Direkt-PDF repariert.
-- Auflagen/M?ngel im Direkt-PDF enthalten jetzt Pr?fpunkt, Pr?fstelle, Status, Pin/Plan und Bemerkung verst?ndlicher.
-- Mobile PDF-Aktionsleiste im Ergebnis-/Berichtsbereich l?uft nicht mehr rechts aus dem Bildschirm.
-- Druckdialog, Planviewer und Pin-Darstellung bleiben unver?ndert.
+- Auflagen/Mängel im Direkt-PDF enthalten jetzt Prüfpunkt, Prüfstelle, Status, Pin/Plan und Bemerkung verständlicher.
+- Mobile PDF-Aktionsleiste im Ergebnis-/Berichtsbereich läuft nicht mehr rechts aus dem Bildschirm.
+- Druckdialog, Planviewer und Pin-Darstellung bleiben unverändert.
 
 ### v82
 - Stammdatenfeld beim Prüfingenieur sichtbar von Büro auf Sachbearbeiter umbenannt.
-- Interne Datenfelder und Backup/Restore bleiben unver?ndert.
+- Interne Datenfelder und Backup/Restore bleiben unverändert.
 
 ### v95
 - Direkt-PDF Layout saubergezogen: harter Textumbruch, robuste einspaltige Projekt-/Prüfungskarten, gekapselte Überschriften für Auflagen, Checkpunkte, Plananlagen, Fotodokumentation und Unterschriften.
@@ -264,10 +264,14 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 - Gezeichnete Signaturen werden im Direkt-PDF aus gespeicherten Signaturdaten eingebettet; Druckdialog und Plan-/Pin-Funktionen bleiben unverändert.
 
 ### v83
-- Direkt-PDF-Bildeinbettung robuster gemacht: Übersichtsfotos, Fotodokumentationsfotos und gezeichnete Signaturen werden gr??er/sichtbarer eingef?gt.
+- Direkt-PDF-Bildeinbettung robuster gemacht: Übersichtsfotos, Fotodokumentationsfotos und gezeichnete Signaturen werden größer/sichtbarer eingefügt.
 - `state.lastPdfImageDebug` protokolliert gefundene/eingebettete Übersichtsfotos, Fotodokumentationsfotos und Signaturen.
-- Druckdialog, Pins, Planviewer und Checklogik bleiben unver?ndert.
+- Druckdialog, Pins, Planviewer und Checklogik bleiben unverändert.
 
+## v104 Teststand: Projektpläne und Dropbox-Vorbereitung
 
-
+- Projektpläne werden schrittweise zentral in der Projektzentrale sichtbar gemacht.
+- Dropbox-Pfade und Dropbox-Links können in Einstellungen, Projekten und Plan-Metadaten vorbereitet werden.
+- Die automatische Dropbox-Synchronisierung ist vorbereitet, aber noch nicht aktiv.
+- Hochgeladene Pläne und Offline-Kopien in IndexedDB bleiben weiterhin maßgebend für die Baustellennutzung.
 

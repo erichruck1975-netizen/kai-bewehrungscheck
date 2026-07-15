@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v103";
+const APP_VERSION = "v104";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -263,6 +263,10 @@ async function load() {
   ensureProjectStructure();
   $("#defaultInspector").value = state.settings.defaultInspector || "";
   $("#defaultCompany").value = state.settings.defaultCompany || "";
+  if ($("#dropboxBaseFolder")) $("#dropboxBaseFolder").value = state.settings.dropboxBaseFolder || "";
+  if ($("#dropboxPlanFolder")) $("#dropboxPlanFolder").value = state.settings.dropboxPlanFolder || "Pläne";
+  if ($("#dropboxPhotoFolder")) $("#dropboxPhotoFolder").value = state.settings.dropboxPhotoFolder || "Fotos";
+  if ($("#dropboxReportFolder")) $("#dropboxReportFolder").value = state.settings.dropboxReportFolder || "Berichte";
   renderDatalists();
   await persist();
 }
@@ -417,6 +421,11 @@ function normalizeProject(project = {}) {
     defaultInspector: project.defaultInspector || defaultInspectorPersonSnapshot?.name || "",
     planDate: project.planDate || "",
     note: project.note || "",
+    dropboxFolder: project.dropboxFolder || project.dropboxProjectFolder || "",
+    dropboxLink: project.dropboxLink || project.dropboxProjectLink || "",
+    planFolder: project.planFolder || state.settings.dropboxPlanFolder || "Pläne",
+    reportFolder: project.reportFolder || state.settings.dropboxReportFolder || "Berichte",
+    photoFolder: project.photoFolder || state.settings.dropboxPhotoFolder || "Fotos",
     generalData: project.generalData || "",
     createdAt: project.createdAt || new Date().toISOString(),
     updatedAt: project.updatedAt || new Date().toISOString()
@@ -915,6 +924,7 @@ function normalizeProtocol(protocol) {
     plan.planDate = plan.planDate || "";
     plan.planIndex = plan.planIndex || "";
     plan.documentStatus = plan.documentStatus || "verwendet";
+    normalizePlanMeta(plan);
     plan.autoMetaStatus = plan.autoMetaStatus || "";
     plan.planDateCandidates = Array.isArray(plan.planDateCandidates) ? plan.planDateCandidates : [];
     plan.remark = plan.remark || "";
@@ -1222,6 +1232,7 @@ function showView(id) {
   renderBrowserWarnings();
   if (id === "projectDirectoryView") renderProjectDirectory();
   if (id === "projectHubView") renderProjectHub();
+  if (id === "projectPlansView") renderProjectPlansView();
   if (id === "listView") renderList();
   if (id === "siteControlView") renderSiteControlView();
   if (id === "masterDataView") {
@@ -1237,6 +1248,7 @@ function updateAppHeader(viewId = activeViewId()) {
     homeView: "Startseite",
     projectDirectoryView: "Projektverwaltung",
     projectHubView: "Projektzentrale",
+    projectPlansView: "Projektpläne",
     listView: "Bewehrungsabnahme",
     siteControlView: "Baustellenkontrolle",
     siteControlEditorView: "Baustellenkontrolle",
@@ -1424,6 +1436,11 @@ function openProjectDialog(projectId = "") {
   $("#projectContractorInput").value = state.settings.defaultCompany || "";
   $("#projectInspectorInput").value = "";
   $("#projectDefaultInspectorInput").value = defaultOwnPerson()?.name || state.settings.defaultInspector || "";
+  $("#projectDropboxFolderInput").value = suggestProjectDropboxFolder({ name: $("#projectNameInput")?.value || "" });
+  $("#projectDropboxLinkInput").value = "";
+  $("#projectPlanFolderInput").value = state.settings.dropboxPlanFolder || "Pläne";
+  $("#projectReportFolderInput").value = state.settings.dropboxReportFolder || "Berichte";
+  $("#projectPhotoFolderInput").value = state.settings.dropboxPhotoFolder || "Fotos";
   $("#projectPlanDateInput").value = "";
   $("#projectNoteInput").value = "";
   if (project) {
@@ -1437,6 +1454,11 @@ function openProjectDialog(projectId = "") {
     $("#projectContractorInput").value = displayCompanySnapshot(project.contractorSnapshot, project.contractor);
     $("#projectInspectorInput").value = displayInspectorSnapshot(project.inspectorSnapshot, project.inspector);
     $("#projectDefaultInspectorInput").value = displayOwnPersonSnapshot(project.defaultInspectorPersonSnapshot, project.defaultInspector);
+    $("#projectDropboxFolderInput").value = project.dropboxFolder || suggestProjectDropboxFolder(project);
+    $("#projectDropboxLinkInput").value = project.dropboxLink || "";
+    $("#projectPlanFolderInput").value = project.planFolder || state.settings.dropboxPlanFolder || "Pläne";
+    $("#projectReportFolderInput").value = project.reportFolder || state.settings.dropboxReportFolder || "Berichte";
+    $("#projectPhotoFolderInput").value = project.photoFolder || state.settings.dropboxPhotoFolder || "Fotos";
     $("#projectPlanDateInput").value = project.planDate || "";
     $("#projectNoteInput").value = project.note || "";
   }
@@ -1476,6 +1498,11 @@ function createProjectFromDialog() {
     defaultInspectorPersonSnapshot: defaultInspectorSelection.snapshot,
     planDate: $("#projectPlanDateInput").value.trim(),
     note: $("#projectNoteInput").value.trim(),
+    dropboxFolder: $("#projectDropboxFolderInput")?.value.trim() || suggestProjectDropboxFolder({ name }),
+    dropboxLink: $("#projectDropboxLinkInput")?.value.trim() || "",
+    planFolder: $("#projectPlanFolderInput")?.value.trim() || state.settings.dropboxPlanFolder || "Pläne",
+    reportFolder: $("#projectReportFolderInput")?.value.trim() || state.settings.dropboxReportFolder || "Berichte",
+    photoFolder: $("#projectPhotoFolderInput")?.value.trim() || state.settings.dropboxPhotoFolder || "Fotos",
     updatedAt: new Date().toISOString()
   });
   if (existing) {
@@ -1530,6 +1557,59 @@ function displayOwnPersonSnapshot(snapshot, fallback = "") {
   if (!snapshot) return fallback || "";
   return personLabel(snapshot) || snapshot.name || fallback || "";
 }
+
+function slugifyPathSegment(value = "") {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\u00e4/g, "ae").replace(/\u00f6/g, "oe").replace(/\u00fc/g, "ue").replace(/\u00df/g, "ss")
+    .replace(/\u00c4/g, "Ae").replace(/\u00d6/g, "Oe").replace(/\u00dc/g, "Ue")
+    .replace(/[^A-Za-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "Projekt";
+}
+
+function joinDropboxPath(...parts) {
+  const clean = parts.map((part) => String(part || "").trim()).filter(Boolean);
+  if (!clean.length) return "";
+  const joined = clean.map((part, index) => {
+    let value = part.replace(/\\/g, "/");
+    if (index > 0) value = value.replace(/^\/+/, "");
+    if (index < clean.length - 1) value = value.replace(/\/+$/, "");
+    return value;
+  }).join("/").replace(/\/+/g, "/");
+  return joined.startsWith("/") ? joined : `/${joined}`;
+}
+
+function suggestProjectDropboxFolder(project = {}) {
+  const base = state.settings.dropboxBaseFolder || "";
+  if (!base) return "";
+  return joinDropboxPath(base, slugifyPathSegment(project.name || project.projectName || "Projekt")) + "/";
+}
+
+function normalizePlanMeta(plan = {}) {
+  plan.source = plan.source || (plan.dropboxPath || plan.dropboxSharedLink ? "dropbox_path" : "uploaded");
+  plan.dropboxPath = plan.dropboxPath || "";
+  plan.dropboxSharedLink = plan.dropboxSharedLink || plan.dropboxLink || "";
+  plan.dropboxFileName = plan.dropboxFileName || "";
+  plan.dropboxFileId = plan.dropboxFileId || "";
+  plan.dropboxRev = plan.dropboxRev || "";
+  plan.lastSyncedAt = plan.lastSyncedAt || "";
+  plan.lastManualSync = plan.lastManualSync || "";
+  plan.syncStatus = plan.syncStatus || (plan.source === "uploaded" ? "not_configured" : "linked");
+  return plan;
+}
+
+function planSourceLabel(plan = {}) {
+  const source = plan.source || (plan.dropboxPath || plan.dropboxSharedLink ? "dropbox_path" : "uploaded");
+  if (source === "dropbox_link") return "Dropbox-Link";
+  if (source === "dropbox_path") return "Dropbox-Pfad";
+  return "hochgeladen";
+}
+
+function projectPlanEntries(projectId = state.currentProjectId) {
+  return protocolsForProject(projectId).flatMap((protocol) => (protocol.plans || []).map((plan) => ({ protocol, plan: normalizePlanMeta(plan) })));
+}
+
 
 async function saveMasterDataFromProjectDialog() {
   const payload = normalizeMasterData({ ...state.masterData, lastSavedAt: new Date().toISOString() });
@@ -2095,7 +2175,8 @@ function deleteSignature(id) {
 
 
 function selectedPlan() {
-  return state.current?.plans.find((plan) => plan.id === state.selectedPlanId) || null;
+  const plan = state.current?.plans.find((plan) => plan.id === state.selectedPlanId) || null;
+  return plan ? normalizePlanMeta(plan) : null;
 }
 
 function acceptanceLabel(protocol) {
@@ -2361,10 +2442,10 @@ function projectDirectoryCard(project) {
       <div class="project-directory-main">
         <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
         <p class="muted">${escapeHtml(address)}</p>
-        <p class="project-directory-meta">${stats.acceptances.length} BA ? ${stats.siteControls.length} BK ? ${stats.openPoints} offene Punkte ? zuletzt ${escapeHtml(formatDate(stats.latest))}</p>
+        <p class="project-directory-meta">${stats.acceptances.length} BA · ${stats.siteControls.length} BK · ${stats.openPoints} offene Punkte · zuletzt ${escapeHtml(formatDate(stats.latest))}</p>
       </div>
       <div class="project-directory-actions">
-        <button class="primary-btn" data-open-project="${escapeAttr(project.id)}" type="button">?ffnen</button>
+        <button class="primary-btn" data-open-project="${escapeAttr(project.id)}" type="button">Öffnen</button>
         <button class="secondary-btn" data-edit-project="${escapeAttr(project.id)}" type="button">Bearbeiten</button>
       </div>
     </article>`;
@@ -2419,13 +2500,13 @@ function renderProjectHub() {
     <section class="panel">
       <h3>Module</h3>
       <div class="module-card-grid">
-        ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, M?ngel, Aufgaben, Fotos", "site")}
+        ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, Mängel, Aufgaben, Fotos", "site")}
         ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung pr?fen, Pins, Nachbegehung, A4-Bericht", "rebar")}
-        ${moduleCard("PL", "Pl?ne", "Projektpl?ne verwalten und anzeigen", "plans")}
+        ${moduleCard("PL", "Pläne", "Projektpläne verwalten und anzeigen", "plans")}
         ${moduleCard("PI", "Projekt bearbeiten", "Projektkopf, Adresse, Beteiligte, Zuordnungen", "projectData")}
-        ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} M?ngel, Aufgaben, Auflagen`, "openPoints")}
+        ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} Mängel, Aufgaben, Auflagen`, "openPoints")}
         ${moduleCard("BP", "Berichte / Protokolle", "Vorhandene Berichte und Protokolle", "reports")}
-        ${moduleCard("PV", "Zur?ck zur Projektverwaltung", "Projektliste und Projektwahl", "directory")}
+        ${moduleCard("PV", "Zurück zur Projektverwaltung", "Projektliste und Projektwahl", "directory")}
       </div>
     </section>
     <section class="panel">
@@ -2434,8 +2515,104 @@ function renderProjectHub() {
     </section>
     <section class="panel">
       <div class="section-head"><h3>Baustellenkontrollen</h3><button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button></div>
-      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} ? ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) ? ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">?ffnen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
+      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
     </section>`;
+}
+
+function findProjectPlanEntry(protocolId, planId) {
+  const protocol = state.protocols.find((item) => item.id === protocolId);
+  const plan = protocol?.plans?.find((item) => item.id === planId);
+  return protocol && plan ? { protocol, plan: normalizePlanMeta(plan) } : null;
+}
+
+function updateProjectPlanField(input) {
+  const card = input.closest("[data-project-plan]");
+  if (!card) return;
+  const entry = findProjectPlanEntry(card.dataset.protocolId, card.dataset.projectPlan);
+  if (!entry) return;
+  const field = input.dataset.projectPlanField;
+  if (!field || field === "pageCount") return;
+  entry.plan[field] = input.value || "";
+  if (field === "source" && entry.plan.source !== "uploaded" && !entry.plan.syncStatus) entry.plan.syncStatus = "linked";
+  entry.plan.updatedAt = new Date().toISOString();
+  entry.protocol.updatedAt = entry.plan.updatedAt;
+  syncPlanRecord(entry.plan);
+  schedulePersist();
+}
+
+function openProjectPlanDropboxLink(protocolId, planId) {
+  const entry = findProjectPlanEntry(protocolId, planId);
+  const link = entry?.plan?.dropboxSharedLink || entry?.plan?.dropboxLink || "";
+  if (!link) return showAppToast("Kein Dropbox-Link hinterlegt.", { type: "info" });
+  window.open(link, "_blank", "noopener,noreferrer");
+}
+
+function renderProjectPlansView() {
+  const container = $("#projectPlansContent");
+  if (!container) return;
+  const project = projectById(state.currentProjectId) || null;
+  if (!project) {
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gew?hlt. Bitte zuerst ein Projekt Öffnen.</p></section>`;
+    return;
+  }
+  const entries = projectPlanEntries(project.id);
+  const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
+  container.innerHTML = `
+    <section class="panel project-plan-summary">
+      <div>
+        <h3>${escapeHtml(project.name || "Projekt")}</h3>
+        <p class="muted">Projektordner: ${escapeHtml(project.dropboxFolder || "nicht hinterlegt")}</p>
+        <p class="muted">Planablage: ${folderHint}</p>
+      </div>
+      <button class="secondary-btn" data-edit-project="${escapeAttr(project.id)}" type="button">Projekt bearbeiten</button>
+    </section>
+    <section class="panel">
+      <h3>Projektpläne</h3>
+      <p class="muted">Bestehende hochgeladene Pläne bleiben in IndexedDB gespeichert. Dropbox-Pfade/Links sind Zuordnungen für die spätere Anbindung.</p>
+      ${entries.length ? entries.map(({ protocol, plan }) => projectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">Noch keine Pläne in den Abnahmen dieses Projekts vorhanden. Pläne werden aktuell im Modul Bewehrungsabnahme hochgeladen und hier zentral sichtbar.</div>`}
+    </section>`;
+}
+
+function projectPlanCard(protocol, plan) {
+  const display = `${plan.planNumber || plan.fileName || "Plan"}${plan.title ? ` ? ${plan.title}` : ""}`;
+  return `
+    <article class="project-plan-card" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
+      <div class="project-plan-card-head">
+        <div>
+          <h4>${escapeHtml(display)}</h4>
+          <p class="muted">Quelle: ${escapeHtml(planSourceLabel(plan))}${plan.dropboxPath ? ` ? Pfad: ${escapeHtml(plan.dropboxPath)}` : ""}</p>
+          <p class="muted">Aus: ${escapeHtml(acceptanceLabel(protocol))} ? ${escapeHtml(plan.fileName || "Datei offen")}</p>
+        </div>
+        ${plan.dropboxSharedLink ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox Öffnen</button>` : ""}
+      </div>
+      <div class="grid compact-grid project-plan-fields">
+        <label>Plan-Nr.<input data-project-plan-field="planNumber" value="${escapeAttr(plan.planNumber || "")}"></label>
+        <label>Planbezeichnung<input data-project-plan-field="title" value="${escapeAttr(plan.title || "")}"></label>
+        <label>Planstand<input data-project-plan-field="planDate" value="${escapeAttr(plan.planDate || "")}"></label>
+        <label>Index<input data-project-plan-field="planIndex" value="${escapeAttr(plan.planIndex || "")}"></label>
+        <label>Status
+          <select data-project-plan-field="documentStatus">
+            ${["maßgebend", "verwendet", "nur Orientierung", "ersetzt / veraltet"].map((status) => `<option value="${escapeAttr(status)}" ${status === (plan.documentStatus || "verwendet") ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
+          </select>
+        </label>
+        <label>Quelle
+          <select data-project-plan-field="source">
+            ${[["uploaded", "Hochgeladene Datei"], ["dropbox_path", "Dropbox-Pfad"], ["dropbox_link", "Dropbox-Link"]].map(([value, label]) => `<option value="${value}" ${value === (plan.source || "uploaded") ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+        </label>
+        <label>Seiten<input data-project-plan-field="pageCount" value="${escapeAttr(plan.pageCount || "")}" disabled></label>
+        <label>Dropbox-Pfad<input data-project-plan-field="dropboxPath" value="${escapeAttr(plan.dropboxPath || "")}" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
+        <label>Dropbox-Link<input data-project-plan-field="dropboxSharedLink" value="${escapeAttr(plan.dropboxSharedLink || "")}" placeholder="https://www.dropbox.com/..."></label>
+        <label>Dropbox-Dateiname<input data-project-plan-field="dropboxFileName" value="${escapeAttr(plan.dropboxFileName || "")}" placeholder="B-003.pdf"></label>
+        <label>Letzter manueller Abgleich / Stand<input data-project-plan-field="lastManualSync" value="${escapeAttr(plan.lastManualSync || "")}" placeholder="z. B. 15.07.2026"></label>
+        <label>Synchronisationsstatus
+          <select data-project-plan-field="syncStatus">
+            ${["not_configured", "linked", "needs_sync", "synced", "error"].map((status) => `<option value="${status}" ${status === (plan.syncStatus || "not_configured") ? "selected" : ""}>${status}</option>`).join("")}
+          </select>
+        </label>
+        <label>Bemerkung<textarea data-project-plan-field="remark" rows="2">${escapeHtml(plan.remark || "")}</textarea></label>
+      </div>
+    </article>`;
 }
 
 function moduleCard(code, title, subtitle, action) {
@@ -2599,7 +2776,7 @@ function renderPlanListStatus() {
     <div class="plan-row ${item.id === state.selectedPlanId ? "active" : ""}">
       <button data-select-plan="${item.id}" type="button">
         <strong>${escapeHtml(planDisplayName(item))}</strong>
-        <span class="muted">${escapeHtml(item.documentStatus || "verwendet")} · ${escapeHtml(item.fileName)} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
+        <span class="muted">${escapeHtml(item.documentStatus || "verwendet")} ? Quelle: ${escapeHtml(planSourceLabel(item))} · ${escapeHtml(item.fileName)} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
       </button>
       <button class="project-delete-link" data-delete-plan="${item.id}" type="button">Plan löschen</button>
     </div>
@@ -4145,6 +4322,15 @@ async function handlePlanFiles(files) {
       planDate: meta.planDate,
       planIndex: "",
       documentStatus: "verwendet",
+      source: "uploaded",
+      dropboxPath: "",
+      dropboxSharedLink: "",
+      dropboxFileName: "",
+      dropboxFileId: "",
+      dropboxRev: "",
+      lastSyncedAt: "",
+      lastManualSync: "",
+      syncStatus: "not_configured",
       autoMetaStatus: "",
       planDateCandidates: [],
       remark: "",
@@ -4169,6 +4355,15 @@ async function handlePlanFiles(files) {
       planDate: plan.planDate,
       planIndex: plan.planIndex,
       documentStatus: plan.documentStatus,
+      source: plan.source,
+      dropboxPath: plan.dropboxPath,
+      dropboxSharedLink: plan.dropboxSharedLink,
+      dropboxFileName: plan.dropboxFileName,
+      dropboxFileId: plan.dropboxFileId,
+      dropboxRev: plan.dropboxRev,
+      lastSyncedAt: plan.lastSyncedAt,
+      lastManualSync: plan.lastManualSync,
+      syncStatus: plan.syncStatus,
       autoMetaStatus: plan.autoMetaStatus,
       planDateCandidates: plan.planDateCandidates,
       remark: plan.remark,
@@ -8240,7 +8435,7 @@ function escapeAttr(value) {
 function bindOptional(selector, eventName, handler, options) {
   const element = $(selector);
   if (!element) {
-    console.warn(`UI-Element nicht gefunden, Listener ?bersprungen: ${selector}`);
+    console.warn(`UI-Element nicht gefunden, Listener übersprungen: ${selector}`);
     return null;
   }
   element.addEventListener(eventName, handler, options);
@@ -8260,6 +8455,10 @@ function bindEvents() {
       saveFromForm();
       renderList();
       await navigateToView(state.currentProjectId ? "projectHubView" : "listView");
+      return;
+    }
+    if ($("#projectPlansView")?.classList.contains("active")) {
+      await navigateToView("projectHubView");
       return;
     }
     if ($("#projectHubView")?.classList.contains("active")) {
@@ -8427,6 +8626,16 @@ function bindEvents() {
   bindOptional("#masterDataPanel", "input", handleMasterDataInput);
   bindOptional("#masterDataPanel", "change", handleMasterDataInput);
   bindOptional("#projectSearchInput", "input", renderProjectDirectory);
+  bindOptional("#projectPlansContent", "input", (event) => {
+    if (event.target.matches("[data-project-plan-field]")) updateProjectPlanField(event.target);
+  });
+  bindOptional("#projectPlansContent", "change", (event) => {
+    if (event.target.matches("[data-project-plan-field]")) {
+      updateProjectPlanField(event.target);
+      renderProjectPlansView();
+      persist();
+    }
+  });
   bindOptional("#markPinSheet", "input", (event) => {
     if (!event.target.matches("[data-mark-pin-field]")) return;
     const pin = state.current?.pins.find((item) => item.id === state.selectedPinId);
@@ -8492,6 +8701,8 @@ function bindEvents() {
     if (sitePdfSave) savePdfFromA4Report();
     const sitePdfPreview = event.target.closest("#sitePdfPreviewBtn");
     if (sitePdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
+    const openDropboxLink = event.target.closest("[data-open-dropbox-link]");
+    if (openDropboxLink) openProjectPlanDropboxLink(openDropboxLink.dataset.protocolId, openDropboxLink.dataset.openDropboxLink);
     const projectModule = event.target.closest("[data-project-module]");
     if (projectModule) {
       const action = projectModule.dataset.projectModule;
@@ -8500,7 +8711,7 @@ function bindEvents() {
       if (action === "rebar") navigateToView("listView");
       if (action === "site") navigateToView("siteControlView");
       if (action === "projectData") openProjectDialog(state.currentProjectId);
-      if (action === "plans") showAppToast("Projektpläne werden im n?chsten Schritt zentralisiert.", { type: "info" });
+      if (action === "plans") showAppToast("Projektpläne werden im nächsten Schritt zentralisiert.", { type: "info" });
       if (action === "openPoints") showAppToast("Offene Punkte sind in den Listen der Projektzentrale sichtbar.", { type: "info" });
       if (action === "reports") showAppToast("Berichte und Protokolle findest du aktuell in den jeweiligen Modulen.", { type: "info" });
     }
@@ -8981,6 +9192,10 @@ function bindEvents() {
   bindOptional("#projectPackageInput", "change", (event) => importProjectPackage(event.target.files?.[0]));
   bindOptional("#defaultInspector", "input", (event) => { state.settings.defaultInspector = event.target.value; persist(); });
   bindOptional("#defaultCompany", "input", (event) => { state.settings.defaultCompany = event.target.value; persist(); });
+  bindOptional("#dropboxBaseFolder", "input", (event) => { state.settings.dropboxBaseFolder = event.target.value; persist(); });
+  bindOptional("#dropboxPlanFolder", "input", (event) => { state.settings.dropboxPlanFolder = event.target.value || "Pläne"; persist(); });
+  bindOptional("#dropboxPhotoFolder", "input", (event) => { state.settings.dropboxPhotoFolder = event.target.value || "Fotos"; persist(); });
+  bindOptional("#dropboxReportFolder", "input", (event) => { state.settings.dropboxReportFolder = event.target.value || "Berichte"; persist(); });
   bindOptional("#storageCheckBtn", "click", checkStorage);
   bindOptional("#clearAllBtn", "click", () => {
     if (confirm("Wirklich alle lokalen Testdaten löschen?")) {
@@ -9471,6 +9686,15 @@ async function syncPlanRecord(plan) {
     planDate: plan.planDate,
     planIndex: plan.planIndex || "",
     documentStatus: plan.documentStatus || "verwendet",
+    source: plan.source || "uploaded",
+    dropboxPath: plan.dropboxPath || "",
+    dropboxSharedLink: plan.dropboxSharedLink || "",
+    dropboxFileName: plan.dropboxFileName || "",
+    dropboxFileId: plan.dropboxFileId || "",
+    dropboxRev: plan.dropboxRev || "",
+    lastSyncedAt: plan.lastSyncedAt || "",
+    lastManualSync: plan.lastManualSync || "",
+    syncStatus: plan.syncStatus || (plan.source === "uploaded" ? "not_configured" : "linked"),
     autoMetaStatus: plan.autoMetaStatus || "",
     planDateCandidates: plan.planDateCandidates || [],
     remark: plan.remark,

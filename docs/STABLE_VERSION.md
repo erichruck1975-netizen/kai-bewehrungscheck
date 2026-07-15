@@ -38,3 +38,10 @@ Vor groesseren Umbauten:
 - Modul Bewehrungsabnahme als bestehender BewehrungsCheck
 - Modul Baustellenkontrolle fuer allgemeine Begehungen, Feststellungen, Aufgaben, Fotos und offenen Punkte
 - Baustellenkontrolle nutzt den bestehenden Projekt-, Foto-, Backup- und A4-Druckdialog-Unterbau
+
+## Teststand v104
+
+Stabiler Rettungsstand bleibt: `v99-stable-followup-full-workflow`.
+
+v104 ist ein Teststand für zentralisierte Projektpläne und vorbereitete Dropbox-Pfade/Links. Der alte stabile A4-/Nachbegehungs-Workflow bleibt die Referenz für produktive Baustellentests.
+

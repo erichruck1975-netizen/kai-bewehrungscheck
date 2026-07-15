@@ -313,3 +313,14 @@ Der naechste groessere Architekturschritt sollte kein Client-Refaktor sein, sond
 - klare Trennung zwischen PWA-Daten und optionalem Server-Export
 
 Danach kann der gemeinsame BauSuite-Kern schrittweise aus dem vorhandenen BewehrungsCheck herausmodelliert werden.
+
+## Dropbox / Projektplanablage (v104 Teststand)
+
+Die BauSuite bereitet Dropbox als spätere Planablage vor, ohne eine automatische Synchronisierung vorzutuschen.
+
+- Globale Einstellung: Dropbox-Basisordner sowie Standard-Unterordner für Pläne, Fotos und Berichte.
+- Projekt: projektbezogener Dropbox-Ordner, optionaler Dropbox-Link und Unterordner für Pläne/Berichte/Fotos.
+- Plan: Quelle `uploaded`, `dropbox_path` oder `dropbox_link`, Dropbox-Pfad, Shared Link, Dateiname, File-ID, Revision, manueller Stand und Sync-Status.
+- Offline-Grundsatz: Für die Baustelle bleibt eine lokale IndexedDB-Kopie von Plänen/Fotos wichtig.
+- Sptere Erweiterung: Dropbox OAuth/API, Projektordner verbinden, Planstnde erkennen, lokale Offline-Kopie aktualisieren.
+

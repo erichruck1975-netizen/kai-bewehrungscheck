@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=103">
-  <link rel="stylesheet" href="styles.css?v=103">
+  <link rel="manifest" href="manifest.webmanifestv=104">
+  <link rel="stylesheet" href="styles.cssv=104">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v103</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v104</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -65,6 +65,18 @@
         <div id="projectHubContent" class="project-hub"></div>
       </section>
 
+
+      <section id="projectPlansView" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Projektpläne</h2>
+            <p class="muted">Zentrale Planverwaltung für das geöffnete Projekt. Dropbox-Pfade und Links werden vorbereitet, automatische Synchronisierung ist noch nicht aktiv.</p>
+          </div>
+          <button class="small-btn" data-nav="projectHubView" type="button">Zur Projektzentrale</button>
+        </div>
+        <div id="projectPlansContent" class="project-plans-list"></div>
+      </section>
+
       <section id="siteControlView" class="view">
         <div class="section-head">
           <div>
@@ -96,7 +108,7 @@
               <button class="secondary-btn" type="button" data-add-site-item="Aufgabe">+ Aufgabe</button>
               <button class="secondary-btn" type="button" data-add-site-item="Hinweis">+ Hinweis</button>
               <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
-              <button class="secondary-btn" type="button" data-add-site-item="KlÃ¤rungspunkt">+ KlÃ¤rungspunkt</button>
+              <button class="secondary-btn" type="button" data-add-site-item="Klärungspunkt">+ Klärungspunkt</button>
             </div>
             <div id="siteControlItemList" class="site-item-list"></div>
           </div>
@@ -126,12 +138,24 @@
           <label>Freie Wetter-API
             <input id="weatherApiHint" type="text" value="Open-Meteo, ohne API-Key" disabled>
           </label>
+          <section class="backup-card dropbox-settings-card">
+            <div>
+              <h3>Dropbox / Planablage</h3>
+              <p class="muted">Die automatische Dropbox-Synchronisierung wird später über eine Dropbox-Anbindung aktiviert. Aktuell werden Pfade/Links für die Projekt- und Planzuordnung gespeichert.</p>
+            </div>
+            <div class="grid compact-grid">
+              <label>Dropbox-Basisordner<input id="dropboxBaseFolder" type="text" placeholder="/Bauprojekte/"></label>
+              <label>Standard-Unterordner für Pläne<input id="dropboxPlanFolder" type="text" placeholder="Pläne"></label>
+              <label>Standard-Unterordner für Fotos<input id="dropboxPhotoFolder" type="text" placeholder="Fotos"></label>
+              <label>Standard-Unterordner für Berichte<input id="dropboxReportFolder" type="text" placeholder="Berichte"></label>
+            </div>
+          </section>
           <section class="backup-card">
             <div>
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v103</p>
+              <p id="appVersionInfo" class="muted">Version: v104</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -190,7 +214,16 @@
               <label>Bauteil<input name="component" list="componentOptions"></label>
               <label>Geschoss<input name="floor" list="floorOptions"></label>
               <label>Bereich / Achsen<input name="areaAxes" list="areaOptions"></label>
-              <label>Allgemeiner Planstand / Prüfstand<input name="planDate"></label>
+              <fieldset class="project-storage-fieldset">
+        <legend>Projektablage / Dropbox</legend>
+        <p class="muted">Projektbezogene Pfade und Links werden gespeichert. Eine automatische Dropbox-Synchronisierung ist noch nicht aktiv.</p>
+        <label>Dropbox-Projektordner<input id="projectDropboxFolderInput" type="text" placeholder="/Bauprojekte/MFH_Eversbuschstrasse/"></label>
+        <label>Dropbox-Link zum Projektordner<input id="projectDropboxLinkInput" type="url" placeholder="https://www.dropbox.com/..."></label>
+        <label>Planordner innerhalb des Projekts<input id="projectPlanFolderInput" type="text" placeholder="Pläne"></label>
+        <label>Berichtordner innerhalb des Projekts<input id="projectReportFolderInput" type="text" placeholder="Berichte"></label>
+        <label>Fotoordner innerhalb des Projekts<input id="projectPhotoFolderInput" type="text" placeholder="Fotos"></label>
+      </fieldset>
+      <label>Allgemeiner Planstand / Prüfstand<input name="planDate"></label>
               <label>Ausführende Firma<input name="contractor" list="companyOptions"></label>
               <label>Anwesende Personen<textarea name="peoplePresent" rows="2" placeholder="Namen/Firma/Rolle frei eintragen"></textarea></label>
               <label>Datum / Uhrzeit<input name="createdAt" type="datetime-local"></label>
@@ -263,6 +296,17 @@
                   </label>
                   <label>Planstand / Datum<input data-plan-field="planDate" placeholder="z. B. 07.07.2026"></label>
                   <label>Index<input data-plan-field="planIndex" placeholder="z. B. a, b, 01"></label>
+                  <label>Quelle
+                    <select data-plan-field="source">
+                      <option value="uploaded">Hochgeladene Datei</option>
+                      <option value="dropbox_path">Dropbox-Pfad</option>
+                      <option value="dropbox_link">Dropbox-Link</option>
+                    </select>
+                  </label>
+                  <label>Dropbox-Pfad<input data-plan-field="dropboxPath" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
+                  <label>Dropbox-Link<input data-plan-field="dropboxSharedLink" placeholder="https://www.dropbox.com/..."></label>
+                  <label>Dropbox-Dateiname<input data-plan-field="dropboxFileName" placeholder="B-003.pdf"></label>
+                  <label>Letzter manueller Abgleich / Stand<input data-plan-field="lastManualSync" placeholder="z. B. 15.07.2026"></label>
                   <label>Seitenzahl / PDF-Seiten<input data-plan-field="pageCount" disabled></label>
                   <label>Bemerkung<textarea data-plan-field="remark" rows="2" placeholder="optional"></textarea></label>
                 </div>
@@ -464,7 +508,7 @@
   <dialog id="unsavedMasterDataDialog">
     <form method="dialog" class="dialog-body">
       <h3>Ungespeicherte Stammdaten</h3>
-      <p>Es gibt ungespeicherte Stammdaten. Speichern?</p>
+      <p>Es gibt ungespeicherte Stammdaten. Speichern</p>
       <div class="result-actions">
         <button class="secondary-btn" id="cancelLeaveMasterDataBtn" value="cancel" type="button">Abbrechen</button>
         <button class="secondary-btn" id="discardMasterDataBtn" value="discard" type="button">Verwerfen</button>
@@ -596,8 +640,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=103"></script>
-  <script src="app.js?v=103"></script>
+  <script src="vendor/pdfjs/pdf.min.jsv=104"></script>
+  <script src="app.jsv=104"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>

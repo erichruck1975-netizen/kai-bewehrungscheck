@@ -2358,3 +2358,68 @@ dialog button {
     flex: 1 1 120px;
   }
 }
+
+
+/* v104 central project plans and Dropbox preparation */
+.dropbox-settings-card,
+.project-storage-fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+}
+
+.project-storage-fieldset {
+  margin: 12px 0;
+}
+
+.project-storage-fieldset legend {
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.project-plans-list {
+  display: grid;
+  gap: 12px;
+}
+
+.project-plan-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-plan-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.project-plan-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.project-plan-card h4,
+.project-plan-card p {
+  margin: 0 0 4px;
+}
+
+.project-plan-fields textarea {
+  min-height: 64px;
+}
+
+@media (max-width: 720px) {
+  .project-plan-summary,
+  .project-plan-card-head {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
