@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v112";
+const APP_VERSION = "v113";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1945,6 +1945,12 @@ function syncSiteControlItemPinReference(item, pin) {
   item.planId = pin.planId || "";
   item.pageNumber = Math.max(1, Number(pin.pageNumber) || 1);
   item.planReference = siteControlPlanReference(item, pin);
+  if (pin.note && (!item.description || item.description === item.planReference)) item.description = pin.note;
+  if (pin.title && !item.location) item.location = pin.title;
+  item.photos = item.photos || [];
+  (pin.photos || []).forEach((photo) => {
+    if (!item.photos.some((entry) => entry.id === photo.id)) item.photos.push(photo);
+  });
   item.updatedAt = new Date().toISOString();
 }
 
@@ -5289,7 +5295,12 @@ async function addPhotos(files) {
   }
   if (target.kind === "pin") {
     const pin = state.current.pins.find((item) => item.id === target.id);
-    pin.photos.push(...photos);
+    if (pin) {
+      pin.photos = pin.photos || [];
+      pin.photos.push(...photos);
+      const siteItem = pin.itemId ? findSiteControlItem(pin.itemId) : null;
+      if (siteItem) syncSiteControlItemPinReference(siteItem, pin);
+    }
   }
   if (target.kind === "check") {
     const check = state.current.checkpoints.find((item) => item.id === target.id);
@@ -6439,10 +6450,15 @@ function insertVoiceText(btn, text) {
     pin[fieldName] = appendVoiceText(pin[fieldName] || "", text);
     pin.updatedAt = new Date().toISOString();
     if (field) field.value = pin[fieldName];
-    const sample = pin.sampleId ? findSample(pin.sampleId) : null;
+    const siteItem = pin.itemId ? findSiteControlItem(pin.itemId) : null;
+    const sample = !siteItem && pin.sampleId ? findSample(pin.sampleId) : null;
     if (sample && fieldName === "note") {
       sample.note = pin.note;
       sample.updatedAt = pin.updatedAt;
+    }
+    if (siteItem && fieldName === "note") {
+      siteItem.description = pin.note || siteItem.description || "";
+      syncSiteControlItemPinReference(siteItem, pin);
     }
     persist();
     renderMarkPins();
@@ -6812,6 +6828,39 @@ function triggerSiteControlPhotoPicker(itemId, source) {
 }
 
 
+
+function siteControlItemDescription(item = {}) {
+  const pin = siteControlPinForItem(item);
+  return item.description || pin?.note || item.planReference || "";
+}
+
+function siteControlItemPhotos(item = {}) {
+  const pin = siteControlPinForItem(item);
+  const seen = new Set();
+  return [...(item.photos || []), ...(pin?.photos || [])].filter((photo) => {
+    if (!photo?.id || seen.has(photo.id)) return false;
+    seen.add(photo.id);
+    return true;
+  });
+}
+
+function applyDailyReportProjectAddress() {
+  if (!isDailyReportProtocol()) return;
+  const project = projectById(state.current.projectId);
+  const text = projectAddressText(project, { multiline: false });
+  const form = $("#dailyReportForm");
+  if (!text) {
+    showAppToast("Keine Projektadresse in den Stammdaten gefunden.", { type: "error" });
+    return;
+  }
+  if (form?.elements?.dailyAddress) form.elements.dailyAddress.value = text;
+  state.current.head.siteAddress = text;
+  state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
+  state.current.updatedAt = new Date().toISOString();
+  persist();
+  showAppToast("Adresse aus Projekt übernommen.", { type: "success" });
+}
+
 function siteControlPlanReferencesReport(items = []) {
   const rows = items
     .map((item) => ({ item, pin: siteControlPinForItem(item), ref: siteControlPlanReference(item) || item.planReference || "" }))
@@ -6828,7 +6877,7 @@ async function buildSiteControlReportParts() {
   const openItems = items.filter(siteControlItemIsOpen);
   const photoCards = [];
   for (const item of items) {
-    for (const photo of item.photos || []) {
+    for (const photo of siteControlItemPhotos(item)) {
       const url = await reportPhotoDataUrl(photo.id, { maxWidth: 1400, maxHeight: 1400, type: "image/jpeg", quality: 0.75 });
       if (url) photoCards.push({ item, photo, url });
     }
@@ -6850,7 +6899,7 @@ async function buildSiteControlReportParts() {
       <div class="site-item-title"><div><strong>${escapeHtml(item.type)}</strong><div class="muted">${escapeHtml([item.trade, item.location].filter(Boolean).join(" · ") || "ohne Zuordnung")}</div></div><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div>
       <div class="site-item-body">
         ${infoRow("Zuständig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("Priorität", item.priority)}${infoRow("Planbezug / Pin", item.planReference)}
-        <p>${escapeHtml(item.description || "Keine Beschreibung erfasst.")}</p>
+        <p>${escapeHtml(siteControlItemDescription(item) || "Keine Beschreibung erfasst.")}</p>
       </div>
     </article>`).join("") : `<p class="muted">Keine Feststellungen dokumentiert.</p>`;
   const planReferenceHtml = siteControlPlanReferencesReport(items);
@@ -6860,7 +6909,7 @@ async function buildSiteControlReportParts() {
       <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(p.head.createdAt))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
       <section class="info-grid"><div class="info-card"><h3>Projekt</h3>${rows.slice(0,3).map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Kontrolle</h3>${rows.slice(3).map(([k,v]) => infoRow(k,v)).join("")}</div></section>
       <h2>Ergebnis / Zusammenfassung</h2><section class="info-card result-box">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
-      <h2>Offene Punkte</h2>${openItems.length ? openItems.map((item) => `<article class="site-report-card"><div class="site-item-title"><strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="site-item-body"><p>${escapeHtml(item.description || "")}</p></div></article>`).join("") : `<p class="muted">Keine offenen Punkte dokumentiert.</p>`}
+      <h2>Offene Punkte</h2>${openItems.length ? openItems.map((item) => `<article class="site-report-card"><div class="site-item-title"><strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="site-item-body"><p>${escapeHtml(siteControlItemDescription(item) || "")}</p></div></article>`).join("") : `<p class="muted">Keine offenen Punkte dokumentiert.</p>`}
       <h2>Feststellungen / Aufgaben</h2>${itemHtml}
       ${planReferenceHtml ? `<h2>Plananlagen / Markierungen</h2>${planReferenceHtml}` : ""}
       <h2 class="page-break">Fotodokumentation</h2>${photoHtml}
@@ -10014,7 +10063,11 @@ function bindEvents() {
       sample.note = event.target.value;
       sample.updatedAt = pin.updatedAt;
     }
-    if (siteItem) syncSiteControlItemPinReference(siteItem, pin);
+    if (siteItem) {
+      if (event.target.dataset.markPinField === "note") siteItem.description = event.target.value || siteItem.description || "";
+      if (event.target.dataset.markPinField === "status") siteItem.status = pin.status || siteItem.status;
+      syncSiteControlItemPinReference(siteItem, pin);
+    }
     schedulePersist();
     renderMarkPins();
   });
@@ -10032,7 +10085,11 @@ function bindEvents() {
       const check = findCheckBySample(sample.id);
       if (check) updateCheckStatus(check);
     }
-    if (siteItem) syncSiteControlItemPinReference(siteItem, pin);
+    if (siteItem) {
+      if (event.target.dataset.markPinField === "note") siteItem.description = event.target.value || siteItem.description || "";
+      if (event.target.dataset.markPinField === "status") siteItem.status = pin.status || siteItem.status;
+      syncSiteControlItemPinReference(siteItem, pin);
+    }
     persist();
     if (siteItem) renderSiteControlEditor(); else renderChecklist();
   });
@@ -10112,6 +10169,8 @@ function bindEvents() {
     }
     const siteAddressFromProject = event.target.closest("#siteAddressFromProjectBtn");
     if (siteAddressFromProject) applySiteControlProjectAddress();
+    const dailyAddressFromProject = event.target.closest("#dailyAddressFromProjectBtn");
+    if (dailyAddressFromProject) applyDailyReportProjectAddress();
     const siteWeatherAuto = event.target.closest("#siteWeatherAutoBtn");
     if (siteWeatherAuto) fillSiteControlWeatherFromLocation();
     const sitePdfSave = event.target.closest("#sitePdfSaveBtn");
