@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=107">
-  <link rel="stylesheet" href="styles.css?v=107">
+  <link rel="manifest" href="manifest.webmanifest?v=111">
+  <link rel="stylesheet" href="styles.css?v=111">
 </head>
 <body>
   <div id="app" class="shell">
@@ -99,8 +99,8 @@
             <label>Adresse<input name="siteAddress" disabled></label>
             <label>Anlass<select name="siteReason"><option>Regelbegehung</option><option>Mangelkontrolle</option><option>Fotodokumentation</option><option>Abstimmung</option><option>Nachbegehung</option><option>Sonstige</option></select></label>
             <label>Bereich / Ort<input name="siteArea" list="areaOptions"></label>
-            <label>Teilnehmer<textarea name="siteParticipants" rows="2"></textarea></label>
-            <label>Wetter / Bedingungen<textarea name="siteWeather" rows="2"></textarea></label>
+            <label>Teilnehmer<input name="siteParticipants" list="responsibleOptions" placeholder="Personen/Firmen oder Freitext"></label>
+            <label>Wetter / Bedingungen<textarea name="siteWeather" rows="2"></textarea><button class="small-btn inline-field-action" id="siteWeatherAutoBtn" type="button">Wetter automatisch einf&uuml;gen</button></label>
           </div></div>
           <div class="panel"><div class="section-head"><h3>Feststellungen / Aufgaben</h3></div>
             <div class="site-quick-actions">
@@ -114,6 +114,71 @@
           </div>
           <div class="panel"><label class="voice-field">Ergebnis / Schlussbemerkung<textarea name="siteFinalNote" rows="4"></textarea><button class="mic-btn" type="button" data-voice-for="siteFinalNote">Mikrofon</button></label>
             <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Übersicht</button></div>
+          </div>
+        </form>
+      </section>
+
+
+      <section id="dailyReportView" class="view">
+        <div class="section-head">
+          <div>
+            <h2>Bautagesberichte</h2>
+            <p class="muted">Arbeitszeiten, T&auml;tigkeiten, Wetter, Fotos und Tagesdokumentation je Projekt.</p>
+          </div>
+          <button class="primary-btn" id="newDailyReportBtn" type="button">Neuer Bautagesbericht</button>
+        </div>
+        <div id="dailyReportList"></div>
+      </section>
+
+      <section id="dailyReportEditorView" class="view">
+        <div id="dailyReportModeBanner" class="followup-context"></div>
+        <form id="dailyReportForm">
+          <div class="panel"><div class="grid">
+            <label>Berichtsbezeichnung<input name="dailyTitle"></label>
+            <label>Datum<input name="dailyDate" type="date"></label>
+            <label>Projekt<input name="dailyProject" disabled></label>
+            <label>Projektadresse<input name="dailyAddress" disabled></label>
+            <label>Bericht-Nr.<input name="dailyReportNumber" placeholder="optional"></label>
+            <label>Status<select name="dailyStatus"><option>Entwurf</option><option>abgeschlossen</option></select></label>
+          </div></div>
+          <div class="panel"><h3>Arbeitszeit</h3><div class="grid">
+            <label>Arbeitsbeginn<input name="dailyStart" type="time"></label>
+            <label>Arbeitsende<input name="dailyEnd" type="time"></label>
+            <label>Pause (h)<input name="dailyBreak" type="number" min="0" step="0.25"></label>
+            <label>Gesamtstunden<input name="dailyTotal" disabled></label>
+          </div></div>
+          <div class="panel"><h3>Personal</h3><div class="grid">
+            <label>Mitarbeiter / Kolonne<input name="dailyCrew" list="personOptions"></label>
+            <label>Firma<input name="dailyCompany" list="companyOptions"></label>
+            <label>Anzahl Personen<input name="dailyPersonCount" type="number" min="0" step="1"></label>
+            <label>Ansprechpartner / Vorarbeiter<input name="dailyForeman" list="personOptions"></label>
+          </div></div>
+          <div class="panel"><h3>T&auml;tigkeiten</h3><div class="grid">
+            <label>Bereich / Ort<input name="dailyArea" list="areaOptions"></label>
+            <label>Gewerk<input name="dailyTrade" list="tradeOptions"></label>
+            <label>Eingabesprache<select name="dailyInputLanguage"><option value="de">Deutsch</option><option value="sq">Albanisch</option></select></label>
+            <label>&Uuml;bersetzungsstatus<select name="dailyTranslationStatus"><option>nicht &uuml;bersetzt</option><option>automatisch &uuml;bersetzt</option><option>manuell bearbeitet</option><option>Fehler</option></select></label>
+          </div>
+            <label class="voice-field">Originaltext / ausgef&uuml;hrte Arbeiten<textarea name="dailyWorkOriginal" rows="4"></textarea><span class="voice-actions"><button class="mic-btn" type="button" data-voice-daily-field="workOriginal" data-voice-lang="de-DE">Mikrofon Deutsch</button><button class="mic-btn" type="button" data-voice-daily-field="workOriginal" data-voice-lang="sq-AL">Mikrofon Albanisch</button></span></label>
+            <label>Deutsche Fassung<textarea name="dailyWorkGerman" rows="3"></textarea></label>
+            <label>Albanische Fassung<textarea name="dailyWorkAlbanian" rows="3"></textarea></label>
+            <div class="result-actions site-photo-actions"><button class="secondary-btn" type="button" data-daily-translate="sq-de">Albanisch &rarr; Deutsch &uuml;bersetzen</button><button class="secondary-btn" type="button" data-daily-translate="de-sq">Deutsch &rarr; Albanisch &uuml;bersetzen</button><button class="secondary-btn" type="button" data-daily-translate="both">Beide Richtungen aktualisieren</button><button class="secondary-btn" type="button" data-daily-copy-prompt="auto">&Uuml;bersetzungstext kopieren</button></div>
+            <label>Beschreibung / Details<textarea name="dailyWorkDescription" rows="3"></textarea></label>
+            <p class="muted">API-Schl&uuml;ssel d&uuml;rfen nicht direkt in der Browser-App gespeichert werden. Automatische &Uuml;bersetzung l&auml;uft sp&auml;ter &uuml;ber einen gesch&uuml;tzten Server-Endpunkt. Originaltext bleibt gespeichert.</p>
+          </div>
+          <div class="panel"><h3>Baustellendokumentation</h3>
+            <label>Materiallieferungen<textarea name="dailyMaterials" rows="3"></textarea></label>
+            <label>Ger&auml;te / Maschinen<textarea name="dailyEquipment" rows="3"></textarea></label>
+            <label class="voice-field">Besondere Vorkommnisse Original<textarea name="dailyIncidentsOriginal" rows="3"></textarea><span class="voice-actions"><button class="mic-btn" type="button" data-voice-daily-field="incidentsOriginal" data-voice-lang="de-DE">Mikrofon Deutsch</button><button class="mic-btn" type="button" data-voice-daily-field="incidentsOriginal" data-voice-lang="sq-AL">Mikrofon Albanisch</button></span></label>
+            <label>Besondere Vorkommnisse Deutsch<textarea name="dailyIncidentsGerman" rows="3"></textarea></label>
+            <label>Besondere Vorkommnisse Albanisch<textarea name="dailyIncidentsAlbanian" rows="3"></textarea></label>
+            <label>Behinderungen / Wartezeiten<textarea name="dailyDelays" rows="3"></textarea></label>
+            <label>M&auml;ngel / Hinweise<textarea name="dailyDefects" rows="3"></textarea></label>
+          </div>
+          <div class="panel"><h3>Wetter / Ort</h3><label>Wetter / Bedingungen<textarea name="dailyWeather" rows="3"></textarea></label><button class="secondary-btn" id="dailyWeatherAutoBtn" type="button">Wetter automatisch einf&uuml;gen</button></div>
+          <div class="panel"><h3>Fotos</h3><div class="result-actions site-photo-actions"><button class="secondary-btn" id="dailyPhotoCameraBtn" type="button">Foto aufnehmen</button><button class="secondary-btn" id="dailyPhotoGalleryBtn" type="button">Foto aus Galerie ausw&auml;hlen</button></div><div id="dailyPhotoList" class="photo-grid compact-photo-grid"></div></div>
+          <div class="panel"><h3>Best&auml;tigung</h3><label>Best&auml;tigt von<input name="dailyConfirmedBy" list="personOptions"></label>
+            <div class="report-export-actions"><button class="primary-btn" id="dailyPdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog &middot; A4-Bericht</small></button><button class="secondary-btn" id="dailyPdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht pr&uuml;fen</small></button><button class="secondary-btn" data-nav="dailyReportView" type="button">Zur &Uuml;bersicht</button></div>
           </div>
         </form>
       </section>
@@ -138,6 +203,16 @@
           <label>Freie Wetter-API
             <input id="weatherApiHint" type="text" value="Open-Meteo, ohne API-Key" disabled>
           </label>
+          <section class="backup-card dropbox-settings-card">
+            <div>
+              <h3>&Uuml;bersetzung</h3>
+              <p class="muted">API-Schl&uuml;ssel d&uuml;rfen nicht direkt in der Browser-App gespeichert werden. Die automatische &Uuml;bersetzung soll sp&auml;ter &uuml;ber einen gesch&uuml;tzten Server-Endpunkt laufen.</p>
+            </div>
+            <label><input id="translationEnabled" type="checkbox"> &Uuml;bersetzung aktiv</label>
+            <label>&Uuml;bersetzungs-Endpunkt URL<input id="translationEndpointUrl" type="url" placeholder="https://.../translate"></label>
+            <label>Standardrichtung<select id="translationDefaultDirection"><option value="auto">automatisch nach Eingabesprache</option><option value="sq-de">Albanisch &rarr; Deutsch</option><option value="de-sq">Deutsch &rarr; Albanisch</option></select></label>
+            <p class="muted">&Uuml;bersetzungen bitte vor Weitergabe kurz pr&uuml;fen. Originaltext bleibt gespeichert.</p>
+          </section>
           <section class="backup-card dropbox-settings-card">
             <div>
               <h3>Dropbox / Planablage</h3>
@@ -207,7 +282,7 @@
             <div class="grid">
               <label>Projekt / Bauvorhaben<input name="projectName" required></label>
               <label>Baustellenadresse: Straße / Hausnummer<input name="siteStreet"></label>
-              <label>PLZ<input name="siteZip" inputmode="numeric" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt möglich."></label>
+              <label>PLZ<input name="siteZip" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="postal-code" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt möglich."></label>
               <label>Ort<input name="siteCity"></label>
               <label>Land<input name="siteCountry" value="Deutschland"></label>
               <label>Abnahmebezeichnung<input name="acceptanceTitle" placeholder="z. B. Bodenplatte Unterfahrt"></label>
@@ -263,7 +338,7 @@
           <div id="planTab" class="tab-panel">
             <div class="panel plan-controls">
               <div class="result-actions">
-                <button class="primary-btn" id="addPlanBtn" type="button">Plan hinzufügen</button>
+                <button class="primary-btn" id="addPlanBtn" type="button">Plan ins Projekt hochladen und für diese Abnahme verwenden</button>
                 <button class="secondary-btn" id="pinModeBtn" type="button" style="display:none">Pin setzen</button>
               </div>
               <div class="zoom-actions">
@@ -524,7 +599,7 @@
       <input id="projectIdInput" type="hidden">
       <label>Projektname / Bauvorhaben<input id="projectNameInput" type="text" required placeholder="z. B. MFH Musterstraße"></label>
       <label>Baustellenadresse: Straße / Hausnummer<input id="projectStreetInput" type="text" placeholder="optional"></label>
-      <label>PLZ<input id="projectZipInput" type="text" inputmode="numeric" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt möglich." placeholder="optional"></label>
+      <label>PLZ<input id="projectZipInput" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="postal-code" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt möglich." placeholder="optional"></label>
       <label>Ort<input id="projectCityInput" type="text" placeholder="optional"></label>
       <label>Land<input id="projectCountryInput" type="text" value="Deutschland"></label>
       <label>Auftraggeber<input id="projectClientInput" type="text" list="clientOptions" placeholder="optional"></label>
@@ -633,6 +708,7 @@
   <datalist id="clientOptions"></datalist>
   <datalist id="ownPersonOptions"></datalist>
   <datalist id="personOptions"></datalist>
+  <datalist id="responsibleOptions"></datalist>
   <datalist id="inspectorOptions"></datalist>
   <datalist id="componentOptions"></datalist>
   <datalist id="floorOptions"></datalist>
@@ -641,8 +717,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=107"></script>
-  <script src="app.js?v=107"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=110"></script>
+  <script src="app.js?v=111"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>

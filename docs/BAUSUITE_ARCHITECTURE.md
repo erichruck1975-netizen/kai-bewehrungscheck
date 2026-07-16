@@ -345,3 +345,9 @@ Projektpläne werden als BauSuite-Kernfunktion behandelt. Fachmodule sollen Plä
 
 Baustellenkontroll-Pins bleiben eigenständige Pin-Objekte und werden über `module: "site-control"`, `protocolId` und `itemId` fachlich von Bewehrungs-Pins getrennt. Damit bleibt der bestehende BewehrungsCheck ohne Migration lauffähig, während der gemeinsame Kern für Planbezug, Fotos, Pins und Berichte vorbereitet wird.
 
+## v109 Integration: Projektpl?ne, Dropbox und Hilfsdaten
+
+Die Projektplananzeige wird zentral dedupliziert, ohne Pl?ne aus bestehenden Protokollen zu l?schen oder Planbez?ge zu migrieren. Fachmodule greifen auf die deduplizierte Projektplan-Auswahl zu, w?hrend ihre eigenen Daten unver?ndert bleiben.
+
+Dropbox bleibt im Teststand vorbereitet: Pfade und Links k?nnen gespeichert werden, automatische Synchronisierung wird sp?ter als eigene Anbindung erg?nzt. Globale Stammdaten bleiben die Quelle f?r Firmen, Personen, Zust?ndigkeiten und Gewerke. Wetterdaten werden als Protokoll-Hilfsfunktion verstanden und nur als Text im aktuellen Protokoll gespeichert.
+

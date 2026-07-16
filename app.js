@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v108";
+const APP_VERSION = "v111";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -32,12 +32,20 @@ const EC2_NA_CONFIG = {
 };
 const PROTOCOL_KIND_REBAR = "rebar-inspection";
 const PROTOCOL_KIND_SITE_CONTROL = "site-control";
+const PROTOCOL_KIND_DAILY_REPORT = "daily-report";
+const PROTOCOL_KIND_PROJECT_PLANS = "project-plans";
 
 const SITE_CONTROL_TYPES = ["Mangel", "Aufgabe", "Hinweis", "Foto-Doku", "Klärungspunkt"];
 const SITE_CONTROL_TRADES = ["Rohbau", "Bewehrung", "Schalung", "Betonage", "TGA", "Elektro", "Abdichtung", "Ausbau", "Planung", "Bauleitung", "Sonstige"];
 const SITE_CONTROL_PRIORITIES = ["normal", "hoch", "kritisch"];
 const SITE_CONTROL_STATUSES = ["offen", "in Bearbeitung", "erledigt", "zur Klärung", "nicht prüfbar"];
 const SITE_CONTROL_REASONS = ["Regelbegehung", "Mangelkontrolle", "Fotodokumentation", "Abstimmung", "Nachbegehung", "Sonstige"];
+const POSTAL_CITY_LOOKUP = {
+  "80999": "München",
+  "86150": "Augsburg",
+  "91550": "Dinkelsbühl",
+  "91744": "Weiltingen"
+};
 
 const CHECK_ITEMS = [
   "Schalung / Sauberkeit",
@@ -278,9 +286,12 @@ function syncSettingsInputs() {
   const defaultCompany = $("#defaultCompany");
   if (defaultCompany) defaultCompany.value = state.settings.defaultCompany || "";
   if ($("#dropboxBaseFolder")) $("#dropboxBaseFolder").value = state.settings.dropboxBaseFolder || "";
-  if ($("#dropboxPlanFolder")) $("#dropboxPlanFolder").value = state.settings.dropboxPlanFolder || "Pl?ne";
+  if ($("#dropboxPlanFolder")) $("#dropboxPlanFolder").value = state.settings.dropboxPlanFolder || "Pläne";
   if ($("#dropboxPhotoFolder")) $("#dropboxPhotoFolder").value = state.settings.dropboxPhotoFolder || "Fotos";
   if ($("#dropboxReportFolder")) $("#dropboxReportFolder").value = state.settings.dropboxReportFolder || "Berichte";
+  if ($("#translationEnabled")) $("#translationEnabled").checked = !!state.settings.translationEnabled;
+  if ($("#translationEndpointUrl")) $("#translationEndpointUrl").value = state.settings.translationEndpointUrl || "";
+  if ($("#translationDefaultDirection")) $("#translationDefaultDirection").value = state.settings.translationDefaultDirection || "auto";
 }
 
 function persist() {
@@ -709,11 +720,19 @@ function protocolsForProject(projectId) {
 }
 
 function rebarProtocolsForProject(projectId) {
-  return protocolsForProject(projectId).filter((protocol) => !isSiteControlProtocol(protocol));
+  return protocolsForProject(projectId).filter((protocol) => !isSiteControlProtocol(protocol) && !isDailyReportProtocol(protocol) && !isProjectPlanLibraryProtocol(protocol));
 }
 
 function siteControlProtocolsForProject(projectId) {
   return protocolsForProject(projectId).filter(isSiteControlProtocol);
+}
+
+function dailyReportProtocolsForProject(projectId) {
+  return protocolsForProject(projectId).filter(isDailyReportProtocol);
+}
+
+function projectPlanLibraryProtocolsForProject(projectId) {
+  return protocolsForProject(projectId).filter(isProjectPlanLibraryProtocol);
 }
 
 async function migrateProtocolAssets(protocol) {
@@ -1030,12 +1049,21 @@ function normalizeProtocol(protocol) {
   };
   protocol.siteControl = normalizeSiteControlMeta(protocol.siteControl || {}, protocol);
   protocol.siteItems = normalizeSiteControlItems(protocol.siteItems || [], protocol.id);
+  protocol.dailyReport = normalizeDailyReportMeta(protocol.dailyReport || {}, protocol);
   syncResultLookupFields(protocol);
   return protocol;
 }
 
 function isSiteControlProtocol(protocol = state.current) {
   return (protocol?.kind || PROTOCOL_KIND_REBAR) === PROTOCOL_KIND_SITE_CONTROL;
+}
+
+function isDailyReportProtocol(protocol = state.current) {
+  return (protocol?.kind || PROTOCOL_KIND_REBAR) === PROTOCOL_KIND_DAILY_REPORT;
+}
+
+function isProjectPlanLibraryProtocol(protocol = state.current) {
+  return (protocol?.kind || PROTOCOL_KIND_REBAR) === PROTOCOL_KIND_PROJECT_PLANS;
 }
 
 function normalizeSiteControlMeta(meta = {}, protocol = {}) {
@@ -1069,6 +1097,57 @@ function normalizeSiteControlItems(items = [], protocolId = "") {
     createdAt: item.createdAt || new Date().toISOString(),
     updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
   }));
+}
+
+
+
+function normalizeDailyReportMeta(meta = {}, protocol = {}) {
+  const dateFromHead = (protocol.head?.createdAt || protocol.createdAt || nowLocalInput()).slice(0, 10);
+  return {
+    reportNumber: meta.reportNumber || "",
+    status: meta.status || "Entwurf",
+    date: meta.date || dateFromHead,
+    workStart: meta.workStart || "",
+    workEnd: meta.workEnd || "",
+    breakHours: meta.breakHours || "",
+    totalHours: meta.totalHours || "",
+    crew: meta.crew || "",
+    company: meta.company || "",
+    personCount: meta.personCount || "",
+    foreman: meta.foreman || "",
+    area: meta.area || "",
+    trade: meta.trade || "",
+    inputLanguage: meta.inputLanguage || "de",
+    translationStatus: meta.translationStatus || "nicht übersetzt",
+    workOriginal: meta.workOriginal || "",
+    workGerman: meta.workGerman || "",
+    workAlbanian: meta.workAlbanian || "",
+    workDescription: meta.workDescription || "",
+    materials: meta.materials || "",
+    equipment: meta.equipment || "",
+    incidentsOriginal: meta.incidentsOriginal || "",
+    incidentsGerman: meta.incidentsGerman || "",
+    incidentsAlbanian: meta.incidentsAlbanian || "",
+    delays: meta.delays || "",
+    defects: meta.defects || "",
+    weather: meta.weather || protocol.weather?.weatherCondition || "",
+    confirmedBy: meta.confirmedBy || "",
+    photos: (meta.photos || []).map((photo) => ({ ...normalizePhotoRef(photo), caption: photo.caption || "" }))
+  };
+}
+
+function dailyReportTotalHours(report = {}) {
+  const start = String(report.workStart || "");
+  const end = String(report.workEnd || "");
+  if (!start || !end) return report.totalHours || "";
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if (![sh, sm, eh, em].every(Number.isFinite)) return report.totalHours || "";
+  let minutes = (eh * 60 + em) - (sh * 60 + sm);
+  if (minutes < 0) minutes += 24 * 60;
+  minutes -= Math.round((Number(report.breakHours) || 0) * 60);
+  if (minutes <= 0) return "";
+  return (minutes / 60).toFixed(2).replace(".", ",");
 }
 
 function ensureFollowupCatalogChecks(protocol) {
@@ -1256,6 +1335,7 @@ function showView(id) {
   if (id === "projectPlansView") renderProjectPlansView();
   if (id === "listView") renderList();
   if (id === "siteControlView") renderSiteControlView();
+  if (id === "dailyReportView") renderDailyReportView();
   if (id === "masterDataView") {
     renderDatalists();
     renderMasterData();
@@ -1273,6 +1353,8 @@ function updateAppHeader(viewId = activeViewId()) {
     listView: "Bewehrungsabnahme",
     siteControlView: "Baustellenkontrolle",
     siteControlEditorView: "Baustellenkontrolle",
+    dailyReportView: "Bautagesbericht",
+    dailyReportEditorView: "Bautagesbericht",
     editorView: "Bewehrungsabnahme",
     masterDataView: state.masterDataSection ? `Stammdaten \u00b7 ${masterDataSectionMeta(state.masterDataSection)?.title || "Detail"}` : "Stammdaten",
     settingsView: "Einstellungen / Backup"
@@ -1392,6 +1474,11 @@ function returnToResultAfterPrint() {
   const dialog = $("#reportDialog");
   if (dialog?.open) dialog.close();
   document.body.classList.remove("report-open");
+  if (isDailyReportProtocol()) {
+    showView("dailyReportEditorView");
+    renderDailyReportEditor();
+    return;
+  }
   if (isSiteControlProtocol()) {
     showView("siteControlEditorView");
     renderSiteControlEditor();
@@ -1421,6 +1508,10 @@ function armReturnToResultAfterPrint() {
 }
 
 function openProtocol(protocol) {
+  if (isDailyReportProtocol(protocol)) {
+    openDailyReportProtocol(protocol);
+    return;
+  }
   if (isSiteControlProtocol(protocol)) {
     openSiteControlProtocol(protocol);
     return;
@@ -1447,6 +1538,7 @@ function createProject() {
 
 function openProjectDialog(projectId = "") {
   const project = projectId ? projectById(projectId) : null;
+  state.projectDialogReturnView = $(".view.active")?.id || state.projectDialogReturnView || "homeView";
   $("#projectDialogTitle").textContent = project ? "Projekt bearbeiten" : "Neues Projekt";
   $("#projectIdInput").value = project?.id || "";
   $("#projectNameInput").value = "";
@@ -1538,7 +1630,13 @@ function createProjectFromDialog() {
   renderHomeProjects();
   renderList();
   $("#projectDialog").close();
-  showView("listView");
+  const returnView = state.projectDialogReturnView || "projectHubView";
+  state.projectDialogReturnView = "";
+  if (returnView === "projectPlansView") renderProjectPlansView();
+  if (returnView === "projectHubView") renderProjectHub();
+  if (returnView === "projectDirectoryView") renderProjectDirectory();
+  if (returnView === "siteControlView") renderSiteControlView();
+  showView(returnView === "editorView" ? "projectHubView" : returnView);
 }
 
 function projectPartySelection(kind, value, existingProject = null) {
@@ -1608,8 +1706,47 @@ function suggestProjectDropboxFolder(project = {}) {
   return joinDropboxPath(base, slugifyPathSegment(project.name || project.projectName || "Projekt")) + "/";
 }
 
+function normalizeDocumentStatus(value = "") {
+  const text = String(value || "").trim();
+  if (text === "ma" + String.fromCharCode(63) + "gebend") return "maßgebend";
+  return text || "verwendet";
+}
+
+function ensureProjectPlanLibraryProtocol(projectId = state.currentProjectId) {
+  const project = projectById(projectId);
+  if (!project) return null;
+  let protocol = protocolsForProject(projectId).find(isProjectPlanLibraryProtocol);
+  if (protocol) return protocol;
+  protocol = blankProtocol(project, {
+    kind: PROTOCOL_KIND_PROJECT_PLANS,
+    head: {
+      acceptanceTitle: "Projektpläne",
+      acceptanceType: "Planverwaltung",
+      component: "Projektpläne"
+    }
+  });
+  protocol.kind = PROTOCOL_KIND_PROJECT_PLANS;
+  protocol.type = "initial";
+  protocol.plans = [];
+  protocol.pins = [];
+  protocol.checkpoints = [];
+  protocol.siteItems = [];
+  protocol.dailyReport = {};
+  protocol.result = { resultStatus: "nicht relevant", finalNote: "Zentrale Planablage", inspectorName: "", signatureText: "" };
+  protocol.signatures = [];
+  protocol.overviewPhotos = [];
+  protocol.updatedAt = new Date().toISOString();
+  state.protocols.push(protocol);
+  return protocol;
+}
+
+function shouldHideProtocolInModuleLists(protocol = {}) {
+  return isProjectPlanLibraryProtocol(protocol);
+}
+
 function normalizePlanMeta(plan = {}) {
   plan.source = plan.source || (plan.dropboxPath || plan.dropboxSharedLink ? "dropbox_path" : "uploaded");
+  plan.documentStatus = normalizeDocumentStatus(plan.documentStatus || "verwendet");
   plan.dropboxPath = plan.dropboxPath || "";
   plan.dropboxSharedLink = plan.dropboxSharedLink || plan.dropboxLink || "";
   plan.dropboxFileName = plan.dropboxFileName || "";
@@ -1628,17 +1765,72 @@ function planSourceLabel(plan = {}) {
   return "hochgeladen";
 }
 
+function projectPlanDedupeKey(plan = {}, projectId = "") {
+  const normalized = normalizePlanMeta(plan);
+  const parts = [
+    normalized.planNumber,
+    normalized.title || normalized.name,
+    normalized.fileName || normalized.dropboxFileName,
+    normalized.pageCount,
+    projectId
+  ].map((value) => String(value || "").trim().toLowerCase());
+  return parts.some(Boolean) ? parts.join("|") : normalized.id || uid("plan-key");
+}
+
 function projectPlanEntries(projectId = state.currentProjectId) {
-  return protocolsForProject(projectId).flatMap((protocol) => (protocol.plans || []).map((plan) => ({ protocol, plan: normalizePlanMeta(plan) })));
+  const seen = new Set();
+  const entries = [];
+  protocolsForProject(projectId).forEach((protocol) => {
+    (protocol.plans || []).forEach((sourcePlan) => {
+      const plan = normalizePlanMeta(sourcePlan);
+      const idKey = plan.id ? `id:${plan.id}` : "";
+      const metaKey = `meta:${projectPlanDedupeKey(plan, projectId)}`;
+      if ((idKey && seen.has(idKey)) || seen.has(metaKey)) return;
+      if (idKey) seen.add(idKey);
+      seen.add(metaKey);
+      entries.push({ protocol, plan });
+    });
+  });
+  return entries;
+}
+
+function syncStatusLabel(status = "") {
+  return ({
+    not_configured: "Nicht eingerichtet",
+    linked: "Verknüpft",
+    needs_sync: "Abgleich erforderlich",
+    synced: "Synchron",
+    error: "Fehler"
+  })[status] || "Nicht eingerichtet";
+}
+
+function validDropboxLink(plan = {}) {
+  const link = String(plan.dropboxSharedLink || plan.dropboxLink || "").trim();
+  return /^https:\/\//i.test(link) ? link : "";
+}
+
+function projectPlanPreview(plan = {}) {
+  const number = plan.planNumber || "Plan";
+  const file = plan.fileName || plan.dropboxFileName || "Datei";
+  return `
+    <div class="project-plan-preview" aria-label="Planvorschau Platzhalter">
+      <span>${escapeHtml(number)}</span>
+      <small>${escapeHtml(file)}</small>
+    </div>`;
 }
 
 
 function markPlansForCurrentContext() {
   if (!state.current) return [];
-  if (isSiteControlProtocol()) {
-    return projectPlanEntries(state.current.projectId).map(({ plan }) => normalizePlanMeta(plan));
-  }
-  return Array.isArray(state.current.plans) ? state.current.plans : [];
+  const projectPlans = projectPlanEntries(state.current.projectId).map(({ plan }) => normalizePlanMeta(plan));
+  const localPlans = Array.isArray(state.current.plans) ? state.current.plans.map(normalizePlanMeta) : [];
+  const seen = new Set();
+  return [...localPlans, ...projectPlans].filter((plan) => {
+    const key = plan.id || projectPlanDedupeKey(plan, state.current.projectId);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function siteControlPinForItem(item) {
@@ -2264,14 +2456,15 @@ function acceptanceLabel(protocol) {
 function projectStats(project) {
   const acceptances = rebarProtocolsForProject(project.id);
   const siteControls = siteControlProtocolsForProject(project.id);
-  const allProtocols = [...acceptances, ...siteControls];
+  const dailyReports = dailyReportProtocolsForProject(project.id);
+  const allProtocols = [...acceptances, ...siteControls, ...dailyReports];
   const latest = allProtocols.reduce((value, protocol) => {
     const stamp = protocol.updatedAt || protocol.createdAt || protocol.head?.createdAt || "";
     return stamp > value ? stamp : value;
   }, project.updatedAt || project.createdAt || "");
   const openRebar = acceptances.reduce((sum, protocol) => sum + sampleIssues(protocol).length, 0);
   const openSite = siteControls.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
-  return { acceptances, siteControls, latest, openPoints: openRebar + openSite };
+  return { acceptances, siteControls, dailyReports, latest, openPoints: openRebar + openSite };
 }
 function renderDatalists() {
   const master = normalizeMasterData(state.masterData);
@@ -2280,6 +2473,7 @@ function renderDatalists() {
   setDatalist("clientOptions", clientNames());
   setDatalist("ownPersonOptions", ownPersonNames());
   setDatalist("personOptions", personNames());
+  setDatalist("responsibleOptions", uniqueValues([...companyNames(), ...personNames(), ...ownPersonNames()]));
   setDatalist("inspectorOptions", master.inspectors.map(inspectorLabel));
   setDatalist("componentOptions", master.components);
   setDatalist("floorOptions", master.floors);
@@ -2484,28 +2678,88 @@ function masterSettingInput(key, label, placeholder = "") {
 }
 
 function masterSection(title, collection, items, fields) {
+  const addLabel = collection === "companies" ? "Neue Firma" : "Neu";
   return `
     <section class="panel master-section">
       <div class="section-head">
         <h3>${escapeHtml(title)}</h3>
-        <button class="secondary-btn" type="button" data-add-master="${collection}">Neu</button>
+        <button class="secondary-btn" type="button" data-add-master="${collection}">${addLabel}</button>
       </div>
-      <div class="master-items">
+      <div class="master-items ${collection === "companies" ? "master-items-compact" : ""}">
         ${items.length ? items.map((item) => masterItemCard(collection, item, fields)).join("") : `<p class="muted">Noch keine Einträge.</p>`}
       </div>
     </section>
   `;
 }
 
+function masterItemSummary(collection, item) {
+  if (collection === "companies") {
+    const city = addressCity(item.address);
+    return [item.name || "Neue Firma", city, item.role].filter(Boolean).join(" · ");
+  }
+  if (collection === "inspectors") return [item.name || "Neuer Prüfer", item.office].filter(Boolean).join(" · ");
+  return [item.name || "Neuer Eintrag", item.company || item.role].filter(Boolean).join(" · ");
+}
+
 function masterItemCard(collection, item, fields) {
-  return `
-    <article class="master-card" data-master-item="${collection}" data-master-id="${item.id}">
+  const body = `
       <div class="grid compact-grid">
         ${fields.map((field) => masterInput(collection, item, field)).join("")}
       </div>
-      <button class="danger-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">Löschen</button>
+      <button class="danger-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">Löschen</button>`;
+  if (collection === "companies") {
+    return `
+      <details class="master-card master-card-collapsible" data-master-item="${collection}" data-master-id="${item.id}" ${item.name ? "" : "open"}>
+        <summary><strong>${escapeHtml(masterItemSummary(collection, item))}</strong><small>${escapeHtml(item.contact || item.email || item.phone || "Details bearbeiten")}</small></summary>
+        ${body}
+      </details>
+    `;
+  }
+  return `
+    <article class="master-card" data-master-item="${collection}" data-master-id="${item.id}">
+      ${body}
     </article>
   `;
+}
+
+
+function postalInputAttributes() {
+  return 'type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="postal-code"';
+}
+
+function phoneInputAttributes() {
+  return 'type="tel" inputmode="tel" autocomplete="tel"';
+}
+
+function inputAttributesForField(field = {}) {
+  const name = field.name || "";
+  if (name.endsWith(".zip") || name.toLowerCase().includes("zip") || name.toLowerCase().includes("postal")) return postalInputAttributes();
+  if (name.toLowerCase().includes("phone") || name.toLowerCase().includes("telefon")) return phoneInputAttributes();
+  return 'type="text"';
+}
+
+function cityInputForPostalInput(input) {
+  if (!input) return null;
+  if (input.id === "projectZipInput") return $("#projectCityInput");
+  if (input.name === "siteZip") return input.form?.elements?.siteCity || null;
+  if (input.dataset.masterField === "address.zip") return input.closest("[data-master-item]")?.querySelector('[data-master-field="address.city"]') || null;
+  if (input.dataset.projectAddressZip !== undefined) return input.closest("form, dialog, .panel")?.querySelector("[data-project-address-city]") || null;
+  return null;
+}
+
+function applyPostalCitySuggestion(input) {
+  const zip = String(input?.value || "").trim();
+  if (!/^\d{5}$/.test(zip)) return;
+  const city = POSTAL_CITY_LOOKUP[zip];
+  if (!city) return;
+  const cityInput = cityInputForPostalInput(input);
+  if (!cityInput) return;
+  const previousSuggestion = cityInput.dataset.postalSuggestedCity || "";
+  const canSet = !cityInput.value.trim() || cityInput.value === previousSuggestion;
+  if (!canSet) return;
+  cityInput.value = city;
+  cityInput.dataset.postalSuggestedCity = city;
+  cityInput.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function masterInput(collection, item, field) {
@@ -2516,7 +2770,7 @@ function masterInput(collection, item, field) {
   const zipWarning = field.name.endsWith(".zip") && value && !/^\d{5}$/.test(value)
     ? `<span class="field-warning">PLZ prüfen: deutsche PLZ normalerweise 5-stellig.</span>`
     : "";
-  return `<label>${escapeHtml(field.label)}<input data-master-field="${field.name}" value="${escapeAttr(value)}" ${field.required ? "required" : ""} ${field.list ? `list="${field.list}"` : ""}>${zipWarning}</label>`;
+  return `<label>${escapeHtml(field.label)}<input data-master-field="${field.name}" ${inputAttributesForField(field)} value="${escapeAttr(value)}" ${field.required ? "required" : ""} ${field.list ? `list="${field.list}"` : ""}>${zipWarning}</label>`;
 }
 
 function lookupMasterSection(title, key, values) {
@@ -2585,7 +2839,7 @@ function inspectorMasterFields() {
 function addMasterItem(collection) {
   const master = normalizeMasterData(state.masterData);
   if (collection === "ownPersons") master.ownPersons.push({ id: uid("person"), name: "", company: "", role: "", address: normalizeAddress(), phone: "", email: "", isDefault: !master.ownPersons.length });
-  if (collection === "companies") master.companies.push({ id: uid("company"), name: "", role: "", contact: "", address: normalizeAddress(), phone: "", email: "", note: "" });
+  if (collection === "companies") master.companies.unshift({ id: uid("company"), name: "", role: "", contact: "", address: normalizeAddress(), phone: "", email: "", note: "" });
   if (collection === "inspectors") master.inspectors.push({ id: uid("inspector"), name: "", office: "", address: normalizeAddress(), email: "", phone: "", note: "" });
   state.masterData = master;
   setMasterDataDirty(true);
@@ -2648,7 +2902,7 @@ function projectDirectoryCard(project) {
       <div class="project-directory-main">
         <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
         <p class="muted">${escapeHtml(address)}</p>
-        <p class="project-directory-meta">${stats.acceptances.length} BA · ${stats.siteControls.length} BK · ${stats.openPoints} offene Punkte · zuletzt ${escapeHtml(formatDate(stats.latest))}</p>
+        <p class="project-directory-meta">${stats.acceptances.length} BA · ${stats.siteControls.length} BK · ${stats.dailyReports.length} BT · ${stats.openPoints} offene Punkte · zuletzt ${escapeHtml(formatDate(stats.latest))}</p>
       </div>
       <div class="project-directory-actions">
         <button class="primary-btn" data-open-project="${escapeAttr(project.id)}" type="button">Öffnen</button>
@@ -2670,7 +2924,8 @@ function renderProjectDirectory() {
       project.client,
       project.clientSnapshot?.name,
       String(stats.acceptances.length),
-      String(stats.siteControls.length)
+      String(stats.siteControls.length),
+      String(stats.dailyReports.length)
     ].filter(Boolean).join(" ").toLowerCase();
     return haystack.includes(search);
   }) : projects;
@@ -2707,6 +2962,7 @@ function renderProjectHub() {
       <h3>Module</h3>
       <div class="module-card-grid">
         ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, Mängel, Aufgaben, Fotos", "site")}
+        ${moduleCard("BT", "Bautagesbericht", "Arbeitszeiten, Tätigkeiten, Wetter, Fotos", "daily")}
         ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung prüfen, Pins, Nachbegehung, A4-Bericht", "rebar")}
         ${moduleCard("PL", "Pläne", "Projektpläne verwalten und anzeigen", "plans")}
         ${moduleCard("PI", "Projekt bearbeiten", "Projektkopf, Adresse, Beteiligte, Zuordnungen", "projectData")}
@@ -2718,6 +2974,10 @@ function renderProjectHub() {
     <section class="panel">
       <div class="section-head"><h3>Bewehrungsabnahmen</h3><button class="primary-btn" data-new-acceptance="${project.id}" type="button">+ Neue Abnahme</button></div>
       <div class="acceptance-list">${stats.acceptances.length ? stats.acceptances.map((p) => acceptanceCard(p)).join("") : `<div class="empty-card muted">Noch keine Bewehrungsabnahme in diesem Projekt.</div>`}</div>
+    </section>
+    <section class="panel">
+      <div class="section-head"><h3>Bautagesberichte</h3><button class="primary-btn" data-new-daily-report="${project.id}" type="button">Neuer Bautagesbericht</button></div>
+      <div class="acceptance-list">${stats.dailyReports.length ? stats.dailyReports.map(dailyReportListCard).join("") : `<div class="empty-card muted">Noch kein Bautagesbericht in diesem Projekt.</div>`}</div>
     </section>
     <section class="panel">
       <div class="section-head"><h3>Baustellenkontrollen</h3><button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button></div>
@@ -2758,10 +3018,15 @@ function renderProjectPlansView() {
   if (!container) return;
   const project = projectById(state.currentProjectId) || null;
   if (!project) {
-    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt Öffnen.</p></section>`;
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt öffnen.</p></section>`;
     return;
   }
+  const searchValue = $("#projectPlanSearchInput")?.value || "";
   const entries = projectPlanEntries(project.id);
+  const normalizedSearch = searchValue.trim().toLowerCase();
+  const visibleEntries = normalizedSearch
+    ? entries.filter(({ protocol, plan }) => [plan.planNumber, plan.title, plan.fileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase().includes(normalizedSearch))
+    : entries;
   const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
   container.innerHTML = `
     <section class="panel project-plan-summary">
@@ -2772,24 +3037,46 @@ function renderProjectPlansView() {
       </div>
       <button class="secondary-btn" data-edit-project="${escapeAttr(project.id)}" type="button">Projekt bearbeiten</button>
     </section>
+    <section class="panel project-plan-toolbar-card">
+      <div class="section-head">
+        <div>
+          <h3>Projektpläne</h3>
+          <p class="muted">Pläne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verfügung.</p>
+        </div>
+        <button class="primary-btn" id="projectPlanUploadBtn" type="button">Plan hochladen</button>
+      </div>
+      <input id="projectPlanUploadInput" class="visually-hidden" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" multiple>
+      <label>Plan suchen
+        <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Bezeichnung, Datei, Stand">
+      </label>
+      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Gerät gespeichert.</p>
+    </section>
     <section class="panel">
-      <h3>Projektpläne</h3>
-      <p class="muted">Bestehende hochgeladene Pläne bleiben in IndexedDB gespeichert. Dropbox-Pfade/Links sind Zuordnungen für die spätere Anbindung.</p>
-      ${entries.length ? entries.map(({ protocol, plan }) => projectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">Noch keine Pläne in den Abnahmen dieses Projekts vorhanden. Pläne werden aktuell im Modul Bewehrungsabnahme hochgeladen und hier zentral sichtbar.</div>`}
+      <div class="section-head">
+        <h3>Importierte Planunterlagen</h3>
+        <span class="badge neutral">${visibleEntries.length} von ${entries.length}</span>
+      </div>
+      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => projectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">Noch keine passenden Pläne vorhanden. Über „Plan hochladen“ können PDF- und Bildpläne direkt im Projekt gespeichert werden.</div>`}
     </section>`;
 }
 
 function projectPlanCard(protocol, plan) {
   const display = `${plan.planNumber || plan.fileName || "Plan"}${plan.title ? ` · ${plan.title}` : ""}`;
+  const link = validDropboxLink(plan);
   return `
     <article class="project-plan-card" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
       <div class="project-plan-card-head">
-        <div>
+        ${projectPlanPreview(plan)}
+        <div class="project-plan-card-main">
           <h4>${escapeHtml(display)}</h4>
-          <p class="muted">Quelle: ${escapeHtml(planSourceLabel(plan))}${plan.dropboxPath ? ` · Pfad: ${escapeHtml(plan.dropboxPath)}` : ""}</p>
-          <p class="muted">Aus: ${escapeHtml(acceptanceLabel(protocol))} · ${escapeHtml(plan.fileName || "Datei offen")}</p>
+          <p class="muted">Quelle: ${escapeHtml(planSourceLabel(plan))}${plan.dropboxPath ? ` · Pfad gespeichert` : ""}</p>
+          <p class="muted">Aus: ${escapeHtml(isProjectPlanLibraryProtocol(protocol) ? "Projektplanablage" : acceptanceLabel(protocol))} · ${escapeHtml(plan.fileName || "Datei offen")}</p>
+          <div class="card-actions compact-actions">
+            <button class="secondary-btn" data-open-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan öffnen / Vorschau</button>
+            ${link ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox öffnen</button>` : ""}
+            <button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan löschen</button>
+          </div>
         </div>
-        ${plan.dropboxSharedLink ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox Öffnen</button>` : ""}
       </div>
       <div class="grid compact-grid project-plan-fields">
         <label>Plan-Nr.<input data-project-plan-field="planNumber" value="${escapeAttr(plan.planNumber || "")}"></label>
@@ -2807,18 +3094,35 @@ function projectPlanCard(protocol, plan) {
           </select>
         </label>
         <label>Seiten<input data-project-plan-field="pageCount" value="${escapeAttr(plan.pageCount || "")}" disabled></label>
-        <label>Dropbox-Pfad<input data-project-plan-field="dropboxPath" value="${escapeAttr(plan.dropboxPath || "")}" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
-        <label>Dropbox-Link<input data-project-plan-field="dropboxSharedLink" value="${escapeAttr(plan.dropboxSharedLink || "")}" placeholder="https://www.dropbox.com/..."></label>
-        <label>Dropbox-Dateiname<input data-project-plan-field="dropboxFileName" value="${escapeAttr(plan.dropboxFileName || "")}" placeholder="B-003.pdf"></label>
-        <label>Letzter manueller Abgleich / Stand<input data-project-plan-field="lastManualSync" value="${escapeAttr(plan.lastManualSync || "")}" placeholder="z. B. 15.07.2026"></label>
-        <label>Synchronisationsstatus
-          <select data-project-plan-field="syncStatus">
-            ${["not_configured", "linked", "needs_sync", "synced", "error"].map((status) => `<option value="${status}" ${status === (plan.syncStatus || "not_configured") ? "selected" : ""}>${status}</option>`).join("")}
-          </select>
-        </label>
-        <label>Bemerkung<textarea data-project-plan-field="remark" rows="2">${escapeHtml(plan.remark || "")}</textarea></label>
       </div>
+      <details class="project-plan-dropbox">
+        <summary>Dropbox / spätere Synchronisierung</summary>
+        <p class="muted">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Dropbox-Anbindung aktiviert. Aktuell können Pfade und Links gespeichert werden. Noch keine automatische Synchronisierung.</p>
+        <div class="grid compact-grid project-plan-fields">
+          <label>Dropbox-Pfad<input data-project-plan-field="dropboxPath" value="${escapeAttr(plan.dropboxPath || "")}" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
+          <label>Dropbox-Link<input data-project-plan-field="dropboxSharedLink" value="${escapeAttr(plan.dropboxSharedLink || "")}" placeholder="https://www.dropbox.com/..."></label>
+          <label>Dropbox-Dateiname<input data-project-plan-field="dropboxFileName" value="${escapeAttr(plan.dropboxFileName || "")}" placeholder="B-003.pdf"></label>
+          <label>Letzter manueller Abgleich / Stand<input data-project-plan-field="lastManualSync" value="${escapeAttr(plan.lastManualSync || "")}" placeholder="z. B. 15.07.2026"></label>
+          <label>Synchronisationsstatus
+            <select data-project-plan-field="syncStatus">
+              ${["not_configured", "linked", "needs_sync", "synced", "error"].map((status) => `<option value="${status}" ${status === (plan.syncStatus || "not_configured") ? "selected" : ""}>${escapeHtml(syncStatusLabel(status))}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+      </details>
+      <label>Bemerkung<textarea data-project-plan-field="remark" rows="2">${escapeHtml(plan.remark || "")}</textarea></label>
     </article>`;
+}
+
+function openProjectPlanPreview(protocolId, planId) {
+  const protocol = state.protocols.find((item) => item.id === protocolId);
+  if (!protocol) return showAppToast("Planquelle nicht gefunden.", { type: "error" });
+  openProtocol(protocol);
+  state.selectedPlanId = planId;
+  state.current.activePlanId = planId;
+  activateProtocolTab("planTab");
+  renderPlanControls();
+  renderPlan();
 }
 
 function moduleCard(code, title, subtitle, action) {
@@ -2982,7 +3286,7 @@ function renderPlanListStatus() {
     <div class="plan-row ${item.id === state.selectedPlanId ? "active" : ""}">
       <button data-select-plan="${item.id}" type="button">
         <strong>${escapeHtml(planDisplayName(item))}</strong>
-        <span class="muted">${escapeHtml(item.documentStatus || "verwendet")} ? Quelle: ${escapeHtml(planSourceLabel(item))} · ${escapeHtml(item.fileName)} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
+        <span class="muted">${escapeHtml(item.documentStatus || "verwendet")} · Quelle: ${escapeHtml(planSourceLabel(item))} · ${escapeHtml(item.fileName)} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
       </button>
       <button class="project-delete-link" data-delete-plan="${item.id}" type="button">Plan löschen</button>
     </div>
@@ -4604,6 +4908,121 @@ async function handlePlanFiles(files) {
   await renderPlan();
 }
 
+
+async function importProjectPlanFiles(files, projectId = state.currentProjectId) {
+  const project = projectById(projectId);
+  if (!project) return showAppToast("Bitte zuerst ein Projekt öffnen.", { type: "error" });
+  const protocol = ensureProjectPlanLibraryProtocol(project.id);
+  if (!protocol) return showAppToast("Projektplanablage konnte nicht vorbereitet werden.", { type: "error" });
+  const fileList = Array.from(files || []);
+  if (!fileList.length) return;
+  let imported = 0;
+  for (const file of fileList) {
+    if (!file || !file.size) {
+      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { type: "error" });
+      continue;
+    }
+    const meta = derivePlanMeta(file.name, project.planDate || "");
+    const type = file.type || guessFileType(file.name);
+    const plan = normalizePlanMeta({
+      id: uid("plan"),
+      number: protocol.plans.length + 1,
+      fileName: file.name,
+      title: meta.title,
+      planNumber: meta.planNumber,
+      planDate: meta.planDate,
+      planIndex: "",
+      documentStatus: "verwendet",
+      source: "uploaded",
+      dropboxPath: "",
+      dropboxSharedLink: "",
+      dropboxFileName: "",
+      dropboxFileId: "",
+      dropboxRev: "",
+      lastSyncedAt: "",
+      lastManualSync: "",
+      syncStatus: "not_configured",
+      autoMetaStatus: "",
+      planDateCandidates: [],
+      remark: "",
+      type,
+      fileSize: file.size || 0,
+      pageCount: type === "application/pdf" ? 0 : 1,
+      currentPage: 1,
+      zoom: 1,
+      renderStatus: "idle",
+      renderError: ""
+    });
+    await idbPut("plans", {
+      id: plan.id,
+      projectId: project.id,
+      acceptanceId: protocol.id,
+      protocolId: protocol.id,
+      fileName: file.name,
+      fileType: plan.type,
+      fileSize: plan.fileSize,
+      planName: plan.title,
+      planNumber: plan.planNumber,
+      planDate: plan.planDate,
+      planIndex: plan.planIndex,
+      documentStatus: plan.documentStatus,
+      source: plan.source,
+      dropboxPath: plan.dropboxPath,
+      dropboxSharedLink: plan.dropboxSharedLink,
+      dropboxFileName: plan.dropboxFileName,
+      dropboxFileId: plan.dropboxFileId,
+      dropboxRev: plan.dropboxRev,
+      lastSyncedAt: plan.lastSyncedAt,
+      lastManualSync: plan.lastManualSync,
+      syncStatus: plan.syncStatus,
+      autoMetaStatus: plan.autoMetaStatus,
+      planDateCandidates: plan.planDateCandidates,
+      remark: plan.remark,
+      pageCount: plan.pageCount,
+      blob: file
+    });
+    const saved = await idbGet("plans", plan.id);
+    if (!saved?.blob || !saved.blob.size) {
+      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { type: "error" });
+      continue;
+    }
+    plan.fileSize = saved.blob.size || plan.fileSize;
+    protocol.plans.push(plan);
+    if (plan.type === "application/pdf") {
+      await preloadPdf(plan);
+      await extractPdfPlanMetadata(plan);
+    }
+    imported += 1;
+  }
+  protocol.updatedAt = new Date().toISOString();
+  const projectRecord = projectById(project.id);
+  if (projectRecord) projectRecord.updatedAt = protocol.updatedAt;
+  await persist();
+  renderProjectPlansView();
+  renderDatalists();
+  showAppToast(imported === 1 ? "Plan hochgeladen und im Projekt gespeichert." : `${imported} Pläne hochgeladen und im Projekt gespeichert.`, { type: imported ? "success" : "info" });
+}
+
+function deleteProjectPlan(protocolId, planId) {
+  const entry = findProjectPlanEntry(protocolId, planId);
+  if (!entry) return showAppToast("Plan nicht gefunden.", { type: "error" });
+  const referencedPins = state.protocols.reduce((sum, protocol) => sum + (protocol.pins || []).filter((pin) => pinPlacements(pin).some((placement) => placement.planId === planId) || pin.planId === planId).length, 0);
+  const warning = referencedPins ? `\n\nAchtung: ${referencedPins} Pin-/Planbezug(e) verweisen auf diesen Plan.` : "";
+  if (!confirm(`Plan wirklich löschen? Die gespeicherte Plan-Datei wird aus der lokalen Projektablage entfernt.${warning}`)) return;
+  entry.protocol.plans = (entry.protocol.plans || []).filter((plan) => plan.id !== planId);
+  entry.protocol.updatedAt = new Date().toISOString();
+  idbDelete("plans", planId);
+  if (state.current?.activePlanId === planId) state.current.activePlanId = state.current.plans?.[0]?.id || "";
+  if (state.selectedPlanId === planId) state.selectedPlanId = state.current?.activePlanId || "";
+  persist();
+  renderProjectPlansView();
+  if (state.current?.id === entry.protocol.id) {
+    renderPlanControls();
+    renderPlan();
+  }
+  showAppToast("Plan gelöscht.", { type: "success" });
+}
+
 async function extractPdfPlanMetadata(plan) {
   try {
     const doc = await getPdfDocument(plan);
@@ -4823,6 +5242,14 @@ async function addPhotos(files) {
       return;
     }
   }
+  if (target.kind === "dailyReport") {
+    state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
+    state.current.dailyReport.photos.push(...photos.map((photo) => ({ ...photo, caption: "" })));
+    state.current.updatedAt = new Date().toISOString();
+    persist();
+    renderDailyReportEditor();
+    return;
+  }
   saveFromForm();
   renderPinEditor();
   renderChecklist();
@@ -4920,7 +5347,7 @@ function openPlanMarkDialog(sampleId) {
   if (!sample) return;
   const plans = markPlansForCurrentContext();
   if (!plans.length) {
-    alert("Keine Planunterlagen vorhanden. Bitte im Plan-Reiter zuerst einen Plan hinzufügen.");
+    alert("Keine Projektpläne vorhanden. Bitte in der Projektzentrale unter Projektpläne zuerst einen Plan hochladen.");
     return;
   }
   if (isAndroidFirefox()) {
@@ -4930,7 +5357,7 @@ function openPlanMarkDialog(sampleId) {
   const preferredPlanId = pin?.planId || sample.planId || state.selectedPlanId || state.current.activePlanId || plans[0].id;
   const selectedMarkPlan = planById(preferredPlanId) || plans[0];
   if (!selectedMarkPlan) {
-    alert("Keine Planunterlagen vorhanden. Bitte im Plan-Reiter zuerst einen Plan hinzufügen.");
+    alert("Keine Projektpläne vorhanden. Bitte in der Projektzentrale unter Projektpläne zuerst einen Plan hochladen.");
     return;
   }
   state.markTarget = { kind: "rebar", sampleId };
@@ -5778,6 +6205,11 @@ function bindVoice() {
     });
     return;
   }
+  document.addEventListener("input", (event) => {
+    if (event.target.matches('#projectZipInput, [name="siteZip"], [data-master-field="address.zip"], [data-project-address-zip]')) {
+      applyPostalCitySuggestion(event.target);
+    }
+  });
   document.addEventListener("click", (event) => {
     const btn = event.target.closest(".mic-btn");
     if (!btn || btn.disabled) return;
@@ -5799,7 +6231,7 @@ function bindVoice() {
     };
     const recognition = new SpeechRecognition();
     state.voice.recognition = recognition;
-    recognition.lang = "de-DE";
+    recognition.lang = btn.dataset.voiceLang || "de-DE";
     recognition.interimResults = true;
     recognition.continuous = false;
     btn.dataset.originalLabel = btn.textContent || "Mikrofon";
@@ -5824,7 +6256,8 @@ function bindVoice() {
     };
     recognition.onerror = (errorEvent) => {
       if (errorEvent.error !== "aborted" && errorEvent.error !== "no-speech") {
-        alert("Spracherkennung konnte nicht gestartet werden.");
+        const isAlbanian = btn.dataset.voiceLang === "sq-AL";
+        alert(isAlbanian ? "Albanische Spracheingabe wird auf diesem Gerät/Browser nicht unterstützt. Bitte Text eintippen oder Deutsch verwenden." : "Spracherkennung konnte nicht gestartet werden.");
       }
     };
     recognition.onend = () => {
@@ -5838,7 +6271,8 @@ function bindVoice() {
     } catch {
       resetVoiceButton(btn);
       state.voice = { active: false, recognition: null, button: null, baseText: "", finalText: "", finalResults: {} };
-      alert("Spracherkennung konnte nicht gestartet werden.");
+      const isAlbanian = btn.dataset.voiceLang === "sq-AL";
+      alert(isAlbanian ? "Albanische Spracheingabe wird auf diesem Gerät/Browser nicht unterstützt. Bitte Text eintippen oder Deutsch verwenden." : "Spracherkennung konnte nicht gestartet werden.");
     }
   });
 }
@@ -5879,6 +6313,9 @@ function getVoiceTargetText(btn) {
   }
   if (btn.dataset.voiceSiteItem) {
     return findSiteControlItem(btn.dataset.voiceSiteItem)?.description || "";
+  }
+  if (btn.dataset.voiceDailyField) {
+    return state.current?.dailyReport?.[btn.dataset.voiceDailyField] || "";
   }
   return "";
 }
@@ -5934,6 +6371,14 @@ function insertVoiceText(btn, text) {
     persist();
     renderSiteControlEditor();
   }
+  if (btn.dataset.voiceDailyField) {
+    state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
+    const fieldName = btn.dataset.voiceDailyField;
+    state.current.dailyReport[fieldName] = appendVoiceText(state.current.dailyReport[fieldName] || "", text);
+    state.current.updatedAt = new Date().toISOString();
+    persist();
+    renderDailyReportEditor();
+  }
 }
 
 async function fetchWeather() {
@@ -5975,6 +6420,40 @@ function weatherCode(code) {
   };
   return map[code] || "Wettercode " + (code ?? "");
 }
+
+async function fillSiteControlWeatherFromLocation() {
+  if (!isSiteControlProtocol()) return;
+  const form = $("#siteControlForm");
+  if (!form) return;
+  if (!navigator.geolocation) {
+    showAppToast("Standortabfrage ist in diesem Browser nicht verfügbar.", { type: "error" });
+    return;
+  }
+  showAppToast("Standort wird abgefragt ...", { type: "info" });
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude, longitude } = pos.coords;
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      const current = data.current || {};
+      const stamp = new Date().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+      const temp = current.temperature_2m ?? "-";
+      const wind = current.wind_speed_10m ?? "-";
+      const condition = weatherCode(current.weather_code);
+      const rain = Number(current.precipitation || 0) > 0 ? `, Niederschlag ${current.precipitation} mm` : "";
+      form.elements.siteWeather.value = `Wetter automatisch ermittelt am ${stamp}: ${temp} °C, ${condition}, Wind ${wind} km/h${rain}. Standort: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}.`;
+      saveSiteControlForm();
+      showAppToast("Wetterdaten übernommen.", { type: "success" });
+    } catch (error) {
+      showAppToast("Wetterabruf fehlgeschlagen. Manuelle Eingabe bleibt m?glich.", { type: "error" });
+    }
+  }, () => {
+    showAppToast("Standortfreigabe abgelehnt. Manuelle Eingabe bleibt m?glich.", { type: "info" });
+  }, { enableHighAccuracy: true, timeout: 12000 });
+}
+
 
 
 function siteStatusClass(status = "") {
@@ -6093,7 +6572,7 @@ function renderSiteControlEditor() {
   form.elements.siteTitle.value = protocol.head.acceptanceTitle || "";
   form.elements.siteDate.value = protocol.head.createdAt || nowLocalInput();
   form.elements.siteProject.value = project?.name || protocol.head.projectName || "";
-  form.elements.siteAddress.value = formatAddress(project?.address || protocol.head.siteAddress, { multiline: false });
+  form.elements.siteAddress.value = formatAddress(project?.address || protocol.head.siteAddress || protocol.head.siteAddressText || "", { multiline: false });
   form.elements.siteReason.value = meta.reason || "Regelbegehung";
   form.elements.siteArea.value = meta.area || "";
   form.elements.siteParticipants.value = meta.participants || "";
@@ -6119,6 +6598,8 @@ function saveSiteControlForm({ persistNow = true } = {}) {
     weather: form.elements.siteWeather.value || "",
     finalNote: form.elements.siteFinalNote.value || ""
   };
+  const project = projectById(p.projectId);
+  if (project) syncProtocolProjectFields(p, project, { overwriteProtocol: false });
   p.head.acceptanceType = "Baustellenkontrolle";
   p.head.areaAxes = p.siteControl.area;
   p.head.peoplePresent = p.siteControl.participants;
@@ -6168,7 +6649,7 @@ function siteControlItemCard(item) {
         <label>Typ<select data-site-item-field="type">${siteControlOptions(state.masterData.siteControlTypes || SITE_CONTROL_TYPES, item.type)}</select></label>
         <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
         <label>Bereich / Ort<input data-site-item-field="location" value="${escapeAttr(item.location)}"></label>
-        <label>Zust\u00e4ndig<input data-site-item-field="responsible" list="companyOptions" value="${escapeAttr(item.responsible)}"></label>
+        <label>Zust\u00e4ndig<input data-site-item-field="responsible" list="responsibleOptions" value="${escapeAttr(item.responsible)}"></label>
         <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
         <label>Priorit\u00e4t<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
         <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
@@ -6252,7 +6733,7 @@ async function buildSiteControlReportParts() {
   `;
   const rows = [
     ["Projekt", project?.name || p.head.projectName],
-    ["Adresse", formatAddress(project?.address || p.head.siteAddress)],
+    ["Adresse", formatAddress(project?.address || p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"],
     ["Datum / Uhrzeit", formatDate(p.head.createdAt)],
     ["Anlass", p.siteControl?.reason],
     ["Bereich", p.siteControl?.area],
@@ -6273,7 +6754,7 @@ async function buildSiteControlReportParts() {
     <div class="report-export"><main class="report-page">
       <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(p.head.createdAt))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
       <section class="info-grid"><div class="info-card"><h3>Projekt</h3>${rows.slice(0,3).map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Kontrolle</h3>${rows.slice(3).map(([k,v]) => infoRow(k,v)).join("")}</div></section>
-      <h2>Ergebnis / Zusammenfassung</h2><section class="info-card">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
+      <h2>Ergebnis / Zusammenfassung</h2><section class="info-card result-box">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
       <h2>Offene Punkte</h2>${openItems.length ? openItems.map((item) => `<article class="site-report-card"><div class="site-item-title"><strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="site-item-body"><p>${escapeHtml(item.description || "")}</p></div></article>`).join("") : `<p class="muted">Keine offenen Punkte dokumentiert.</p>`}
       <h2>Feststellungen / Aufgaben</h2>${itemHtml}
       ${planReferenceHtml ? `<h2>Plananlagen / Markierungen</h2>${planReferenceHtml}` : ""}
@@ -6282,9 +6763,290 @@ async function buildSiteControlReportParts() {
     </main></div>`;
   const title = sanitizeFileName(`Baustellenkontrolle_${project?.name || p.head.projectName || "Projekt"}_${(p.head.createdAt || "").slice(0,10)}`);
   return { css, body, title, fileName: `${title}.pdf` };
+}﻿
+function createBlankDailyReport(projectId) {
+  const project = projectById(projectId || state.currentProjectId);
+  if (!project) { showAppToast("Bitte zuerst ein Projekt auswählen.", { type: "error" }); return; }
+  const date = (nowLocalInput() || "").slice(0, 10);
+  const protocol = blankProtocol(project, { kind: PROTOCOL_KIND_DAILY_REPORT, head: { acceptanceTitle: `Bautagesbericht ${date}`, acceptanceType: "Bautagesbericht", createdAt: `${date}T08:00` } });
+  protocol.kind = PROTOCOL_KIND_DAILY_REPORT;
+  protocol.checkpoints = [];
+  protocol.plans = [];
+  protocol.pins = [];
+  protocol.siteItems = [];
+  protocol.dailyReport = normalizeDailyReportMeta({ date, status: "Entwurf" }, protocol);
+  protocol.result.resultStatus = "Bautagesbericht dokumentiert";
+  state.protocols.unshift(protocol);
+  state.currentProjectId = protocol.projectId;
+  persist();
+  openDailyReportProtocol(protocol);
+  showAppToast("Bautagesbericht angelegt.");
 }
 
+function openDailyReportProtocol(protocol) {
+  if (!protocol) return;
+  state.current = normalizeProtocol(protocol);
+  state.currentProjectId = state.current.projectId || "";
+  const project = projectById(state.currentProjectId);
+  if (project) syncProtocolProjectFields(state.current, project, { overwriteProtocol: false });
+  showView("dailyReportEditorView");
+  renderDailyReportEditor();
+}
+
+function dailyReportListCard(protocol) {
+  const report = normalizeDailyReportMeta(protocol.dailyReport || {}, protocol);
+  const project = projectById(protocol.projectId);
+  const summary = report.workOriginal || report.workDescription || report.incidentsOriginal || "Noch keine Tätigkeiten dokumentiert.";
+  const time = [report.workStart, report.workEnd].filter(Boolean).join(" - ") || "Arbeitszeit offen";
+  return `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Bautagesbericht")}</h4><div class="muted">${escapeHtml(formatDate(report.date || protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(project?.name || protocol.head.projectName || "Projekt")}</div><div class="muted">${escapeHtml(time)} · ${escapeHtml(report.crew || "Kolonne offen")} · ${escapeHtml(report.status || "Entwurf")}</div><p class="muted">${escapeHtml(summary).slice(0, 180)}</p></div><div class="card-actions"><button class="secondary-btn" data-open-daily-report="${protocol.id}" type="button">Öffnen</button><button class="danger-btn" data-delete-daily-report="${protocol.id}" type="button">Löschen</button></div></article>`;
+}
+
+function renderDailyReportView() {
+  const list = $("#dailyReportList");
+  if (!list) return;
+  const project = projectById(state.currentProjectId) || state.projects[0] || null;
+  if (!project) { list.innerHTML = `<div class="panel"><p class="muted">Noch keine Projekte vorhanden. Bitte zuerst ein Projekt anlegen.</p><button class="primary-btn" id="siteNewProjectBtn" type="button">Neues Projekt</button></div>`; return; }
+  state.currentProjectId = project.id;
+  const reports = dailyReportProtocolsForProject(project.id);
+  list.innerHTML = `<section class="panel project-hub-summary"><div><h3>${escapeHtml(project.name || "Projekt")}</h3><p class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</p></div><button class="primary-btn" data-new-daily-report="${project.id}" type="button">Neuer Bautagesbericht</button></section><section class="panel"><div class="acceptance-list">${reports.length ? reports.map(dailyReportListCard).join("") : `<div class="empty-card muted">Noch kein Bautagesbericht in diesem Projekt.</div>`}</div></section>`;
+}
+
+function renderDailyReportEditor() {
+  const protocol = state.current;
+  if (!isDailyReportProtocol(protocol)) return;
+  const form = $("#dailyReportForm");
+  if (!form) return;
+  const project = projectById(protocol.projectId);
+  const report = protocol.dailyReport = normalizeDailyReportMeta(protocol.dailyReport, protocol);
+  form.elements.dailyTitle.value = protocol.head.acceptanceTitle || "Bautagesbericht";
+  form.elements.dailyDate.value = report.date || (protocol.head.createdAt || "").slice(0, 10);
+  form.elements.dailyProject.value = project?.name || protocol.head.projectName || "";
+  form.elements.dailyAddress.value = formatAddress(project?.address || protocol.head.siteAddress || protocol.head.siteAddressText || "", { multiline: false });
+  form.elements.dailyReportNumber.value = report.reportNumber || "";
+  form.elements.dailyStatus.value = report.status || "Entwurf";
+  form.elements.dailyStart.value = report.workStart || "";
+  form.elements.dailyEnd.value = report.workEnd || "";
+  form.elements.dailyBreak.value = report.breakHours || "";
+  form.elements.dailyCrew.value = report.crew || "";
+  form.elements.dailyCompany.value = report.company || "";
+  form.elements.dailyPersonCount.value = report.personCount || "";
+  form.elements.dailyForeman.value = report.foreman || "";
+  form.elements.dailyArea.value = report.area || "";
+  form.elements.dailyTrade.value = report.trade || "";
+  form.elements.dailyInputLanguage.value = report.inputLanguage || "de";
+  form.elements.dailyTranslationStatus.value = report.translationStatus || "nicht übersetzt";
+  form.elements.dailyWorkOriginal.value = report.workOriginal || "";
+  form.elements.dailyWorkGerman.value = report.workGerman || "";
+  form.elements.dailyWorkAlbanian.value = report.workAlbanian || "";
+  form.elements.dailyWorkDescription.value = report.workDescription || "";
+  form.elements.dailyMaterials.value = report.materials || "";
+  form.elements.dailyEquipment.value = report.equipment || "";
+  form.elements.dailyIncidentsOriginal.value = report.incidentsOriginal || "";
+  form.elements.dailyIncidentsGerman.value = report.incidentsGerman || "";
+  form.elements.dailyIncidentsAlbanian.value = report.incidentsAlbanian || "";
+  form.elements.dailyDelays.value = report.delays || "";
+  form.elements.dailyDefects.value = report.defects || "";
+  form.elements.dailyWeather.value = report.weather || "";
+  form.elements.dailyConfirmedBy.value = report.confirmedBy || "";
+  form.elements.dailyTotal.value = dailyReportTotalHours(report);
+  const banner = $("#dailyReportModeBanner");
+  if (banner) banner.innerHTML = `<strong>Bautagesbericht</strong><span>${escapeHtml(project?.name || protocol.head.projectName || "Projekt")} · ${escapeHtml(formatDate(report.date || protocol.head.createdAt))}</span>`;
+  renderDailyReportPhotos();
+}
+
+function saveDailyReportForm({ persistNow = true } = {}) {
+  if (!isDailyReportProtocol()) return;
+  const form = $("#dailyReportForm");
+  if (!form) return;
+  const p = state.current;
+  const photos = p.dailyReport?.photos || [];
+  const date = form.elements.dailyDate.value || (p.head.createdAt || nowLocalInput()).slice(0, 10);
+  p.head.acceptanceTitle = form.elements.dailyTitle.value || `Bautagesbericht ${date}`;
+  p.head.acceptanceType = "Bautagesbericht";
+  p.head.createdAt = date ? `${date}T${(p.head.createdAt || "T08:00").slice(11, 16) || "08:00"}` : (p.head.createdAt || nowLocalInput());
+  p.dailyReport = normalizeDailyReportMeta({
+    reportNumber: form.elements.dailyReportNumber.value || "", status: form.elements.dailyStatus.value || "Entwurf", date,
+    workStart: form.elements.dailyStart.value || "", workEnd: form.elements.dailyEnd.value || "", breakHours: form.elements.dailyBreak.value || "",
+    crew: form.elements.dailyCrew.value || "", company: form.elements.dailyCompany.value || "", personCount: form.elements.dailyPersonCount.value || "", foreman: form.elements.dailyForeman.value || "",
+    area: form.elements.dailyArea.value || "", trade: form.elements.dailyTrade.value || "", inputLanguage: form.elements.dailyInputLanguage.value || "de", translationStatus: form.elements.dailyTranslationStatus.value || "nicht übersetzt", workOriginal: form.elements.dailyWorkOriginal.value || "", workGerman: form.elements.dailyWorkGerman.value || "", workAlbanian: form.elements.dailyWorkAlbanian.value || "", workDescription: form.elements.dailyWorkDescription.value || "",
+    materials: form.elements.dailyMaterials.value || "", equipment: form.elements.dailyEquipment.value || "", incidentsOriginal: form.elements.dailyIncidentsOriginal.value || "", incidentsGerman: form.elements.dailyIncidentsGerman.value || "", incidentsAlbanian: form.elements.dailyIncidentsAlbanian.value || "", delays: form.elements.dailyDelays.value || "", defects: form.elements.dailyDefects.value || "",
+    weather: form.elements.dailyWeather.value || "", confirmedBy: form.elements.dailyConfirmedBy.value || "", photos
+  }, p);
+  p.dailyReport.totalHours = dailyReportTotalHours(p.dailyReport);
+  form.elements.dailyTotal.value = p.dailyReport.totalHours;
+  const project = projectById(p.projectId);
+  if (project) syncProtocolProjectFields(p, project, { overwriteProtocol: false });
+  p.weather.weatherCondition = p.dailyReport.weather;
+  p.result.finalNote = p.dailyReport.workOriginal || p.dailyReport.workDescription || "";
+  p.updatedAt = new Date().toISOString();
+  if (persistNow) persist(); else schedulePersist();
+}
+
+function renderDailyReportPhotos() {
+  const target = $("#dailyPhotoList");
+  if (!target || !isDailyReportProtocol()) return;
+  const photos = state.current.dailyReport?.photos || [];
+  target.innerHTML = photos.length ? photos.map((photo) => `<figure class="photo-tool-card"><img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><span>${escapeHtml(photo.name || "Foto")}</span><input data-daily-photo-caption="${photo.id}" value="${escapeAttr(photo.caption || "")}" placeholder="Bildbeschreibung"><button class="small-btn" type="button" data-delete-daily-photo="${photo.id}">Foto löschen</button></figcaption></figure>`).join("") : `<div class="empty-card muted">Noch keine Fotos im Bautagesbericht.</div>`;
+  hydratePhotoThumbs(target);
+}
+
+function updateDailyPhotoCaption(element) {
+  const photo = (state.current?.dailyReport?.photos || []).find((item) => item.id === element.dataset.dailyPhotoCaption);
+  if (!photo) return;
+  photo.caption = element.value || "";
+  state.current.updatedAt = new Date().toISOString();
+  schedulePersist();
+}
+
+function triggerDailyPhotoPicker(source) {
+  if (!isDailyReportProtocol()) return;
+  state.photoTarget = { kind: "dailyReport", id: state.current.id };
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  if (source === "camera") input.setAttribute("capture", "environment");
+  if (source === "gallery") input.multiple = true;
+  input.className = "visually-hidden";
+  input.addEventListener("change", async () => { await addPhotos(Array.from(input.files || [])); input.remove(); }, { once: true });
+  document.body.appendChild(input);
+  input.click();
+}
+
+function deleteDailyPhotoRef(photoId) {
+  if (!isDailyReportProtocol()) return;
+  state.current.dailyReport.photos = (state.current.dailyReport.photos || []).filter((photo) => photo.id !== photoId);
+  idbDelete("photos", photoId);
+  persist();
+  renderDailyReportEditor();
+}
+
+function deleteDailyReportProtocol(protocolId) {
+  state.protocols = state.protocols.filter((protocol) => protocol.id !== protocolId);
+  persist();
+  renderDailyReportView();
+  if ($("#projectHubView")?.classList.contains("active")) renderProjectHub();
+  showAppToast("Bautagesbericht gelöscht.");
+}
+
+async function fillDailyReportWeatherFromLocation() {
+  if (!isDailyReportProtocol()) return;
+  const form = $("#dailyReportForm");
+  if (!form) return;
+  if (!navigator.geolocation) { showAppToast("GPS ist in diesem Browser nicht verfügbar.", { type: "error" }); return; }
+  showAppToast("Wetter wird geladen ...", { type: "info", timeout: 1800 });
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    try {
+      const { latitude, longitude } = pos.coords;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m`;
+      const response = await fetch(url);
+      const data = await response.json();
+      const current = data.current || {};
+      form.elements.dailyWeather.value = `${current.temperature_2m ?? "?"} °C, Luftfeuchte ${current.relative_humidity_2m ?? "?"} %, Niederschlag ${current.precipitation ?? 0} mm, Wind ${current.wind_speed_10m ?? "?"} km/h`;
+      saveDailyReportForm();
+      showAppToast("Wetterdaten eingefügt.");
+    } catch { showAppToast("Wetterdaten konnten nicht geladen werden.", { type: "error" }); }
+  }, () => showAppToast("Standort konnte nicht ermittelt werden.", { type: "error" }), { enableHighAccuracy: false, timeout: 10000 });
+}
+
+
+async function translateText({ text, sourceLang, targetLang }) {
+  const cleanText = (text || "").trim();
+  if (!cleanText) throw new Error("Kein Text für die Übersetzung vorhanden.");
+  const endpointUrl = (state.settings.translationEndpointUrl || "").trim();
+  if (!state.settings.translationEnabled || !endpointUrl) {
+    return { translatedText: "", skipped: true };
+  }
+  const response = await fetch(endpointUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: cleanText, sourceLang, targetLang, context: "construction_daily_report" })
+  });
+  if (!response.ok) throw new Error(`Übersetzungsdienst HTTP ${response.status}`);
+  const data = await response.json();
+  return { translatedText: data.translatedText || "", skipped: false };
+}
+
+function dailyTranslationSourceText(direction, report = state.current?.dailyReport || {}) {
+  if (direction === "sq-de") return report.inputLanguage === "sq" ? report.workOriginal : (report.workAlbanian || report.workOriginal);
+  if (direction === "de-sq") return report.inputLanguage === "de" ? report.workOriginal : (report.workGerman || report.workOriginal);
+  return report.workOriginal || "";
+}
+
+async function runDailyTranslation(direction = "auto") {
+  if (!isDailyReportProtocol()) return;
+  saveDailyReportForm({ persistNow: false });
+  const report = state.current.dailyReport;
+  const directions = direction === "both" ? ["sq-de", "de-sq"] : [direction === "auto" ? (report.inputLanguage === "sq" ? "sq-de" : "de-sq") : direction];
+  let skipped = false;
+  try {
+    for (const item of directions) {
+      const sourceLang = item === "sq-de" ? "sq" : "de";
+      const targetLang = item === "sq-de" ? "de" : "sq";
+      const text = dailyTranslationSourceText(item, report);
+      const result = await translateText({ text, sourceLang, targetLang });
+      if (result.skipped) { skipped = true; continue; }
+      if (item === "sq-de") report.workGerman = result.translatedText;
+      if (item === "de-sq") report.workAlbanian = result.translatedText;
+      report.translationStatus = "automatisch übersetzt";
+    }
+    if (skipped) {
+      report.translationStatus = report.translationStatus || "nicht übersetzt";
+      showAppToast("Automatische Übersetzung ist noch nicht verbunden. Originaltext wurde gespeichert. Übersetzung kann manuell eingetragen werden.", { type: "info", timeout: 6500 });
+    } else {
+      showAppToast("Übersetzung aktualisiert.");
+    }
+  } catch (error) {
+    report.translationStatus = "Fehler";
+    showAppToast(`Übersetzung fehlgeschlagen: ${error?.message || error}`, { type: "error", timeout: 6500 });
+  }
+  persist();
+  renderDailyReportEditor();
+}
+
+function dailyTranslationPrompt(direction = "auto") {
+  const report = state.current?.dailyReport || {};
+  const resolved = direction === "auto" ? (report.inputLanguage === "sq" ? "sq-de" : "de-sq") : direction;
+  const text = dailyTranslationSourceText(resolved, report);
+  if (resolved === "sq-de") {
+    return `Übersetze folgenden Bautagesbericht von Albanisch nach Deutsch. Gib eine sachliche Fassung für einen Bautagesbericht aus. Keine Ausschmückungen, keine erfundenen Angaben:\n\n${text}`;
+  }
+  return `Übersetze folgenden Bautagesbericht von Deutsch nach Albanisch. Schreibe verständlich für Baustellenmitarbeiter:\n\n${text}`;
+}
+
+async function copyDailyTranslationPrompt(direction = "auto") {
+  if (!isDailyReportProtocol()) return;
+  saveDailyReportForm({ persistNow: false });
+  const prompt = dailyTranslationPrompt(direction);
+  try {
+    await navigator.clipboard.writeText(prompt);
+    showAppToast("Übersetzungstext kopiert.");
+  } catch {
+    showAppToast("Zwischenablage nicht verfügbar. Bitte Originaltext manuell kopieren.", { type: "error" });
+  }
+}
+
+async function buildDailyReportParts() {
+  saveDailyReportForm({ persistNow: false });
+  const p = state.current;
+  const report = p.dailyReport = normalizeDailyReportMeta(p.dailyReport || {}, p);
+  const project = projectById(p.projectId);
+  const photoCards = [];
+  for (const photo of report.photos || []) {
+    const url = await reportPhotoDataUrl(photo.id, { maxWidth: 1400, maxHeight: 1400, type: "image/jpeg", quality: 0.75 });
+    if (url) photoCards.push({ photo, url });
+  }
+  const css = `body{margin:0;background:#e9eef3;color:#172033;font-family:Arial,Helvetica,sans-serif}.report-export{background:#e9eef3;padding:18px}.report-page{width:180mm;max-width:180mm;min-height:267mm;margin:0 auto;background:#fff;padding:14mm;box-shadow:0 12px 34px rgba(15,23,42,.16);box-sizing:border-box}.report-header{display:flex;justify-content:space-between;gap:18px;border-bottom:2px solid #1f2d3d;padding-bottom:12px;margin-bottom:14px}.brand{text-transform:uppercase;letter-spacing:.06em;color:#667085;font-size:10px;font-weight:700}.report-header h1{margin:4px 0 6px;font-size:24px}.muted{color:#667085}.doc-meta{display:grid;gap:8px;min-width:36mm}.doc-meta div{border:1px solid #d8dee6;border-radius:8px;padding:7px 9px}.doc-meta span{display:block;font-size:9px;color:#667085;text-transform:uppercase}.doc-meta strong{font-size:12px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.info-card,.daily-card{border:1px solid #d8dee6;border-radius:10px;background:#fbfcfe;padding:10px 12px;margin:10px 0;break-inside:avoid}.info-card h3,.daily-card h3{margin:0 0 8px;font-size:14px}.info-row{display:grid;grid-template-columns:35mm 1fr;gap:8px;border-top:1px solid #edf1f5;padding:6px 0;font-size:11px}.info-row:first-of-type{border-top:0}.text-block{white-space:pre-wrap;font-size:11.5px;line-height:1.45;margin:6px 0}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo{break-inside:avoid}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#667085;margin:5px 0 0}.footer-note{margin-top:24px;border-top:1px solid #d8dee6;padding-top:8px;color:#667085;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.daily-card,.photo{break-inside:avoid;page-break-inside:avoid}}`;
+  const photoHtml = photoCards.length ? `<div class="photo-grid">${photoCards.map(({ photo, url }) => `<figure class="photo"><img src="${url}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><p><strong>${escapeHtml(photo.caption || photo.name || "Foto")}</strong></p><p>${escapeHtml(photo.name || "Foto")}</p></figcaption></figure>`).join("")}</div>` : `<p class="muted">Keine Fotos dokumentiert.</p>`;
+  const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", formatAddress(project?.address || p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
+  const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" - ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
+  const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", report.inputLanguage === "sq" ? "Albanisch" : "Deutsch")}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(report.workGerman || (report.inputLanguage === "de" ? report.workOriginal : "") || report.workDescription || "Keine Tätigkeiten dokumentiert.")}</p>${report.inputLanguage === "sq" && report.workOriginal ? `<div class="info-card"><h3>Originaltext Albanisch</h3><p class="text-block">${escapeHtml(report.workOriginal)}</p></div>` : ""}${report.inputLanguage === "de" && report.workAlbanian ? `<div class="info-card"><h3>Albanische Fassung</h3><p class="text-block">${escapeHtml(report.workAlbanian)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
+  const title = sanitizeFileName(`Bautagesbericht_${project?.name || p.head.projectName || "Projekt"}_${report.date || (p.head.createdAt || "").slice(0,10)}`);
+  return { css, body, title, fileName: `${title}.pdf` };
+}
+
+
 async function buildReportParts() {
+  if (isDailyReportProtocol()) return buildDailyReportParts();
   if (isSiteControlProtocol()) return buildSiteControlReportParts();
   saveFromForm();
   await ensureReportPlanImages();
@@ -6541,8 +7303,9 @@ async function printReportA4() {
   try {
     if (!reportElement) throw new Error("Bericht enthält keine druckbaren Inhalte.");
     const textLength = (reportElement.innerText || "").trim().length;
-    if (textLength < 100 || !reportElement.querySelector(".report-header") || !reportElement.querySelector(".result-box")) {
-      throw new Error("Bericht enthält keine druckbaren Inhalte.");
+    const hasReportStructure = reportElement.querySelector(".report-header") && (reportElement.querySelector(".result-box") || reportElement.querySelector(".site-report-card") || reportElement.querySelector(".info-card"));
+    if (textLength < 100 || !hasReportStructure) {
+      throw new Error("Bericht enth?lt keine druckbaren Inhalte.");
     }
   } catch (error) {
     alert(error?.message || "Bericht enthält keine druckbaren Inhalte.");
@@ -8820,6 +9583,11 @@ function bindEvents() {
   bindOptional("#newProjectBtn", "click", createProject);
   bindOptional("#newFromListBtn", "click", createProject);
   bindOptional("#backBtn", "click", async () => {
+    if ($("#dailyReportEditorView")?.classList.contains("active")) {
+      saveDailyReportForm();
+      await navigateToView(state.currentProjectId ? "projectHubView" : "dailyReportView");
+      return;
+    }
     if ($("#siteControlEditorView")?.classList.contains("active")) {
       saveSiteControlForm();
       await navigateToView(state.currentProjectId ? "projectHubView" : "siteControlView");
@@ -8845,7 +9613,7 @@ function bindEvents() {
       await navigateToView("projectDirectoryView");
       return;
     }
-    if (($("#listView")?.classList.contains("active") || $("#siteControlView")?.classList.contains("active")) && state.currentProjectId) {
+    if (($("#listView")?.classList.contains("active") || $("#siteControlView")?.classList.contains("active") || $("#dailyReportView")?.classList.contains("active")) && state.currentProjectId) {
       await navigateToView("projectHubView");
       return;
     }
@@ -8859,6 +9627,11 @@ function bindEvents() {
     if ($("#masterDataView")?.classList.contains("active")) {
       const saved = await saveMasterData();
       if (saved) await navigateToView("homeView");
+      return;
+    }
+    if ($("#dailyReportEditorView")?.classList.contains("active")) {
+      saveDailyReportForm();
+      showAppToast("Lokal gespeichert.");
       return;
     }
     if ($("#siteControlEditorView")?.classList.contains("active")) {
@@ -8986,6 +9759,23 @@ function bindEvents() {
       applyCheckScopeTemplate({ confirmUser: true });
     }
   });
+  const dailyReportForm = $("#dailyReportForm");
+  if (dailyReportForm) {
+    dailyReportForm.addEventListener("input", (event) => {
+      if (event.target.matches("[data-daily-photo-caption]")) {
+        updateDailyPhotoCaption(event.target);
+        return;
+      }
+      saveDailyReportForm({ persistNow: false });
+    });
+    dailyReportForm.addEventListener("change", (event) => {
+      if (event.target.matches("[data-daily-photo-caption]")) {
+        updateDailyPhotoCaption(event.target);
+        return;
+      }
+      saveDailyReportForm();
+    });
+  }
   const siteControlForm = $("#siteControlForm");
   if (siteControlForm) {
     siteControlForm.addEventListener("input", (event) => {
@@ -9007,9 +9797,24 @@ function bindEvents() {
   bindOptional("#masterDataPanel", "change", handleMasterDataInput);
   bindOptional("#projectSearchInput", "input", renderProjectDirectory);
   bindOptional("#projectPlansContent", "input", (event) => {
+    if (event.target.matches("#projectPlanSearchInput")) {
+      renderProjectPlansView();
+      const search = $("#projectPlanSearchInput");
+      if (search) {
+        search.focus();
+        const length = search.value.length;
+        search.setSelectionRange(length, length);
+      }
+      return;
+    }
     if (event.target.matches("[data-project-plan-field]")) updateProjectPlanField(event.target);
   });
   bindOptional("#projectPlansContent", "change", (event) => {
+    if (event.target.matches("#projectPlanUploadInput")) {
+      importProjectPlanFiles(event.target.files || [], state.currentProjectId);
+      event.target.value = "";
+      return;
+    }
     if (event.target.matches("[data-project-plan-field]")) {
       updateProjectPlanField(event.target);
       renderProjectPlansView();
@@ -9055,6 +9860,28 @@ function bindEvents() {
     if (dynamicNav) navigateToView(dynamicNav.dataset.nav);
     const siteNewProject = event.target.closest("#siteNewProjectBtn");
     if (siteNewProject) createProject();
+    const newDailyReport = event.target.closest("[data-new-daily-report], #newDailyReportBtn");
+    if (newDailyReport) createBlankDailyReport(newDailyReport.dataset.newDailyReport || state.currentProjectId);
+    const openDailyReport = event.target.closest("[data-open-daily-report]");
+    if (openDailyReport) openDailyReportProtocol(state.protocols.find((p) => p.id === openDailyReport.dataset.openDailyReport));
+    const deleteDailyReport = event.target.closest("[data-delete-daily-report]");
+    if (deleteDailyReport && confirm("Diesen Bautagesbericht löschen?")) deleteDailyReportProtocol(deleteDailyReport.dataset.deleteDailyReport);
+    const dailyPhotoCamera = event.target.closest("#dailyPhotoCameraBtn");
+    if (dailyPhotoCamera) triggerDailyPhotoPicker("camera");
+    const dailyPhotoGallery = event.target.closest("#dailyPhotoGalleryBtn");
+    if (dailyPhotoGallery) triggerDailyPhotoPicker("gallery");
+    const deleteDailyPhoto = event.target.closest("[data-delete-daily-photo]");
+    if (deleteDailyPhoto && confirm("Dieses Foto löschen?")) deleteDailyPhotoRef(deleteDailyPhoto.dataset.deleteDailyPhoto);
+    const dailyWeatherAuto = event.target.closest("#dailyWeatherAutoBtn");
+    if (dailyWeatherAuto) fillDailyReportWeatherFromLocation();
+    const dailyTranslate = event.target.closest("[data-daily-translate]");
+    if (dailyTranslate) runDailyTranslation(dailyTranslate.dataset.dailyTranslate);
+    const dailyCopyPrompt = event.target.closest("[data-daily-copy-prompt]");
+    if (dailyCopyPrompt) copyDailyTranslationPrompt(dailyCopyPrompt.dataset.dailyCopyPrompt);
+    const dailyPdfSave = event.target.closest("#dailyPdfSaveBtn");
+    if (dailyPdfSave) savePdfFromA4Report();
+    const dailyPdfPreview = event.target.closest("#dailyPdfPreviewBtn");
+    if (dailyPdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
     const newSiteControl = event.target.closest("[data-new-site-control]");
     if (newSiteControl) createBlankSiteControl(newSiteControl.dataset.newSiteControl);
     const openSiteControl = event.target.closest("[data-open-site-control]");
@@ -9098,12 +9925,20 @@ function bindEvents() {
       persist();
       renderSiteControlEditor();
     }
+    const siteWeatherAuto = event.target.closest("#siteWeatherAutoBtn");
+    if (siteWeatherAuto) fillSiteControlWeatherFromLocation();
     const sitePdfSave = event.target.closest("#sitePdfSaveBtn");
     if (sitePdfSave) savePdfFromA4Report();
     const sitePdfPreview = event.target.closest("#sitePdfPreviewBtn");
     if (sitePdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
+    const openProjectPlanButton = event.target.closest("[data-open-project-plan]");
+    if (openProjectPlanButton) openProjectPlanPreview(openProjectPlanButton.dataset.protocolId, openProjectPlanButton.dataset.openProjectPlan);
     const openDropboxLink = event.target.closest("[data-open-dropbox-link]");
     if (openDropboxLink) openProjectPlanDropboxLink(openDropboxLink.dataset.protocolId, openDropboxLink.dataset.openDropboxLink);
+    const projectPlanUpload = event.target.closest("#projectPlanUploadBtn");
+    if (projectPlanUpload) $("#projectPlanUploadInput")?.click();
+    const deleteProjectPlanButton = event.target.closest("[data-delete-project-plan]");
+    if (deleteProjectPlanButton) deleteProjectPlan(deleteProjectPlanButton.dataset.protocolId, deleteProjectPlanButton.dataset.deleteProjectPlan);
     const projectModule = event.target.closest("[data-project-module]");
     if (projectModule) {
       const action = projectModule.dataset.projectModule;
@@ -9111,6 +9946,7 @@ function bindEvents() {
       if (action === "directory") navigateToView("projectDirectoryView");
       if (action === "rebar") navigateToView("listView");
       if (action === "site") navigateToView("siteControlView");
+      if (action === "daily") navigateToView("dailyReportView");
       if (action === "projectData") openProjectDialog(state.currentProjectId);
       if (action === "plans") navigateToView("projectPlansView");
       if (action === "openPoints") showAppToast("Offene Punkte sind in den Listen der Projektzentrale sichtbar.", { type: "info" });
@@ -9612,6 +10448,9 @@ function bindEvents() {
   bindOptional("#dropboxPlanFolder", "input", (event) => { state.settings.dropboxPlanFolder = event.target.value || "Pläne"; persist(); });
   bindOptional("#dropboxPhotoFolder", "input", (event) => { state.settings.dropboxPhotoFolder = event.target.value || "Fotos"; persist(); });
   bindOptional("#dropboxReportFolder", "input", (event) => { state.settings.dropboxReportFolder = event.target.value || "Berichte"; persist(); });
+  bindOptional("#translationEnabled", "change", (event) => { state.settings.translationEnabled = !!event.target.checked; persist(); });
+  bindOptional("#translationEndpointUrl", "input", (event) => { state.settings.translationEndpointUrl = event.target.value || ""; persist(); });
+  bindOptional("#translationDefaultDirection", "change", (event) => { state.settings.translationDefaultDirection = event.target.value || "auto"; persist(); });
   bindOptional("#storageCheckBtn", "click", checkStorage);
   bindOptional("#reloadDataInventoryBtn", "click", reloadDataInventoryFromDb);
   bindOptional("#clearAllBtn", "click", () => {
@@ -10137,9 +10976,10 @@ async function collectDataInventory() {
   const masterData = normalizeMasterData(await idbGet("masterData", "app"));
   const plans = await idbGetAll("plans");
   const photos = await idbGetAll("photos");
-  const rebar = protocols.filter((protocol) => !isSiteControlProtocol(protocol));
+  const rebar = protocols.filter((protocol) => !isSiteControlProtocol(protocol) && !isDailyReportProtocol(protocol) && !isProjectPlanLibraryProtocol(protocol));
   const followups = protocols.filter((protocol) => protocol.type === "followup");
   const siteControls = protocols.filter(isSiteControlProtocol);
+  const dailyReports = protocols.filter(isDailyReportProtocol);
   const pins = protocols.reduce((sum, protocol) => sum + (protocol.pins || []).length, 0);
   const masterEntries = masterData.companies.length + masterData.inspectors.length + masterData.ownPersons.length + masterData.components.length + masterData.floors.length + masterData.acceptanceTypes.length + masterData.areaAxes.length + masterData.signatureRoles.length;
   return {
@@ -10148,6 +10988,7 @@ async function collectDataInventory() {
     rebar: rebar.length,
     followups: followups.length,
     siteControls: siteControls.length,
+    dailyReports: dailyReports.length,
     plans: plans.length,
     pins,
     photos: photos.length,
@@ -10165,7 +11006,7 @@ async function checkStorage() {
     const info = await collectDataInventory();
     $("#storageCheckResult").innerHTML = `
       <strong>Datenbestand</strong><br>
-      ${info.projects} Projekt(e) · ${info.rebar} Bewehrungsabnahme(n) · ${info.followups} Nachbegehung(en) · ${info.siteControls} Baustellenkontrolle(n)<br>
+      ${info.projects} Projekt(e) · ${info.rebar} Bewehrungsabnahme(n) · ${info.followups} Nachbegehung(en) · ${info.siteControls} Baustellenkontrolle(n) · ${info.dailyReports} Bautagesbericht(e)<br>
       ${info.plans} Plan-Datei(en) · ${info.pins} Pin(s) · ${info.photos} Foto(s) · ${info.masterEntries} Stammdaten-Eintrag(e)<br>
       DB: ${escapeHtml(info.dbName)} v${info.dbVersion} · Stores: ${escapeHtml(info.stores.join(", "))}<br>
       App: ${escapeHtml(info.appVersion)} · letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}
@@ -10184,6 +11025,7 @@ async function reloadDataInventoryFromDb() {
     if ($("#projectHubView")?.classList.contains("active")) renderProjectHub();
     if ($("#listView")?.classList.contains("active")) renderList();
     if ($("#siteControlView")?.classList.contains("active")) renderSiteControlView();
+    if ($("#dailyReportView")?.classList.contains("active")) renderDailyReportView();
     renderDatalists();
     if ($("#masterDataView")?.classList.contains("active")) renderMasterData();
     if ($("#settingsView")?.classList.contains("active")) await checkStorage();
@@ -10503,6 +11345,7 @@ async function boot() {
     renderHomeProjects();
     renderList();
     renderSiteControlView();
+    renderDailyReportView();
     window.addEventListener("resize", updateReportPreviewFrame);
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").then(() => cacheRuntimeAssets()).catch(() => {});

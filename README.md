@@ -289,3 +289,28 @@ Die bestehenden Stammdatenstrukturen bleiben unverändert. Der stabile Baustelle
 - Der BewehrungsCheck-Planviewer, bestehende Bewehrungs-Pins und der A4-Berichtspfad bleiben unverändert.
 - Der A4-Bericht der Baustellenkontrolle zeigt den Planbezug je Feststellung und eine kompakte Liste der Planmarkierungen.
 
+## v109 Teststand: Integrationsfix Projektpl?ne und Baustellenkontrolle
+
+- Baustellenkontrollbericht nutzt den offiziellen A4-/Druckdialog-Weg und wird als druckbarer Bericht erkannt.
+- Projektpl?ne werden in der zentralen Anzeige dedupliziert, ohne bestehende Plandaten zu l?schen.
+- Projektpl?ne zeigen eine kompakte Vorschau-/Platzhalterkachel und nutzerfreundliche Dropbox-/Sync-Hinweise.
+- Dropbox-Status wird deutsch angezeigt; automatische Synchronisierung bleibt f?r sp?ter vorbereitet.
+- Baustellenkontrolle nutzt globale Stammdaten-Datalists f?r Teilnehmer, Zust?ndige und Gewerke weiterhin mit Freitext.
+- Wetter kann in der Baustellenkontrolle per Standort/Open-Meteo in das aktuelle Protokoll ?bernommen werden.
+- Stabiler Rettungsstand bleibt `v99-stable-followup-full-workflow`.
+
+
+
+## v110 Teststand: Bautagesbericht MVP
+
+Der v110-Teststand ergänzt das Modul **Bautagesbericht** als vorführbares MVP in der Projektzentrale. Das Modul nutzt die bestehende Projektstruktur, Stammdaten, Fotoablage, Wetterabfrage, Spracheingabe und den offiziellen A4-Druckdialog-Berichtspfad.
+
+Enthalten im MVP:
+- Bautagesbericht je Projekt anlegen, öffnen und löschen
+- Arbeitszeit, Personal, Tätigkeiten, Baustellendokumentation, Wetter und Fotos dokumentieren
+- Spracheingabe Deutsch sowie vorbereitete Spracheingabe Albanisch (`sq-AL`) für Tätigkeiten und besondere Vorkommnisse
+- Übersetzungsfelder ohne Fake-Übersetzung; Originaltext bleibt maßgebend
+- A4-Vorschau und PDF speichern über den bestehenden Druckdialog
+- Speicherung im bestehenden Protokollspeicher mit `protocol.kind = "daily-report"`, dadurch im vollständigen Backup enthalten
+
+Stabiler Rettungsstand bleibt v99; v110 ist ein BauSuite-Teststand für die Vorführung.

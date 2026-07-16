@@ -55,3 +55,7 @@ Stabiler Rettungsstand bleibt: `v99-stable-followup-full-workflow`.
 
 v108 erweitert den BauSuite-Teststand um zentral sichtbare Projektpläne und Planmarkierungen in der Baustellenkontrolle. Der stabile Rettungsstand bleibt `v99-stable-followup-a4-workflow`; der offizielle A4-PDF-Workflow aus v95/v99 darf weiterhin nicht ohne Freigabe ersetzt werden.
 
+## v109 Teststand
+
+v109 ist ein BauSuite-Teststand mit Integrationsfixes f?r Projektpl?ne, Baustellenkontrolle, Stammdaten, Wetter und Bericht. Letzter stabiler Rettungsstand bleibt `v99-stable-followup-full-workflow`.
+
