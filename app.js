@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v107";
+const APP_VERSION = "v108";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1063,6 +1063,8 @@ function normalizeSiteControlItems(items = [], protocolId = "") {
     description: item.description || item.note || "",
     planReference: item.planReference || "",
     pinId: item.pinId || "",
+    planId: item.planId || "",
+    pageNumber: Math.max(1, Number(item.pageNumber) || 1),
     photos: (item.photos || []).map(normalizePhotoRef),
     createdAt: item.createdAt || new Date().toISOString(),
     updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
@@ -1628,6 +1630,60 @@ function planSourceLabel(plan = {}) {
 
 function projectPlanEntries(projectId = state.currentProjectId) {
   return protocolsForProject(projectId).flatMap((protocol) => (protocol.plans || []).map((plan) => ({ protocol, plan: normalizePlanMeta(plan) })));
+}
+
+
+function markPlansForCurrentContext() {
+  if (!state.current) return [];
+  if (isSiteControlProtocol()) {
+    return projectPlanEntries(state.current.projectId).map(({ plan }) => normalizePlanMeta(plan));
+  }
+  return Array.isArray(state.current.plans) ? state.current.plans : [];
+}
+
+function siteControlPinForItem(item) {
+  if (!item?.pinId || !state.current?.pins) return null;
+  return state.current.pins.find((pin) => pin.id === item.pinId) || null;
+}
+
+function siteControlItemContext(item = {}) {
+  return [item.type, item.location || item.trade].filter(Boolean).join(" \u00b7 ") || "Feststellung";
+}
+
+function siteControlPinStatus(status = "") {
+  const value = String(status || "").toLowerCase();
+  if (value.includes("erledigt")) return "OK";
+  if (value.includes("kl\u00e4r") || value.includes("bearbeitung")) return "teilweise / Auflage";
+  if (value.includes("offen") || value.includes("mangel")) return "nicht OK";
+  return "offen / nicht bewertet";
+}
+
+function siteControlPlanReference(item = {}, pin = siteControlPinForItem(item)) {
+  const planId = pin?.planId || item.planId || "";
+  const plan = planById(planId);
+  if (!pin && !planId && !item.planReference) return "";
+  const page = pin?.pageNumber || item.pageNumber || 1;
+  const label = pin ? pinLabel(pin) : "Pin";
+  const planName = plan ? (plan.planNumber || plan.title || plan.fileName || "Plan") : (item.planReference || "Plan");
+  return `${planName} \u00b7 Seite ${page} \u00b7 ${label}`;
+}
+
+function syncSiteControlItemPinReference(item, pin) {
+  if (!item || !pin) return;
+  item.pinId = pin.id;
+  item.planId = pin.planId || "";
+  item.pageNumber = Math.max(1, Number(pin.pageNumber) || 1);
+  item.planReference = siteControlPlanReference(item, pin);
+  item.updatedAt = new Date().toISOString();
+}
+
+function clearSiteControlItemPin(item) {
+  if (!item) return;
+  item.pinId = "";
+  item.planId = "";
+  item.pageNumber = 1;
+  item.planReference = "";
+  item.updatedAt = new Date().toISOString();
 }
 
 
@@ -2724,14 +2780,14 @@ function renderProjectPlansView() {
 }
 
 function projectPlanCard(protocol, plan) {
-  const display = `${plan.planNumber || plan.fileName || "Plan"}${plan.title ? ` ? ${plan.title}` : ""}`;
+  const display = `${plan.planNumber || plan.fileName || "Plan"}${plan.title ? ` · ${plan.title}` : ""}`;
   return `
     <article class="project-plan-card" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
       <div class="project-plan-card-head">
         <div>
           <h4>${escapeHtml(display)}</h4>
-          <p class="muted">Quelle: ${escapeHtml(planSourceLabel(plan))}${plan.dropboxPath ? ` ? Pfad: ${escapeHtml(plan.dropboxPath)}` : ""}</p>
-          <p class="muted">Aus: ${escapeHtml(acceptanceLabel(protocol))} ? ${escapeHtml(plan.fileName || "Datei offen")}</p>
+          <p class="muted">Quelle: ${escapeHtml(planSourceLabel(plan))}${plan.dropboxPath ? ` · Pfad: ${escapeHtml(plan.dropboxPath)}` : ""}</p>
+          <p class="muted">Aus: ${escapeHtml(acceptanceLabel(protocol))} · ${escapeHtml(plan.fileName || "Datei offen")}</p>
         </div>
         ${plan.dropboxSharedLink ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox Öffnen</button>` : ""}
       </div>
@@ -3479,7 +3535,12 @@ function makePrimaryPlacement(pinId, placementId) {
 }
 
 function planById(planId) {
-  return state.current?.plans.find((plan) => plan.id === planId) || null;
+  if (!planId) return null;
+  const localPlan = state.current?.plans?.find((plan) => plan.id === planId);
+  if (localPlan) return localPlan;
+  const projectId = state.current?.projectId || state.currentProjectId;
+  const entry = projectPlanEntries(projectId).find(({ plan }) => plan.id === planId);
+  return entry?.plan || null;
 }
 
 function pinLabel(pin) {
@@ -4857,7 +4918,7 @@ function renderPhotoDialog() {
 function openPlanMarkDialog(sampleId) {
   const sample = findSample(sampleId);
   if (!sample) return;
-  const plans = Array.isArray(state.current?.plans) ? state.current.plans : [];
+  const plans = markPlansForCurrentContext();
   if (!plans.length) {
     alert("Keine Planunterlagen vorhanden. Bitte im Plan-Reiter zuerst einen Plan hinzufügen.");
     return;
@@ -4872,7 +4933,7 @@ function openPlanMarkDialog(sampleId) {
     alert("Keine Planunterlagen vorhanden. Bitte im Plan-Reiter zuerst einen Plan hinzufügen.");
     return;
   }
-  state.markTarget = { sampleId };
+  state.markTarget = { kind: "rebar", sampleId };
   state.mark = {
     ...state.mark,
     sampleId,
@@ -4895,6 +4956,44 @@ function openPlanMarkDialog(sampleId) {
   renderMarkPlan();
 }
 
+function openSiteControlPlanMarkDialog(itemId, { reset = false } = {}) {
+  const item = findSiteControlItem(itemId);
+  if (!item) return;
+  const plans = markPlansForCurrentContext();
+  if (!plans.length) {
+    alert("Keine Projektpl\u00e4ne vorhanden. Bitte in der Projektzentrale oder in einer Bewehrungsabnahme zuerst einen Plan hinzuf\u00fcgen.");
+    return;
+  }
+  if (isAndroidFirefox()) alert(androidFirefoxWarningText());
+  const pin = item.pinId ? state.current.pins.find((entry) => entry.id === item.pinId) : null;
+  const preferredPlanId = pin?.planId || item.planId || state.mark.planId || plans[0].id;
+  const selectedMarkPlan = planById(preferredPlanId) || plans[0];
+  state.markTarget = { kind: "site-control", itemId: item.id };
+  state.mark = {
+    ...state.mark,
+    sampleId: "",
+    siteItemId: item.id,
+    planId: selectedMarkPlan.id,
+    pageNumber: Math.max(1, Math.min(pin?.pageNumber || item.pageNumber || 1, selectedMarkPlan.pageCount || 1)),
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    active: reset || !pin,
+    movePinId: "",
+    isPinching: false,
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    pinchCenter: null,
+    pointers: new Map(),
+    moved: false
+  };
+  state.selectedPinId = pin?.id || "";
+  renderMarkSelectors();
+  $("#planMarkDialog").showModal();
+  renderMarkPlan();
+  if (pin && !reset) renderMarkPinSheet(pin.id);
+}
+
 function closePlanMarkDialog() {
   state.mark.active = false;
   state.mark.movePinId = "";
@@ -4906,7 +5005,7 @@ function closePlanMarkDialog() {
 }
 
 function renderMarkSelectors() {
-  const plans = Array.isArray(state.current?.plans) ? state.current.plans : [];
+  const plans = markPlansForCurrentContext();
   const plan = planById(state.mark.planId) || plans[0];
   state.mark.planId = plan?.id || "";
   const planSelect = $("#markPlanSelect");
@@ -5177,19 +5276,23 @@ function renderMarkPins() {
 function renderMarkPinSheet(pinId = state.selectedPinId) {
   const sheet = $("#markPinSheet");
   if (!sheet) return;
-  const pin = state.current?.pins.find((item) => item.id === pinId);
+  const pin = state.current?.pins?.find((item) => item.id === pinId);
   if (!pin) {
     sheet.classList.add("hidden");
     sheet.innerHTML = "";
     return;
   }
-  const sample = pin.sampleId ? findSample(pin.sampleId) : null;
-  const check = sample ? findCheckBySample(sample.id) : state.current.checkpoints.find((item) => item.id === pin.checkItemId);
+  const siteItem = pin.itemId ? findSiteControlItem(pin.itemId) : null;
+  const sample = !siteItem && pin.sampleId ? findSample(pin.sampleId) : null;
+  const check = sample ? findCheckBySample(sample.id) : (!isSiteControlProtocol() ? state.current?.checkpoints?.find((item) => item.id === pin.checkItemId) : null);
+  const context = siteItem
+    ? siteControlItemContext(siteItem)
+    : `${check?.title || "Allgemeine Feststellung"}${sample ? ` \u00b7 Pr\u00fcfstelle ${sample.number}${sample.location ? ` \u00b7 ${escapeHtml(sample.location)}` : ""}` : ""}`;
   sheet.classList.remove("hidden");
   sheet.innerHTML = `
     <div class="sheet-head">
-      <strong>${escapeHtml(pinLabel(pin))} · ${escapeHtml(pin.title || check?.title || "Planmarkierung")}</strong>
-      <button class="small-btn" type="button" data-close-mark-pin-sheet>Schließen</button>
+      <strong>${escapeHtml(pinLabel(pin))} \u00b7 ${escapeHtml(pin.title || siteItem?.type || check?.title || "Planmarkierung")}</strong>
+      <button class="small-btn" type="button" data-close-mark-pin-sheet>Schlie\u00dfen</button>
     </div>
     <div class="grid compact-grid">
       <label>Status
@@ -5206,10 +5309,10 @@ function renderMarkPinSheet(pinId = state.selectedPinId) {
       <textarea data-mark-pin-field="note">${escapeHtml(pin.note || "")}</textarea>
       <button class="mic-btn" type="button" data-voice-mark-pin="${pin.id}" data-voice-mark-field="note">Sprache</button>
     </label>
-    <p class="muted">${escapeHtml(check?.title || "Allgemeine Feststellung")}${sample ? ` · Prüfstelle ${sample.number}${sample.location ? ` · ${escapeHtml(sample.location)}` : ""}` : ""}</p>
+    <p class="muted">${escapeHtml(context)}</p>
     <div class="sheet-photo-actions">
       <button class="secondary-btn" type="button" data-mark-pin-photo="camera">Foto aufnehmen</button>
-      <button class="secondary-btn" type="button" data-mark-pin-photo="gallery">Foto aus Galerie auswählen</button>
+      <button class="secondary-btn" type="button" data-mark-pin-photo="gallery">Foto aus Galerie ausw\u00e4hlen</button>
     </div>
     <div class="pin-sheet-photos">
       ${(pin.photos || []).length ? (pin.photos || []).map((photo) => `<img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">`).join("") : `<span class="muted">Noch keine Fotos.</span>`}
@@ -5217,7 +5320,7 @@ function renderMarkPinSheet(pinId = state.selectedPinId) {
     <div class="sheet-actions">
       <button class="secondary-btn" type="button" data-move-mark-pin="${pin.id}">Pin verschieben</button>
       <button class="secondary-btn" type="button" data-reset-mark-pin="${pin.id}">Pin neu setzen</button>
-      <button class="secondary-btn" type="button" data-return-sample-from-mark>Zur Prüfstelle zurück</button>
+      <button class="secondary-btn" type="button" data-return-sample-from-mark>${siteItem ? "Zur Feststellung zur\u00fcck" : "Zur Pr\u00fcfstelle zur\u00fcck"}</button>
       <button class="danger-btn" type="button" data-remove-mark-pin="${pin.id}">Pin entfernen</button>
     </div>
   `;
@@ -5299,6 +5402,16 @@ function moveMarkPinTo(clientX, clientY) {
   pin.updatedAt = new Date().toISOString();
   state.selectedPinId = pin.id;
   state.mark.movePinId = "";
+  const siteItem = pin.itemId ? findSiteControlItem(pin.itemId) : null;
+  if (siteItem && isSiteControlProtocol()) {
+    syncSiteControlItemPinReference(siteItem, pin);
+    saveSiteControlForm();
+    renderMarkPins();
+    renderMarkPinSheet(pin.id);
+    renderMarkSelectors();
+    renderSiteControlEditor();
+    return;
+  }
   saveFromForm();
   renderMarkPins();
   renderMarkPinSheet(pin.id);
@@ -5308,9 +5421,20 @@ function moveMarkPinTo(clientX, clientY) {
 }
 
 function removeMarkPin(pinId) {
-  const pin = state.current?.pins.find((item) => item.id === pinId);
+  const pin = state.current?.pins?.find((item) => item.id === pinId);
   if (!pin) return;
   state.current.pins = state.current.pins.filter((item) => item.id !== pinId);
+  if (isSiteControlProtocol()) {
+    (state.current.siteItems || []).forEach((item) => {
+      if (item.pinId === pinId) clearSiteControlItemPin(item);
+    });
+    if (state.selectedPinId === pinId) state.selectedPinId = "";
+    saveSiteControlForm();
+    renderMarkPins();
+    renderMarkPinSheet("");
+    renderSiteControlEditor();
+    return;
+  }
   state.current.checkpoints.forEach((check) => {
     if (check.pinId === pinId) check.pinId = "";
     (check.samples || []).forEach((sample) => {
@@ -5403,6 +5527,79 @@ function placeSamplePin(clientX, clientY) {
   renderMarkPinSheet(pin.id);
   renderChecklist();
   renderPlan();
+}
+
+
+function placeMarkPin(clientX, clientY) {
+  if (state.markTarget?.kind === "site-control") {
+    placeSiteControlPin(clientX, clientY);
+    return;
+  }
+  placeSamplePin(clientX, clientY);
+}
+
+function placeSiteControlPin(clientX, clientY) {
+  const item = findSiteControlItem(state.markTarget?.itemId || state.mark.siteItemId || "");
+  const plan = planById(state.mark.planId);
+  const stage = $("#markStage");
+  if (!item || !plan || !stage) return;
+  const rect = stage.getBoundingClientRect();
+  if (rect.width < 20 || rect.height < 20) return;
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return;
+  const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  const y = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+  let pin = item.pinId ? state.current.pins.find((entry) => entry.id === item.pinId) : null;
+  const now = new Date().toISOString();
+  if (!pin) {
+    pin = {
+      id: uid("pin"),
+      module: "site-control",
+      projectId: state.current.projectId,
+      protocolId: state.current.id,
+      itemId: item.id,
+      number: nextPinNumber(),
+      planId: plan.id,
+      pageNumber: state.mark.pageNumber,
+      x,
+      y,
+      xPercent: x,
+      yPercent: y,
+      placements: [],
+      title: item.location || item.type || "Feststellung",
+      status: siteControlPinStatus(item.status),
+      note: item.description || "",
+      photos: [],
+      createdAt: now,
+      updatedAt: now
+    };
+    state.current.pins.push(pin);
+  }
+  pin.module = "site-control";
+  pin.projectId = state.current.projectId;
+  pin.protocolId = state.current.id;
+  pin.itemId = item.id;
+  pin.planId = plan.id;
+  pin.pageNumber = state.mark.pageNumber;
+  pin.x = x;
+  pin.y = y;
+  pin.xPercent = x;
+  pin.yPercent = y;
+  pin.title = item.location || pin.title || item.type || "Feststellung";
+  pin.status = pin.status || siteControlPinStatus(item.status);
+  pin.note = pin.note || item.description || "";
+  pin.updatedAt = now;
+  pin.placements = pinPlacements(pin).filter((placement) => !(placement.planId === plan.id && placement.pageNumber === state.mark.pageNumber));
+  pin.placements.push({ id: uid("placement"), planId: plan.id, pageNumber: state.mark.pageNumber, x, y, label: "", isPrimary: true });
+  pin.placements.forEach((placement) => { placement.isPrimary = placement.planId === plan.id && placement.pageNumber === state.mark.pageNumber; });
+  syncSiteControlItemPinReference(item, pin);
+  state.selectedPinId = pin.id;
+  state.selectedPlanId = plan.id;
+  state.mark.active = false;
+  saveSiteControlForm();
+  renderMarkSelectors();
+  renderMarkPins();
+  renderMarkPinSheet(pin.id);
+  renderSiteControlEditor();
 }
 
 function barCountSummary(photo) {
@@ -5959,6 +6156,8 @@ function siteControlOptions(values, current) {
 
 function siteControlItemCard(item) {
   const photos = item.photos || [];
+  const pin = siteControlPinForItem(item);
+  const planReference = siteControlPlanReference(item, pin) || item.planReference || "";
   return `
     <article class="site-item-card" data-site-item="${item.id}">
       <div class="site-item-head">
@@ -5969,11 +6168,18 @@ function siteControlItemCard(item) {
         <label>Typ<select data-site-item-field="type">${siteControlOptions(state.masterData.siteControlTypes || SITE_CONTROL_TYPES, item.type)}</select></label>
         <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
         <label>Bereich / Ort<input data-site-item-field="location" value="${escapeAttr(item.location)}"></label>
-        <label>Zuständig<input data-site-item-field="responsible" list="companyOptions" value="${escapeAttr(item.responsible)}"></label>
+        <label>Zust\u00e4ndig<input data-site-item-field="responsible" list="companyOptions" value="${escapeAttr(item.responsible)}"></label>
         <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
-        <label>Priorität<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
+        <label>Priorit\u00e4t<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
         <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
         <label>Planbezug / Pin<input data-site-item-field="planReference" value="${escapeAttr(item.planReference)}" placeholder="z. B. Plan B-002, P3"></label>
+      </div>
+      <div class="site-plan-reference ${pin ? "has-pin" : ""}">
+        <div><strong>${pin ? "Planmarkierung" : "Kein Pin gesetzt"}</strong><span>${pin ? escapeHtml(planReference) : "Diese Feststellung kann auf einem Projektplan markiert werden."}</span></div>
+        <div class="site-plan-actions">
+          <button class="secondary-btn" type="button" data-mark-site-item="${item.id}">${pin ? "Pin neu setzen" : "Auf Plan markieren"}</button>
+          ${pin ? `<button class="secondary-btn" type="button" data-show-site-pin="${item.id}">Pin anzeigen / bearbeiten</button><button class="danger-btn" type="button" data-remove-site-pin="${item.id}">Planbezug entfernen</button>` : ""}
+        </div>
       </div>
       <label class="voice-field">Beschreibung / Feststellung
         <textarea data-site-item-field="description" rows="4">${escapeHtml(item.description)}</textarea>
@@ -5981,14 +6187,14 @@ function siteControlItemCard(item) {
       </label>
       <div class="result-actions site-photo-actions">
         <button class="secondary-btn" type="button" data-site-photo-camera="${item.id}">Foto aufnehmen</button>
-        <button class="secondary-btn" type="button" data-site-photo-gallery="${item.id}">Foto aus Galerie auswählen</button>
-        <button class="danger-btn" type="button" data-delete-site-item="${item.id}">Feststellung löschen</button>
+        <button class="secondary-btn" type="button" data-site-photo-gallery="${item.id}">Foto aus Galerie ausw\u00e4hlen</button>
+        <button class="danger-btn" type="button" data-delete-site-item="${item.id}">Feststellung l\u00f6schen</button>
       </div>
       <div class="photo-grid compact-photo-grid">
         ${photos.map((photo) => `
           <figure class="photo-tool-card">
             <img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
-            <figcaption><span>${escapeHtml(photo.name || "Foto")}</span><button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto löschen</button></figcaption>
+            <figcaption><span>${escapeHtml(photo.name || "Foto")}</span><button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto l\u00f6schen</button></figcaption>
           </figure>`).join("")}
       </div>
     </article>`;
@@ -6017,6 +6223,15 @@ function triggerSiteControlPhotoPicker(itemId, source) {
   }, { once: true });
   document.body.appendChild(input);
   input.click();
+}
+
+
+function siteControlPlanReferencesReport(items = []) {
+  const rows = items
+    .map((item) => ({ item, pin: siteControlPinForItem(item), ref: siteControlPlanReference(item) || item.planReference || "" }))
+    .filter(({ ref }) => ref);
+  if (!rows.length) return "";
+  return `<div class="site-report-card"><div class="site-item-body">${rows.map(({ item, pin, ref }) => `<div class="info-row"><strong>${escapeHtml(pin ? pinLabel(pin) : "Planbezug")}</strong><span>${escapeHtml(ref)}<br><span class="muted">${escapeHtml(siteControlItemContext(item))}</span></span></div>`).join("")}</div></div>`;
 }
 
 async function buildSiteControlReportParts() {
@@ -6052,6 +6267,7 @@ async function buildSiteControlReportParts() {
         <p>${escapeHtml(item.description || "Keine Beschreibung erfasst.")}</p>
       </div>
     </article>`).join("") : `<p class="muted">Keine Feststellungen dokumentiert.</p>`;
+  const planReferenceHtml = siteControlPlanReferencesReport(items);
   const photoHtml = photoCards.length ? `<div class="photo-grid">${photoCards.map(({ item, photo, url }) => `<figure class="photo"><img src="${url}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><p><strong>${escapeHtml(item.type)}</strong> · ${escapeHtml(item.location || "ohne Bereich")}</p><p>${escapeHtml(photo.name || "Foto")}</p></figcaption></figure>`).join("")}</div>` : `<p class="muted">Keine Fotos dokumentiert.</p>`;
   const body = `
     <div class="report-export"><main class="report-page">
@@ -6060,6 +6276,7 @@ async function buildSiteControlReportParts() {
       <h2>Ergebnis / Zusammenfassung</h2><section class="info-card">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
       <h2>Offene Punkte</h2>${openItems.length ? openItems.map((item) => `<article class="site-report-card"><div class="site-item-title"><strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="site-item-body"><p>${escapeHtml(item.description || "")}</p></div></article>`).join("") : `<p class="muted">Keine offenen Punkte dokumentiert.</p>`}
       <h2>Feststellungen / Aufgaben</h2>${itemHtml}
+      ${planReferenceHtml ? `<h2>Plananlagen / Markierungen</h2>${planReferenceHtml}` : ""}
       <h2 class="page-break">Fotodokumentation</h2>${photoHtml}
       <footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(p.head.createdAt))}</span><span>Kai BauSuite</span></footer>
     </main></div>`;
@@ -8805,11 +9022,13 @@ function bindEvents() {
     if (!pin) return;
     pin[event.target.dataset.markPinField] = event.target.value;
     pin.updatedAt = new Date().toISOString();
-    const sample = pin.sampleId ? findSample(pin.sampleId) : null;
+    const siteItem = pin.itemId ? findSiteControlItem(pin.itemId) : null;
+    const sample = !siteItem && pin.sampleId ? findSample(pin.sampleId) : null;
     if (sample && event.target.dataset.markPinField === "note") {
       sample.note = event.target.value;
       sample.updatedAt = pin.updatedAt;
     }
+    if (siteItem) syncSiteControlItemPinReference(siteItem, pin);
     schedulePersist();
     renderMarkPins();
   });
@@ -8819,15 +9038,17 @@ function bindEvents() {
     if (!pin) return;
     pin[event.target.dataset.markPinField] = event.target.value;
     pin.updatedAt = new Date().toISOString();
-    const sample = pin.sampleId ? findSample(pin.sampleId) : null;
+    const siteItem = pin.itemId ? findSiteControlItem(pin.itemId) : null;
+    const sample = !siteItem && pin.sampleId ? findSample(pin.sampleId) : null;
     if (sample && event.target.dataset.markPinField === "status") {
       sample.status = event.target.value;
       sample.updatedAt = pin.updatedAt;
       const check = findCheckBySample(sample.id);
       if (check) updateCheckStatus(check);
     }
+    if (siteItem) syncSiteControlItemPinReference(siteItem, pin);
     persist();
-    renderChecklist();
+    if (siteItem) renderSiteControlEditor(); else renderChecklist();
   });
   document.addEventListener("click", (event) => {
     const dynamicNav = event.target.closest("[data-nav]");
@@ -8854,6 +9075,23 @@ function bindEvents() {
         renderSiteControlEditor();
       }
     }
+    const markSiteItem = event.target.closest("[data-mark-site-item]");
+    if (markSiteItem) openSiteControlPlanMarkDialog(markSiteItem.dataset.markSiteItem, { reset: true });
+    const showSitePin = event.target.closest("[data-show-site-pin]");
+    if (showSitePin) {
+      const item = findSiteControlItem(showSitePin.dataset.showSitePin);
+      if (item?.pinId) openSiteControlPlanMarkDialog(item.id, { reset: false });
+    }
+    const removeSitePinButton = event.target.closest("[data-remove-site-pin]");
+    if (removeSitePinButton && confirm("Planbezug dieser Feststellung entfernen?")) {
+      const item = findSiteControlItem(removeSitePinButton.dataset.removeSitePin);
+      if (item?.pinId) removeMarkPin(item.pinId);
+      else if (item) {
+        clearSiteControlItemPin(item);
+        persist();
+        renderSiteControlEditor();
+      }
+    }
     const deleteSiteItem = event.target.closest("[data-delete-site-item]");
     if (deleteSiteItem && confirm("Diese Feststellung löschen?")) {
       state.current.siteItems = (state.current.siteItems || []).filter((item) => item.id !== deleteSiteItem.dataset.deleteSiteItem);
@@ -8874,7 +9112,7 @@ function bindEvents() {
       if (action === "rebar") navigateToView("listView");
       if (action === "site") navigateToView("siteControlView");
       if (action === "projectData") openProjectDialog(state.currentProjectId);
-      if (action === "plans") showAppToast("Projektpläne werden im nächsten Schritt zentralisiert.", { type: "info" });
+      if (action === "plans") navigateToView("projectPlansView");
       if (action === "openPoints") showAppToast("Offene Punkte sind in den Listen der Projektzentrale sichtbar.", { type: "info" });
       if (action === "reports") showAppToast("Berichte und Protokolle findest du aktuell in den jeweiligen Modulen.", { type: "info" });
     }
@@ -8969,8 +9207,9 @@ function bindEvents() {
       triggerInlinePhotoPicker("pin", state.selectedPinId, markPinPhoto.dataset.markPinPhoto);
     }
     if (event.target.closest("[data-return-sample-from-mark]")) {
+      const wasSiteControl = isSiteControlProtocol();
       closePlanMarkDialog();
-      renderChecklist();
+      if (wasSiteControl) renderSiteControlEditor(); else renderChecklist();
     }
     const removeMarkPinButton = event.target.closest("[data-remove-mark-pin]");
     if (removeMarkPinButton && confirm("Pin wirklich entfernen?")) {
@@ -9926,13 +10165,13 @@ async function checkStorage() {
     const info = await collectDataInventory();
     $("#storageCheckResult").innerHTML = `
       <strong>Datenbestand</strong><br>
-      ${info.projects} Projekt(e) ? ${info.rebar} Bewehrungsabnahme(n) ? ${info.followups} Nachbegehung(en) ? ${info.siteControls} Baustellenkontrolle(n)<br>
-      ${info.plans} Plan-Datei(en) ? ${info.pins} Pin(s) ? ${info.photos} Foto(s) ? ${info.masterEntries} Stammdaten-Eintrag(e)<br>
-      DB: ${escapeHtml(info.dbName)} v${info.dbVersion} ? Stores: ${escapeHtml(info.stores.join(", "))}<br>
-      App: ${escapeHtml(info.appVersion)} ? letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}
+      ${info.projects} Projekt(e) · ${info.rebar} Bewehrungsabnahme(n) · ${info.followups} Nachbegehung(en) · ${info.siteControls} Baustellenkontrolle(n)<br>
+      ${info.plans} Plan-Datei(en) · ${info.pins} Pin(s) · ${info.photos} Foto(s) · ${info.masterEntries} Stammdaten-Eintrag(e)<br>
+      DB: ${escapeHtml(info.dbName)} v${info.dbVersion} · Stores: ${escapeHtml(info.stores.join(", "))}<br>
+      App: ${escapeHtml(info.appVersion)} · letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}
     `;
   } catch (error) {
-    $("#storageCheckResult").textContent = `IndexedDB verf?gbar: nein oder fehlerhaft (${error?.message || error}).`;
+    $("#storageCheckResult").textContent = `IndexedDB verfügbar: nein oder fehlerhaft (${error?.message || error}).`;
   }
 }
 
@@ -10152,7 +10391,7 @@ function bindMarkGestures() {
       state.mark.pinchCenter = null;
     }
     if (!cancelled && !wasPinching && state.mark.movePinId && !state.mark.moved && !state.mark.pointers.size) moveMarkPinTo(point.x, point.y);
-    else if (!cancelled && !wasPinching && state.mark.active && !state.mark.moved && !state.mark.pointers.size) placeSamplePin(point.x, point.y);
+    else if (!cancelled && !wasPinching && state.mark.active && !state.mark.moved && !state.mark.pointers.size) placeMarkPin(point.x, point.y);
     if (!state.mark.pointers.size) state.mark.moved = false;
   };
   viewer.addEventListener("pointerup", finish);

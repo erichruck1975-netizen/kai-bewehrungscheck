@@ -108,7 +108,7 @@ Beim ersten Laden braucht das Gerät Internetzugriff für App-Dateien und extern
 - Display: `standalone`
 - Theme-Color: `#f4c542`
 - Service Worker: `sw.js`
-- Cache-Version: `kai-bewehrungscheck-v95`
+- Cache-Version: `kai-bewehrungscheck-v108`
 
 ## Daten und Sicherung
 
@@ -280,4 +280,12 @@ Dieser lokale Server ist nur für Entwicklung gedacht. Für die Baustelle soll d
 `v106` strukturiert die Stammdaten in mobile Untermenüs. Der Einstieg zeigt nur noch eine Übersicht für Firmen, Personen / Ansprechpartner, Gewerke, Rollen / Funktionen, Prüfer / Prüfingenieure, Standardwerte, Standardtexte und Planablage / Dropbox.
 
 Die bestehenden Stammdatenstrukturen bleiben unverändert. Der stabile Baustellenstand bleibt die Referenz; der alte Direkt-PDF-Renderer ist weiterhin nicht Hauptweg.
+
+## v108 Teststand: Projektpläne und Baustellenkontrolle
+
+- Projektpläne sind in der Projektzentrale zentral sichtbar und werden aus den vorhandenen Abnahmen eines Projekts zusammengeführt.
+- Die Baustellenkontrolle kann Feststellungen über den bestehenden stabilen Markierungsdialog auf Projektplänen markieren.
+- Baustellenkontroll-Pins werden getrennt mit `module: "site-control"`, `protocolId`, `itemId`, `planId`, `pageNumber` und Prozentkoordinaten gespeichert.
+- Der BewehrungsCheck-Planviewer, bestehende Bewehrungs-Pins und der A4-Berichtspfad bleiben unverändert.
+- Der A4-Bericht der Baustellenkontrolle zeigt den Planbezug je Feststellung und eine kompakte Liste der Planmarkierungen.
 

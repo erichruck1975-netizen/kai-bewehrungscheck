@@ -2539,3 +2539,37 @@ dialog button {
   }
 }
 
+/* v108: Projektplanbezug in der Baustellenkontrolle */
+.site-plan-reference {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fc;
+  display: grid;
+  gap: 10px;
+}
+.site-plan-reference.has-pin {
+  border-color: #b8c9dd;
+  background: #eef5fb;
+}
+.site-plan-reference strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+}
+.site-plan-reference span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.site-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .site-plan-actions > button {
+    width: 100%;
+  }
+}
+

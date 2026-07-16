@@ -339,3 +339,9 @@ Die Stammdaten werden in der Oberfläche in Untermenüs geführt, ohne bestehend
 
 Diese Ordnung ist eine UI-Struktur. Das bestehende BewehrungsCheck-Datenmodell bleibt unverändert lauffähig.
 
+## v108 Vorbereitung: Projektpläne als gemeinsamer Baustein
+
+Projektpläne werden als BauSuite-Kernfunktion behandelt. Fachmodule sollen Pläne nicht isoliert besitzen, sondern projektbezogen nutzen können. Für den v108-Teststand werden vorhandene Planunterlagen aus den Bewehrungsabnahmen eines Projekts in der Projektzentrale zusammengeführt und von der Baustellenkontrolle als Markierungsgrundlage genutzt.
+
+Baustellenkontroll-Pins bleiben eigenständige Pin-Objekte und werden über `module: "site-control"`, `protocolId` und `itemId` fachlich von Bewehrungs-Pins getrennt. Damit bleibt der bestehende BewehrungsCheck ohne Migration lauffähig, während der gemeinsame Kern für Planbezug, Fotos, Pins und Berichte vorbereitet wird.
+
