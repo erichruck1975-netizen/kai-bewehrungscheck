@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=111">
-  <link rel="stylesheet" href="styles.css?v=111">
+  <link rel="manifest" href="manifest.webmanifest?v=112">
+  <link rel="stylesheet" href="styles.css?v=112">
 </head>
 <body>
   <div id="app" class="shell">
@@ -96,7 +96,7 @@
             <label>Protokollbezeichnung<input name="siteTitle"></label>
             <label>Datum / Uhrzeit<input name="siteDate" type="datetime-local"></label>
             <label>Projekt<input name="siteProject" disabled></label>
-            <label>Adresse<input name="siteAddress" disabled></label>
+            <label>Adresse<input name="siteAddress"></label><button class="secondary-btn" id="siteAddressFromProjectBtn" type="button">Adresse aus Projekt übernehmen</button>
             <label>Anlass<select name="siteReason"><option>Regelbegehung</option><option>Mangelkontrolle</option><option>Fotodokumentation</option><option>Abstimmung</option><option>Nachbegehung</option><option>Sonstige</option></select></label>
             <label>Bereich / Ort<input name="siteArea" list="areaOptions"></label>
             <label>Teilnehmer<input name="siteParticipants" list="responsibleOptions" placeholder="Personen/Firmen oder Freitext"></label>
@@ -142,8 +142,8 @@
             <label>Status<select name="dailyStatus"><option>Entwurf</option><option>abgeschlossen</option></select></label>
           </div></div>
           <div class="panel"><h3>Arbeitszeit</h3><div class="grid">
-            <label>Arbeitsbeginn<input name="dailyStart" type="time"></label>
-            <label>Arbeitsende<input name="dailyEnd" type="time"></label>
+            <label>Arbeitsbeginn<input name="dailyStart" type="time" step="60"></label>
+            <label>Arbeitsende<input name="dailyEnd" type="time" step="60"></label>
             <label>Pause (h)<input name="dailyBreak" type="number" min="0" step="0.25"></label>
             <label>Gesamtstunden<input name="dailyTotal" disabled></label>
           </div></div>
@@ -152,7 +152,10 @@
             <label>Firma<input name="dailyCompany" list="companyOptions"></label>
             <label>Anzahl Personen<input name="dailyPersonCount" type="number" min="0" step="1"></label>
             <label>Ansprechpartner / Vorarbeiter<input name="dailyForeman" list="personOptions"></label>
-          </div></div>
+          </div>
+          <div class="section-head daily-worker-head"><h4>Anwesende Mitarbeiter</h4><button class="secondary-btn" id="addDailyWorkerBtn" type="button">Mitarbeiter hinzufügen</button></div>
+          <div id="dailyWorkerList" class="daily-worker-list"></div>
+          <p class="field-hint">Einzelzeiten sind optional. Die einfachen Kolonnenfelder bleiben für bestehende Tagesberichte erhalten.</p></div>
           <div class="panel"><h3>T&auml;tigkeiten</h3><div class="grid">
             <label>Bereich / Ort<input name="dailyArea" list="areaOptions"></label>
             <label>Gewerk<input name="dailyTrade" list="tradeOptions"></label>
@@ -718,7 +721,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=110"></script>
-  <script src="app.js?v=111"></script>
+  <script src="app.js?v=112"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>

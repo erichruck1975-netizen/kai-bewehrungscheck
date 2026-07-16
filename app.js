@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v111";
+const APP_VERSION = "v112";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -507,6 +507,83 @@ function normalizeMasterData(masterData = {}) {
 
 function uniqueValues(values) {
   return Array.from(new Set((values || []).map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
+
+function getProjectAddress(project = {}) {
+  if (!project) return normalizeAddress();
+  const direct = normalizeAddress(project.address || project.siteAddress || project.baustellenAdresse || project.location || "");
+  const street = direct.street || project.street || project.siteStreet || project.addressStreet || project.road || "";
+  const zip = direct.zip || project.zip || project.postalCode || project.postcode || project.siteZip || "";
+  const city = direct.city || project.city || project.town || project.siteCity || "";
+  const country = direct.country || project.country || project.siteCountry || "Deutschland";
+  return normalizeAddress({ street, zip, city, country });
+}
+
+function projectAddressText(project = {}, { multiline = false } = {}) {
+  return formatAddress(getProjectAddress(project), { multiline });
+}
+
+function applySiteControlProjectAddress() {
+  if (!isSiteControlProtocol()) return;
+  const project = projectById(state.current.projectId);
+  const text = projectAddressText(project, { multiline: false });
+  const form = $("#siteControlForm");
+  if (form?.elements?.siteAddress) form.elements.siteAddress.value = text;
+  state.current.head.siteAddress = text;
+  state.current.siteControl = normalizeSiteControlMeta(state.current.siteControl || {}, state.current);
+  state.current.siteControl.address = text;
+  persist();
+  showAppToast("Adresse aus Projekt übernommen.", { type: "success" });
+}
+
+function normalizeTimeValue(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const hourOnly = text.match(/^(\d{1,2})$/);
+  if (hourOnly) return `${hourOnly[1].padStart(2, "0")}:00`;
+  const hourMinute = text.match(/^(\d{1,2}):(\d{0,2})$/);
+  if (hourMinute) return `${hourMinute[1].padStart(2, "0")}:${(hourMinute[2] || "00").padEnd(2, "0").slice(0, 2)}`;
+  return text;
+}
+
+function normalizeDailyWorker(worker = {}, index = 0) {
+  const normalized = {
+    id: worker.id || uid("worker"),
+    name: worker.name || "",
+    company: worker.company || "",
+    role: worker.role || worker.activity || "",
+    start: normalizeTimeValue(worker.start || worker.workStart || ""),
+    end: normalizeTimeValue(worker.end || worker.workEnd || ""),
+    breakHours: worker.breakHours || worker.pause || "",
+    hours: worker.hours || "",
+    note: worker.note || "",
+    order: Number(worker.order) || index + 1
+  };
+  normalized.hours = normalized.hours || workerHours(normalized);
+  return normalized;
+}
+
+function normalizeDailyWorkers(workers = []) {
+  return (workers || []).map(normalizeDailyWorker).sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function workerHours(worker = {}) {
+  const start = normalizeTimeValue(worker.start || "");
+  const end = normalizeTimeValue(worker.end || "");
+  if (!start || !end) return worker.hours || "";
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if (![sh, sm, eh, em].every(Number.isFinite)) return worker.hours || "";
+  let minutes = (eh * 60 + em) - (sh * 60 + sm);
+  if (minutes < 0) minutes += 24 * 60;
+  minutes -= Math.round((Number(worker.breakHours) || 0) * 60);
+  if (minutes <= 0) return "";
+  return (minutes / 60).toFixed(2).replace(".", ",");
+}
+
+function dailyWorkerById(id) {
+  return (state.current?.dailyReport?.workers || []).find((worker) => worker.id === id) || null;
 }
 
 function normalizeAddress(value = {}) {
@@ -1071,6 +1148,7 @@ function normalizeSiteControlMeta(meta = {}, protocol = {}) {
     reason: meta.reason || protocol.head?.acceptanceType || "Regelbegehung",
     area: meta.area || protocol.head?.areaAxes || "",
     participants: meta.participants || protocol.head?.peoplePresent || "",
+    address: meta.address || protocol.head?.siteAddress || protocol.head?.siteAddressText || "",
     weather: meta.weather || protocol.weather?.weatherCondition || "",
     finalNote: meta.finalNote || protocol.result?.finalNote || ""
   };
@@ -1132,13 +1210,14 @@ function normalizeDailyReportMeta(meta = {}, protocol = {}) {
     defects: meta.defects || "",
     weather: meta.weather || protocol.weather?.weatherCondition || "",
     confirmedBy: meta.confirmedBy || "",
+    workers: normalizeDailyWorkers(meta.workers || []),
     photos: (meta.photos || []).map((photo) => ({ ...normalizePhotoRef(photo), caption: photo.caption || "" }))
   };
 }
 
 function dailyReportTotalHours(report = {}) {
-  const start = String(report.workStart || "");
-  const end = String(report.workEnd || "");
+  const start = normalizeTimeValue(report.workStart || "");
+  const end = normalizeTimeValue(report.workEnd || "");
   if (!start || !end) return report.totalHours || "";
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
@@ -2896,7 +2975,7 @@ function renderHomeProjects() {
 
 function projectDirectoryCard(project) {
   const stats = projectStats(project);
-  const address = formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen";
+  const address = projectAddressText(project, { multiline: false }) || "Adresse offen";
   return `
     <article class="project-directory-card" data-project="${escapeAttr(project.id)}">
       <div class="project-directory-main">
@@ -2952,7 +3031,7 @@ function renderProjectHub() {
     <section class="panel project-hub-summary">
       <div>
         <h2>${escapeHtml(project.name || "Unbenanntes Projekt")}</h2>
-        <p class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</p>
+        <p class="muted">${escapeHtml(projectAddressText(project, { multiline: false }) || "Adresse offen")}</p>
         ${project.client || project.clientSnapshot?.name ? `<p class="muted">Auftraggeber: ${escapeHtml(project.clientSnapshot?.name || project.client || "")}</p>` : ""}
         <p class="muted">Zuletzt bearbeitet: ${escapeHtml(formatDate(stats.latest))}</p>
       </div>
@@ -3144,7 +3223,7 @@ function renderList() {
         <div class="section-head">
           <div>
             <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
-            <div class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</div>
+            <div class="muted">${escapeHtml(projectAddressText(project, { multiline: false }) || "Adresse offen")}</div>
             <div class="muted">${acceptances.length} Abnahme(n) · zuletzt bearbeitet ${escapeHtml(formatDate(stats.latest))}</div>
           </div>
           <button class="primary-btn" data-new-acceptance="${project.id}" type="button">+ Neue Abnahme</button>
@@ -4912,6 +4991,7 @@ async function handlePlanFiles(files) {
 async function importProjectPlanFiles(files, projectId = state.currentProjectId) {
   const project = projectById(projectId);
   if (!project) return showAppToast("Bitte zuerst ein Projekt öffnen.", { type: "error" });
+  state.currentProjectId = project.id;
   const protocol = ensureProjectPlanLibraryProtocol(project.id);
   if (!protocol) return showAppToast("Projektplanablage konnte nicht vorbereitet werden.", { type: "error" });
   const fileList = Array.from(files || []);
@@ -4998,6 +5078,7 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
   const projectRecord = projectById(project.id);
   if (projectRecord) projectRecord.updatedAt = protocol.updatedAt;
   await persist();
+  showView("projectPlansView");
   renderProjectPlansView();
   renderDatalists();
   showAppToast(imported === 1 ? "Plan hochgeladen und im Projekt gespeichert." : `${imported} Pläne hochgeladen und im Projekt gespeichert.`, { type: imported ? "success" : "info" });
@@ -6217,6 +6298,7 @@ function bindVoice() {
     event.stopPropagation();
     if (state.voice?.active) {
       if (state.voice.button === btn && state.voice.recognition) {
+        state.voice.stoppedByUser = true;
         try { state.voice.recognition.stop(); } catch {}
       }
       return;
@@ -6227,13 +6309,18 @@ function bindVoice() {
       button: btn,
       baseText: getVoiceTargetText(btn),
       finalText: "",
-      finalResults: {}
+      finalResults: {},
+      finalChunks: [],
+      stoppedByUser: false,
+      restartAttempts: 0,
+      lastSpeechAt: Date.now(),
+      silenceTimeoutMs: 5000
     };
     const recognition = new SpeechRecognition();
     state.voice.recognition = recognition;
     recognition.lang = btn.dataset.voiceLang || "de-DE";
     recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.continuous = true;
     btn.dataset.originalLabel = btn.textContent || "Mikrofon";
     btn.textContent = "Stoppen";
     btn.classList.add("is-listening");
@@ -6241,30 +6328,35 @@ function bindVoice() {
       if (item !== btn) item.disabled = true;
     });
     recognition.onresult = (resultEvent) => {
+      if (!state.voice || state.voice.button !== btn) return;
+      state.voice.lastSpeechAt = Date.now();
       for (let index = resultEvent.resultIndex; index < resultEvent.results.length; index += 1) {
         const result = resultEvent.results[index];
         if (!result.isFinal) continue;
         const transcript = (result[0]?.transcript || "").trim();
-        if (transcript) state.voice.finalResults[index] = transcript;
+        if (transcript && state.voice.finalChunks[state.voice.finalChunks.length - 1] !== transcript) state.voice.finalChunks.push(transcript);
       }
-      state.voice.finalText = Object.keys(state.voice.finalResults)
-        .map((key) => Number(key))
-        .sort((a, b) => a - b)
-        .map((key) => state.voice.finalResults[key])
-        .join(" ")
-        .trim();
+      state.voice.finalText = (state.voice.finalChunks || []).join(" ").trim();
     };
     recognition.onerror = (errorEvent) => {
+      if (!state.voice || state.voice.button !== btn) return;
       if (errorEvent.error !== "aborted" && errorEvent.error !== "no-speech") {
+        state.voice.stoppedByUser = true;
         const isAlbanian = btn.dataset.voiceLang === "sq-AL";
         alert(isAlbanian ? "Albanische Spracheingabe wird auf diesem Gerät/Browser nicht unterstützt. Bitte Text eintippen oder Deutsch verwenden." : "Spracherkennung konnte nicht gestartet werden.");
       }
     };
     recognition.onend = () => {
+      if (!state.voice || state.voice.button !== btn) return;
+      const elapsed = Date.now() - (state.voice.lastSpeechAt || Date.now());
+      if (!state.voice.stoppedByUser && elapsed < state.voice.silenceTimeoutMs && state.voice.restartAttempts < 4) {
+        state.voice.restartAttempts += 1;
+        try { recognition.start(); return; } catch {}
+      }
       const finalText = (state.voice?.button === btn ? state.voice.finalText : "").trim();
       resetVoiceButton(btn);
       if (finalText) insertVoiceText(btn, finalText);
-      state.voice = { active: false, recognition: null, button: null, baseText: "", finalText: "", finalResults: {} };
+      state.voice = { active: false, recognition: null, button: null, baseText: "", finalText: "", finalResults: {}, finalChunks: [], stoppedByUser: false };
     };
     try {
       recognition.start();
@@ -6374,7 +6466,16 @@ function insertVoiceText(btn, text) {
   if (btn.dataset.voiceDailyField) {
     state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
     const fieldName = btn.dataset.voiceDailyField;
-    state.current.dailyReport[fieldName] = appendVoiceText(state.current.dailyReport[fieldName] || "", text);
+    const language = btn.dataset.voiceLang === "sq-AL" ? "sq" : (btn.dataset.voiceLang === "de-DE" ? "de" : state.current.dailyReport.inputLanguage || "de");
+    if (fieldName === "workOriginal") {
+      state.current.dailyReport.inputLanguage = language;
+      state.current.dailyReport.workOriginal = appendVoiceText(state.current.dailyReport.workOriginal || "", text);
+      if (language === "de") state.current.dailyReport.workGerman = appendVoiceText(state.current.dailyReport.workGerman || "", text);
+      if (language === "sq") state.current.dailyReport.workAlbanian = appendVoiceText(state.current.dailyReport.workAlbanian || "", text);
+      state.current.dailyReport.translationStatus = "nicht übersetzt";
+    } else {
+      state.current.dailyReport[fieldName] = appendVoiceText(state.current.dailyReport[fieldName] || "", text);
+    }
     state.current.updatedAt = new Date().toISOString();
     persist();
     renderDailyReportEditor();
@@ -6447,10 +6548,10 @@ async function fillSiteControlWeatherFromLocation() {
       saveSiteControlForm();
       showAppToast("Wetterdaten übernommen.", { type: "success" });
     } catch (error) {
-      showAppToast("Wetterabruf fehlgeschlagen. Manuelle Eingabe bleibt m?glich.", { type: "error" });
+      showAppToast("Wetterabruf fehlgeschlagen. Manuelle Eingabe bleibt möglich.", { type: "error" });
     }
   }, () => {
-    showAppToast("Standortfreigabe abgelehnt. Manuelle Eingabe bleibt m?glich.", { type: "info" });
+    showAppToast("Standortfreigabe abgelehnt. Manuelle Eingabe bleibt möglich.", { type: "info" });
   }, { enableHighAccuracy: true, timeout: 12000 });
 }
 
@@ -6513,7 +6614,8 @@ function renderSiteControlView() {
   if (!state.projects.length) {
     list.innerHTML = `<div class="panel"><p class="muted">Noch keine Projekte vorhanden. Bitte zuerst ein Projekt anlegen.</p><button class="primary-btn" id="siteNewProjectBtn" type="button">Neues Projekt</button></div>`;
   } else {
-    list.innerHTML = [...state.projects].sort((a, b) => (b.id === state.currentProjectId) - (a.id === state.currentProjectId)).map((project) => {
+    const visibleProjects = state.currentProjectId ? state.projects.filter((project) => project.id === state.currentProjectId) : [...state.projects];
+    list.innerHTML = visibleProjects.sort((a, b) => (b.id === state.currentProjectId) - (a.id === state.currentProjectId)).map((project) => {
       const protocols = siteControlProtocolsForProject(project.id);
       const openCount = protocols.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
       return `
@@ -6521,7 +6623,7 @@ function renderSiteControlView() {
           <div class="section-head">
             <div>
               <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
-              <div class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</div>
+              <div class="muted">${escapeHtml(projectAddressText(project, { multiline: false }) || "Adresse offen")}</div>
               <div class="muted">${protocols.length} Baustellenkontrolle(n) · ${openCount} offene Punkte</div>
             </div>
             <button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button>
@@ -6547,7 +6649,7 @@ function renderSiteControlOpenItems() {
   const target = $("#siteControlOpenItems");
   if (!target) return;
   const openItems = [];
-  state.protocols.filter(isSiteControlProtocol).forEach((protocol) => {
+  state.protocols.filter(isSiteControlProtocol).filter((protocol) => !state.currentProjectId || protocol.projectId === state.currentProjectId).forEach((protocol) => {
     (protocol.siteItems || []).filter(siteControlItemIsOpen).forEach((item) => openItems.push({ protocol, item }));
   });
   target.innerHTML = `
@@ -6572,7 +6674,8 @@ function renderSiteControlEditor() {
   form.elements.siteTitle.value = protocol.head.acceptanceTitle || "";
   form.elements.siteDate.value = protocol.head.createdAt || nowLocalInput();
   form.elements.siteProject.value = project?.name || protocol.head.projectName || "";
-  form.elements.siteAddress.value = formatAddress(project?.address || protocol.head.siteAddress || protocol.head.siteAddressText || "", { multiline: false });
+  const siteAddress = meta.address || protocol.head.siteAddress || projectAddressText(project, { multiline: false });
+  form.elements.siteAddress.value = siteAddress;
   form.elements.siteReason.value = meta.reason || "Regelbegehung";
   form.elements.siteArea.value = meta.area || "";
   form.elements.siteParticipants.value = meta.participants || "";
@@ -6595,6 +6698,7 @@ function saveSiteControlForm({ persistNow = true } = {}) {
     reason: form.elements.siteReason.value || "Regelbegehung",
     area: form.elements.siteArea.value || "",
     participants: form.elements.siteParticipants.value || "",
+    address: form.elements.siteAddress.value || "",
     weather: form.elements.siteWeather.value || "",
     finalNote: form.elements.siteFinalNote.value || ""
   };
@@ -6603,6 +6707,7 @@ function saveSiteControlForm({ persistNow = true } = {}) {
   p.head.acceptanceType = "Baustellenkontrolle";
   p.head.areaAxes = p.siteControl.area;
   p.head.peoplePresent = p.siteControl.participants;
+  p.head.siteAddress = p.siteControl.address || p.head.siteAddress;
   p.weather.weatherCondition = p.siteControl.weather;
   p.result.finalNote = p.siteControl.finalNote;
   p.updatedAt = new Date().toISOString();
@@ -6729,11 +6834,11 @@ async function buildSiteControlReportParts() {
     }
   }
   const css = `
-    @page{size:A4;margin:18mm 15mm 20mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2933;margin:0;line-height:1.45;background:#fff;font-size:12px}.print-btn{position:fixed;right:18px;top:18px;z-index:20;background:#1f4e79;color:#fff;border:0;border-radius:4px;padding:10px 14px;font-weight:700}.save-hint{position:sticky;top:0;z-index:19;background:#fff7d6;border-bottom:1px solid #e6c65c;color:#4f3b00;padding:12px 18px;font-size:13px;font-weight:700}.report-export,.report-page{width:190mm;max-width:190mm;margin:0 auto;background:#fff}.report-header{display:grid;grid-template-columns:1fr auto;gap:18px;border-bottom:3px solid #1f4e79;padding-bottom:18px;margin-bottom:22px}.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#5b6773;font-weight:700}h1{font-size:28px;line-height:1.15;margin:6px 0 8px;color:#17212b}h2{font-size:17px;color:#17212b;margin:24px 0 12px;padding-bottom:7px;border-bottom:1.5px solid #aab4bf;break-after:avoid}h3{font-size:14px;margin:0 0 8px;color:#17212b}.muted{color:#697586}.doc-meta{min-width:185px;border:1px solid #d8dee6;border-radius:6px;padding:10px 12px;background:#f7f9fb}.doc-meta div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e4e8ee;padding:4px 0}.doc-meta div:last-child{border-bottom:0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 20px}.info-card,.site-report-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;margin:10px 0 14px}.info-card h3,.site-report-card h3{background:#f3f6f9;margin:0;padding:9px 11px;border-bottom:1px solid #d8dee6;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}.info-row{display:grid;grid-template-columns:48mm 1fr;gap:10px;padding:8px 11px;border-bottom:1px solid #edf0f3}.info-row:last-child{border-bottom:0}.info-row strong{color:#52606d;font-size:11px}.status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;border:1px solid transparent}.status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.site-item-title{display:flex;justify-content:space-between;gap:10px;align-items:start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}.site-item-body{padding:10px 12px}.site-item-body p{white-space:pre-wrap}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.info-grid{grid-template-columns:1fr 1fr}.site-report-card,.photo{break-inside:avoid;page-break-inside:avoid}}
+    @page{size:A4;margin:18mm 15mm 20mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2933;margin:0;line-height:1.45;background:#fff;font-size:12px}.print-btn{position:fixed;right:18px;top:18px;z-index:20;background:#1f4e79;color:#fff;border:0;border-radius:4px;padding:10px 14px;font-weight:700}.save-hint{position:sticky;top:0;z-index:19;background:#fff7d6;border-bottom:1px solid #e6c65c;color:#4f3b00;padding:12px 18px;font-size:13px;font-weight:700}.report-export,.report-page{width:190mm;max-width:190mm;margin:0 auto;background:#fff}.report-header{display:grid;grid-template-columns:1fr auto;gap:18px;border-bottom:3px solid #1f4e79;padding-bottom:18px;margin-bottom:22px}.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#5b6773;font-weight:700}h1{font-size:28px;line-height:1.15;margin:6px 0 8px;color:#17212b}h2{font-size:17px;color:#17212b;margin:24px 0 12px;padding-bottom:7px;border-bottom:1.5px solid #aab4bf;break-after:avoid}h3{font-size:14px;margin:0 0 8px;color:#17212b}.muted{color:#697586}.doc-meta{min-width:185px;border:1px solid #d8dee6;border-radius:6px;padding:10px 12px;background:#f7f9fb}.doc-meta div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e4e8ee;padding:4px 0}.doc-meta div:last-child{border-bottom:0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 20px}.info-card,.site-report-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;margin:10px 0 14px}.info-card h3,.site-report-card h3{background:#f3f6f9;margin:0;padding:9px 11px;border-bottom:1px solid #d8dee6;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}.info-row{display:grid;grid-template-columns:48mm 1fr;gap:10px;padding:8px 11px;border-bottom:1px solid #edf0f3}.info-row:last-child{border-bottom:0}.info-row strong{color:#52606d;font-size:11px}.status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;border:1px solid transparent}.status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.site-item-title{display:flex;justify-content:space-between;gap:10px;align-items:start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}.site-item-body{padding:10px 12px}.site-item-body p{white-space:pre-wrap}.worker-table{width:100%;border-collapse:collapse;font-size:10.5px}.worker-table th,.worker-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.worker-table th{background:#f3f6f9;color:#4b5563}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.info-grid{grid-template-columns:1fr 1fr}.site-report-card,.photo{break-inside:avoid;page-break-inside:avoid}}
   `;
   const rows = [
     ["Projekt", project?.name || p.head.projectName],
-    ["Adresse", formatAddress(project?.address || p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"],
+    ["Adresse", projectAddressText(project, { multiline: false }) || formatAddress(p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"],
     ["Datum / Uhrzeit", formatDate(p.head.createdAt)],
     ["Anlass", p.siteControl?.reason],
     ["Bereich", p.siteControl?.area],
@@ -6774,7 +6879,7 @@ function createBlankDailyReport(projectId) {
   protocol.plans = [];
   protocol.pins = [];
   protocol.siteItems = [];
-  protocol.dailyReport = normalizeDailyReportMeta({ date, status: "Entwurf" }, protocol);
+  protocol.dailyReport = normalizeDailyReportMeta({ date, status: "Entwurf", workStart: "07:00", workEnd: "16:00" }, protocol);
   protocol.result.resultStatus = "Bautagesbericht dokumentiert";
   state.protocols.unshift(protocol);
   state.currentProjectId = protocol.projectId;
@@ -6808,7 +6913,7 @@ function renderDailyReportView() {
   if (!project) { list.innerHTML = `<div class="panel"><p class="muted">Noch keine Projekte vorhanden. Bitte zuerst ein Projekt anlegen.</p><button class="primary-btn" id="siteNewProjectBtn" type="button">Neues Projekt</button></div>`; return; }
   state.currentProjectId = project.id;
   const reports = dailyReportProtocolsForProject(project.id);
-  list.innerHTML = `<section class="panel project-hub-summary"><div><h3>${escapeHtml(project.name || "Projekt")}</h3><p class="muted">${escapeHtml(formatAddress(project.address || project.siteAddress, { multiline: false }) || "Adresse offen")}</p></div><button class="primary-btn" data-new-daily-report="${project.id}" type="button">Neuer Bautagesbericht</button></section><section class="panel"><div class="acceptance-list">${reports.length ? reports.map(dailyReportListCard).join("") : `<div class="empty-card muted">Noch kein Bautagesbericht in diesem Projekt.</div>`}</div></section>`;
+  list.innerHTML = `<section class="panel project-hub-summary"><div><h3>${escapeHtml(project.name || "Projekt")}</h3><p class="muted">${escapeHtml(projectAddressText(project, { multiline: false }) || "Adresse offen")}</p></div><button class="primary-btn" data-new-daily-report="${project.id}" type="button">Neuer Bautagesbericht</button></section><section class="panel"><div class="acceptance-list">${reports.length ? reports.map(dailyReportListCard).join("") : `<div class="empty-card muted">Noch kein Bautagesbericht in diesem Projekt.</div>`}</div></section>`;
 }
 
 function renderDailyReportEditor() {
@@ -6821,7 +6926,7 @@ function renderDailyReportEditor() {
   form.elements.dailyTitle.value = protocol.head.acceptanceTitle || "Bautagesbericht";
   form.elements.dailyDate.value = report.date || (protocol.head.createdAt || "").slice(0, 10);
   form.elements.dailyProject.value = project?.name || protocol.head.projectName || "";
-  form.elements.dailyAddress.value = formatAddress(project?.address || protocol.head.siteAddress || protocol.head.siteAddressText || "", { multiline: false });
+  form.elements.dailyAddress.value = projectAddressText(project, { multiline: false }) || formatAddress(protocol.head.siteAddress || protocol.head.siteAddressText || "", { multiline: false });
   form.elements.dailyReportNumber.value = report.reportNumber || "";
   form.elements.dailyStatus.value = report.status || "Entwurf";
   form.elements.dailyStart.value = report.workStart || "";
@@ -6851,6 +6956,7 @@ function renderDailyReportEditor() {
   form.elements.dailyTotal.value = dailyReportTotalHours(report);
   const banner = $("#dailyReportModeBanner");
   if (banner) banner.innerHTML = `<strong>Bautagesbericht</strong><span>${escapeHtml(project?.name || protocol.head.projectName || "Projekt")} · ${escapeHtml(formatDate(report.date || protocol.head.createdAt))}</span>`;
+  renderDailyWorkers();
   renderDailyReportPhotos();
 }
 
@@ -6860,6 +6966,7 @@ function saveDailyReportForm({ persistNow = true } = {}) {
   if (!form) return;
   const p = state.current;
   const photos = p.dailyReport?.photos || [];
+  const workers = normalizeDailyWorkers(p.dailyReport?.workers || []);
   const date = form.elements.dailyDate.value || (p.head.createdAt || nowLocalInput()).slice(0, 10);
   p.head.acceptanceTitle = form.elements.dailyTitle.value || `Bautagesbericht ${date}`;
   p.head.acceptanceType = "Bautagesbericht";
@@ -6870,7 +6977,7 @@ function saveDailyReportForm({ persistNow = true } = {}) {
     crew: form.elements.dailyCrew.value || "", company: form.elements.dailyCompany.value || "", personCount: form.elements.dailyPersonCount.value || "", foreman: form.elements.dailyForeman.value || "",
     area: form.elements.dailyArea.value || "", trade: form.elements.dailyTrade.value || "", inputLanguage: form.elements.dailyInputLanguage.value || "de", translationStatus: form.elements.dailyTranslationStatus.value || "nicht übersetzt", workOriginal: form.elements.dailyWorkOriginal.value || "", workGerman: form.elements.dailyWorkGerman.value || "", workAlbanian: form.elements.dailyWorkAlbanian.value || "", workDescription: form.elements.dailyWorkDescription.value || "",
     materials: form.elements.dailyMaterials.value || "", equipment: form.elements.dailyEquipment.value || "", incidentsOriginal: form.elements.dailyIncidentsOriginal.value || "", incidentsGerman: form.elements.dailyIncidentsGerman.value || "", incidentsAlbanian: form.elements.dailyIncidentsAlbanian.value || "", delays: form.elements.dailyDelays.value || "", defects: form.elements.dailyDefects.value || "",
-    weather: form.elements.dailyWeather.value || "", confirmedBy: form.elements.dailyConfirmedBy.value || "", photos
+    weather: form.elements.dailyWeather.value || "", confirmedBy: form.elements.dailyConfirmedBy.value || "", workers, photos
   }, p);
   p.dailyReport.totalHours = dailyReportTotalHours(p.dailyReport);
   form.elements.dailyTotal.value = p.dailyReport.totalHours;
@@ -6880,6 +6987,61 @@ function saveDailyReportForm({ persistNow = true } = {}) {
   p.result.finalNote = p.dailyReport.workOriginal || p.dailyReport.workDescription || "";
   p.updatedAt = new Date().toISOString();
   if (persistNow) persist(); else schedulePersist();
+}
+
+
+function renderDailyWorkers() {
+  const target = $("#dailyWorkerList");
+  if (!target || !isDailyReportProtocol()) return;
+  const workers = normalizeDailyWorkers(state.current.dailyReport?.workers || []);
+  state.current.dailyReport.workers = workers;
+  target.innerHTML = workers.length ? workers.map((worker) => `
+    <article class="daily-worker-card" data-daily-worker="${escapeAttr(worker.id)}">
+      <div class="grid compact-grid">
+        <label>Name<input data-daily-worker-field="name" list="personOptions" value="${escapeAttr(worker.name)}"></label>
+        <label>Firma<input data-daily-worker-field="company" list="companyOptions" value="${escapeAttr(worker.company)}"></label>
+        <label>Rolle / Tätigkeit<input data-daily-worker-field="role" list="tradeOptions" value="${escapeAttr(worker.role)}"></label>
+        <label>Arbeitsbeginn<input data-daily-worker-field="start" type="time" step="60" value="${escapeAttr(worker.start)}"></label>
+        <label>Arbeitsende<input data-daily-worker-field="end" type="time" step="60" value="${escapeAttr(worker.end)}"></label>
+        <label>Pause (h)<input data-daily-worker-field="breakHours" type="number" min="0" step="0.25" value="${escapeAttr(worker.breakHours)}"></label>
+        <label>Stunden<input data-daily-worker-field="hours" value="${escapeAttr(workerHours(worker))}" readonly></label>
+      </div>
+      <label>Bemerkung<textarea data-daily-worker-field="note" rows="2">${escapeHtml(worker.note)}</textarea></label>
+      <div class="card-actions compact-actions"><button class="danger-btn" type="button" data-delete-daily-worker="${escapeAttr(worker.id)}">Mitarbeiter entfernen</button></div>
+    </article>
+  `).join("") : `<div class="empty-card muted">Noch keine einzelnen Mitarbeiter erfasst.</div>`;
+}
+
+function addDailyWorker() {
+  if (!isDailyReportProtocol()) return;
+  saveDailyReportForm({ persistNow: false });
+  state.current.dailyReport.workers = normalizeDailyWorkers(state.current.dailyReport.workers || []);
+  const defaultStart = normalizeTimeValue(state.current.dailyReport.workStart || "07:00") || "07:00";
+  const defaultEnd = normalizeTimeValue(state.current.dailyReport.workEnd || "") || "";
+  state.current.dailyReport.workers.push(normalizeDailyWorker({ start: defaultStart, end: defaultEnd, breakHours: state.current.dailyReport.breakHours || "" }, state.current.dailyReport.workers.length));
+  persist();
+  renderDailyReportEditor();
+}
+
+function deleteDailyWorker(workerId) {
+  if (!isDailyReportProtocol()) return;
+  state.current.dailyReport.workers = (state.current.dailyReport.workers || []).filter((worker) => worker.id !== workerId);
+  persist();
+  renderDailyReportEditor();
+}
+
+function updateDailyWorkerField(input) {
+  const worker = dailyWorkerById(input.closest("[data-daily-worker]")?.dataset.dailyWorker || "");
+  if (!worker) return;
+  const field = input.dataset.dailyWorkerField;
+  if (["start", "end"].includes(field)) worker[field] = normalizeTimeValue(input.value || "");
+  else worker[field] = input.value || "";
+  worker.hours = workerHours(worker);
+  state.current.updatedAt = new Date().toISOString();
+  const card = input.closest("[data-daily-worker]");
+  const hoursInput = card?.querySelector('[data-daily-worker-field="hours"]');
+  if (hoursInput) hoursInput.value = worker.hours || "";
+  schedulePersist();
 }
 
 function renderDailyReportPhotos() {
@@ -6991,7 +7153,7 @@ async function runDailyTranslation(direction = "auto") {
     }
     if (skipped) {
       report.translationStatus = report.translationStatus || "nicht übersetzt";
-      showAppToast("Automatische Übersetzung ist noch nicht verbunden. Originaltext wurde gespeichert. Übersetzung kann manuell eingetragen werden.", { type: "info", timeout: 6500 });
+      showAppToast("Automatische Übersetzung ist noch nicht verbunden. Bitte Übersetzungstext kopieren, extern übersetzen und hier einfügen.", { type: "info", timeout: 6500 });
     } else {
       showAppToast("Übersetzung aktualisiert.");
     }
@@ -7035,11 +7197,13 @@ async function buildDailyReportParts() {
     const url = await reportPhotoDataUrl(photo.id, { maxWidth: 1400, maxHeight: 1400, type: "image/jpeg", quality: 0.75 });
     if (url) photoCards.push({ photo, url });
   }
-  const css = `body{margin:0;background:#e9eef3;color:#172033;font-family:Arial,Helvetica,sans-serif}.report-export{background:#e9eef3;padding:18px}.report-page{width:180mm;max-width:180mm;min-height:267mm;margin:0 auto;background:#fff;padding:14mm;box-shadow:0 12px 34px rgba(15,23,42,.16);box-sizing:border-box}.report-header{display:flex;justify-content:space-between;gap:18px;border-bottom:2px solid #1f2d3d;padding-bottom:12px;margin-bottom:14px}.brand{text-transform:uppercase;letter-spacing:.06em;color:#667085;font-size:10px;font-weight:700}.report-header h1{margin:4px 0 6px;font-size:24px}.muted{color:#667085}.doc-meta{display:grid;gap:8px;min-width:36mm}.doc-meta div{border:1px solid #d8dee6;border-radius:8px;padding:7px 9px}.doc-meta span{display:block;font-size:9px;color:#667085;text-transform:uppercase}.doc-meta strong{font-size:12px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.info-card,.daily-card{border:1px solid #d8dee6;border-radius:10px;background:#fbfcfe;padding:10px 12px;margin:10px 0;break-inside:avoid}.info-card h3,.daily-card h3{margin:0 0 8px;font-size:14px}.info-row{display:grid;grid-template-columns:35mm 1fr;gap:8px;border-top:1px solid #edf1f5;padding:6px 0;font-size:11px}.info-row:first-of-type{border-top:0}.text-block{white-space:pre-wrap;font-size:11.5px;line-height:1.45;margin:6px 0}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo{break-inside:avoid}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#667085;margin:5px 0 0}.footer-note{margin-top:24px;border-top:1px solid #d8dee6;padding-top:8px;color:#667085;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.daily-card,.photo{break-inside:avoid;page-break-inside:avoid}}`;
+  const css = `body{margin:0;background:#e9eef3;color:#172033;font-family:Arial,Helvetica,sans-serif}.report-export{background:#e9eef3;padding:18px}.report-page{width:180mm;max-width:180mm;min-height:267mm;margin:0 auto;background:#fff;padding:14mm;box-shadow:0 12px 34px rgba(15,23,42,.16);box-sizing:border-box}.report-header{display:flex;justify-content:space-between;gap:18px;border-bottom:2px solid #1f2d3d;padding-bottom:12px;margin-bottom:14px}.brand{text-transform:uppercase;letter-spacing:.06em;color:#667085;font-size:10px;font-weight:700}.report-header h1{margin:4px 0 6px;font-size:24px}.muted{color:#667085}.doc-meta{display:grid;gap:8px;min-width:36mm}.doc-meta div{border:1px solid #d8dee6;border-radius:8px;padding:7px 9px}.doc-meta span{display:block;font-size:9px;color:#667085;text-transform:uppercase}.doc-meta strong{font-size:12px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.info-card,.daily-card{border:1px solid #d8dee6;border-radius:10px;background:#fbfcfe;padding:10px 12px;margin:10px 0;break-inside:avoid}.info-card h3,.daily-card h3{margin:0 0 8px;font-size:14px}.info-row{display:grid;grid-template-columns:35mm 1fr;gap:8px;border-top:1px solid #edf1f5;padding:6px 0;font-size:11px}.info-row:first-of-type{border-top:0}.text-block{white-space:pre-wrap;font-size:11.5px;line-height:1.45;margin:6px 0}.worker-table{width:100%;border-collapse:collapse;font-size:10.5px}.worker-table th,.worker-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.worker-table th{background:#f3f6f9;color:#4b5563}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo{break-inside:avoid}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#667085;margin:5px 0 0}.footer-note{margin-top:24px;border-top:1px solid #d8dee6;padding-top:8px;color:#667085;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.daily-card,.photo{break-inside:avoid;page-break-inside:avoid}}`;
   const photoHtml = photoCards.length ? `<div class="photo-grid">${photoCards.map(({ photo, url }) => `<figure class="photo"><img src="${url}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><p><strong>${escapeHtml(photo.caption || photo.name || "Foto")}</strong></p><p>${escapeHtml(photo.name || "Foto")}</p></figcaption></figure>`).join("")}</div>` : `<p class="muted">Keine Fotos dokumentiert.</p>`;
-  const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", formatAddress(project?.address || p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
+  const workers = normalizeDailyWorkers(report.workers || []);
+  const workerHtml = workers.length ? `<table class="worker-table"><thead><tr><th>Name</th><th>Firma</th><th>Rolle</th><th>von</th><th>bis</th><th>Pause</th><th>Stunden</th><th>Bemerkung</th></tr></thead><tbody>${workers.map((worker) => `<tr><td>${escapeHtml(worker.name || "-")}</td><td>${escapeHtml(worker.company || "")}</td><td>${escapeHtml(worker.role || "")}</td><td>${escapeHtml(worker.start || "")}</td><td>${escapeHtml(worker.end || "")}</td><td>${escapeHtml(worker.breakHours || "")}</td><td>${escapeHtml(workerHours(worker) || worker.hours || "")}</td><td>${escapeHtml(worker.note || "")}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">Keine einzelnen Mitarbeiter erfasst.</p>`;
+  const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", projectAddressText(project, { multiline: false }) || formatAddress(p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
   const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" - ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
-  const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", report.inputLanguage === "sq" ? "Albanisch" : "Deutsch")}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(report.workGerman || (report.inputLanguage === "de" ? report.workOriginal : "") || report.workDescription || "Keine Tätigkeiten dokumentiert.")}</p>${report.inputLanguage === "sq" && report.workOriginal ? `<div class="info-card"><h3>Originaltext Albanisch</h3><p class="text-block">${escapeHtml(report.workOriginal)}</p></div>` : ""}${report.inputLanguage === "de" && report.workAlbanian ? `<div class="info-card"><h3>Albanische Fassung</h3><p class="text-block">${escapeHtml(report.workAlbanian)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
+  const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", report.inputLanguage === "sq" ? "Albanisch" : "Deutsch")}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(report.workGerman || (report.inputLanguage === "de" ? report.workOriginal : "") || report.workDescription || "Keine Tätigkeiten dokumentiert.")}</p>${report.inputLanguage === "sq" && report.workOriginal ? `<div class="info-card"><h3>Originaltext Albanisch</h3><p class="text-block">${escapeHtml(report.workOriginal)}</p></div>` : ""}${report.inputLanguage === "de" && report.workAlbanian ? `<div class="info-card"><h3>Albanische Fassung</h3><p class="text-block">${escapeHtml(report.workAlbanian)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
   const title = sanitizeFileName(`Bautagesbericht_${project?.name || p.head.projectName || "Projekt"}_${report.date || (p.head.createdAt || "").slice(0,10)}`);
   return { css, body, title, fileName: `${title}.pdf` };
 }
@@ -9766,6 +9930,10 @@ function bindEvents() {
         updateDailyPhotoCaption(event.target);
         return;
       }
+      if (event.target.matches("[data-daily-worker-field]")) {
+        updateDailyWorkerField(event.target);
+        return;
+      }
       saveDailyReportForm({ persistNow: false });
     });
     dailyReportForm.addEventListener("change", (event) => {
@@ -9773,7 +9941,20 @@ function bindEvents() {
         updateDailyPhotoCaption(event.target);
         return;
       }
+      if (event.target.matches("[data-daily-worker-field]")) {
+        updateDailyWorkerField(event.target);
+        persist();
+        return;
+      }
+      if (event.target.matches('[name="dailyStart"], [name="dailyEnd"]')) {
+        event.target.value = normalizeTimeValue(event.target.value || "");
+      }
       saveDailyReportForm();
+    });
+    dailyReportForm.addEventListener("focusin", (event) => {
+      if (event.target.matches('[name="dailyStart"], [name="dailyEnd"], [data-daily-worker-field="start"], [data-daily-worker-field="end"]') && !event.target.value) {
+        event.target.value = event.target.matches('[name="dailyEnd"], [data-daily-worker-field="end"]') ? "16:00" : "07:00";
+      }
     });
   }
   const siteControlForm = $("#siteControlForm");
@@ -9872,6 +10053,10 @@ function bindEvents() {
     if (dailyPhotoGallery) triggerDailyPhotoPicker("gallery");
     const deleteDailyPhoto = event.target.closest("[data-delete-daily-photo]");
     if (deleteDailyPhoto && confirm("Dieses Foto löschen?")) deleteDailyPhotoRef(deleteDailyPhoto.dataset.deleteDailyPhoto);
+    const addDailyWorkerButton = event.target.closest("#addDailyWorkerBtn");
+    if (addDailyWorkerButton) addDailyWorker();
+    const deleteDailyWorkerButton = event.target.closest("[data-delete-daily-worker]");
+    if (deleteDailyWorkerButton && confirm("Diesen Mitarbeiter aus dem Bautagesbericht entfernen?")) deleteDailyWorker(deleteDailyWorkerButton.dataset.deleteDailyWorker);
     const dailyWeatherAuto = event.target.closest("#dailyWeatherAutoBtn");
     if (dailyWeatherAuto) fillDailyReportWeatherFromLocation();
     const dailyTranslate = event.target.closest("[data-daily-translate]");
@@ -9925,6 +10110,8 @@ function bindEvents() {
       persist();
       renderSiteControlEditor();
     }
+    const siteAddressFromProject = event.target.closest("#siteAddressFromProjectBtn");
+    if (siteAddressFromProject) applySiteControlProjectAddress();
     const siteWeatherAuto = event.target.closest("#siteWeatherAutoBtn");
     if (siteWeatherAuto) fillSiteControlWeatherFromLocation();
     const sitePdfSave = event.target.closest("#sitePdfSaveBtn");

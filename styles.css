@@ -2651,7 +2651,7 @@ dialog button {
 }
 
 
-/* v111: zentrale Projektpläne, kompakte Firmenliste und robuster Projektdialog */
+/* zentrale Projektpläne, kompakte Firmenliste und robuster Projektdialog */
 .project-plan-toolbar-card label {
   display: block;
   margin-top: 12px;
@@ -2740,3 +2740,32 @@ dialog button {
     grid-template-columns: 1fr;
   }
 }
+
+/* v112: Tagesbericht-Mitarbeiter und Praxis-Hotfixes */
+.daily-worker-head {
+  margin-top: 14px;
+  align-items: center;
+}
+.daily-worker-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+.daily-worker-card {
+  border: 1px solid #d8e0e8;
+  border-radius: 10px;
+  background: #fbfdff;
+  padding: 12px;
+}
+.daily-worker-card textarea {
+  min-height: 72px;
+}
+@media (max-width: 720px) {
+  .daily-worker-head {
+    gap: 8px;
+  }
+  .daily-worker-card .compact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
