@@ -1773,3 +1773,36 @@ Erfolgreich geprüft:
 - Build dist
 - Syntaxcheck dist/app.js
 - ZIP-Erstellung
+
+## v115 – MVP 8 Bautagesbericht Voice-First / Mitarbeitererkennung
+
+### Neu
+- Großer Einstieg „Bautagesbericht einsprechen“ im Bautagesbericht.
+- Rohtranskript-Feld mit Button „Diktat auswerten“.
+- Regelbasierte lokale Extraktion für Personal, Zeiten, Wetter, Gewerk, Material, Geräte, Behinderungen und Mängel.
+- Mitarbeiteranzahl wird aus Sprache erkannt und erzeugt entsprechende Mitarbeiterkarten.
+- Genannte Namen werden gegen Stammdaten-Personen inklusive optionaler Alias/Spitzname-Felder abgeglichen.
+- Firma aus Stammdaten wird erkannt und bei Mitarbeiterkarten vorausgewählt.
+- Vorschau zeigt erkannte Anzahl, gefundene Mitarbeiter und offene Prüfhinweise.
+
+### Grenzen
+- Keine echte Server-KI und keine automatische Übersetzung ohne geschützten Endpunkt.
+- Unklare Namen werden nicht automatisch sicher zugeordnet, sondern zur Prüfung markiert.
+- Nutzerprüfung bleibt zwingend.
+
+### Nicht verändert
+- A4-Bericht/PDF speichern bleibt offizieller Berichtspfad.
+- Planviewer, Pins, Backup/Restore und plans.json unverändert.
+
+### Prüfpunkte
+- Syntaxcheck app.js
+- Build dist
+- Syntaxcheck dist/app.js
+- ZIP-Erstellung
+## v116 - Projektpläne in Bewehrungsabnahme
+- Zentrale Projektpläne werden in der Bewehrungsabnahme automatisch im Plan-Tab angeboten, ohne manuelle Übernahme in die Abnahme.
+- Planansicht nutzt die vorhandenen lokalen Plan-/PDF-Daten und bleibt ohne API-/Dropbox-/IndexedDB-Migration.
+- Mobile Planansicht: bestehendes Zoom/Pan/Pinch bleibt erhalten, zusätzlich Rotationsbuttons für PDF-Planseiten.
+- Rotation wird pro Abnahme/Plan in `planViewSettings` gespeichert; `plans.json` bleibt unverändert.
+- Pin-Koordinaten und Berichtsausgabe bleiben unverändert; fachliche Pins werden weiterhin im Check-Markierungsdialog gesetzt.
+

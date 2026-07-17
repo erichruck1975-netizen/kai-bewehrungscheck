@@ -3614,3 +3614,30 @@ Wenn ein Pin vorhanden ist, der Plan oder die Planseite aber nicht geladen werde
 
 ### Bestandsschutz
 Keine Änderung an plans.json, keine Datenbankmigration, keine Änderung der Pin-Koordinaten und keine Änderung des Planviewers.
+
+## v115 MVP 8: Bautagesbericht Voice-First nach FoxBuild-Prinzip
+
+### Ziel
+Der Bautagesbericht kann als Diktat-first-Workflow begonnen werden. Ein großer Button erfasst den freien Tagesbericht per Browser-Spracherkennung. Das Rohtranskript bleibt sichtbar und wird lokal regelbasiert in Formularfelder und Mitarbeiterfelder überführt. Es werden keine API-Keys im Browser gespeichert und keine Angaben automatisch versendet.
+
+### Lokale Auswertung
+Die App erkennt im MVP ohne Server-KI: Mitarbeiteranzahl, genannte Namen, Firmen aus Stammdaten, Arbeitszeit, Wetter-/Temperaturhinweise, Gewerk, Material, Geräte, Behinderungen, Mängel und den wortnahen Tätigkeits-/Originaltext. Nicht erkannte Felder bleiben leer.
+
+### Personal / Mitarbeiter
+Aus Formulierungen wie „vier Mann“, „wir waren zu dritt“ oder „Von LTH Bau waren Labi und Arben da“ erzeugt die App Mitarbeiterkarten. Eindeutige Stammdaten-Treffer werden vorausgefüllt. Unklare oder fehlende Treffer bleiben sichtbar prüfpflichtig. Gespeichert werden unter anderem mitarbeiter_count_spoken, selected_employee_ids, unmatched_employee_names, employee_field_sources, employee_confidence und ai_employee_extraction_used.
+
+### Deutsch / Albanisch / Mixed
+Deutsch und Albanisch können über getrennte Mikrofonbuttons erfasst werden. Albanische oder gemischte Texte bleiben als Original/Rohtranskript erhalten. Eine echte Übersetzung bleibt weiterhin dem vorbereiteten geschützten Server-Endpunkt bzw. dem manuellen Übersetzungsworkflow vorbehalten.
+
+### Diktat-first-Regel und Prüfung
+Die Felder werden wortnah aus dem Diktat übernommen. Die App formuliert keine rechtlichen Bewertungen und erfindet keine Inhalte. Der Nutzer prüft die Vorschau, korrigiert Felder und erzeugt erst danach bewusst den A4-Bericht.
+
+### Bestandsschutz
+Bestehende manuelle Bautagesberichte bleiben bearbeitbar. Der A4-Berichtspfad, PDF speichern, Planviewer, Pins, Backup/Restore und plans.json wurden nicht umgebaut.
+## v116 - Projektpläne in Bewehrungsabnahme
+- Zentrale Projektpläne werden in der Bewehrungsabnahme automatisch im Plan-Tab angeboten, ohne manuelle Übernahme in die Abnahme.
+- Planansicht nutzt die vorhandenen lokalen Plan-/PDF-Daten und bleibt ohne API-/Dropbox-/IndexedDB-Migration.
+- Mobile Planansicht: bestehendes Zoom/Pan/Pinch bleibt erhalten, zusätzlich Rotationsbuttons für PDF-Planseiten.
+- Rotation wird pro Abnahme/Plan in `planViewSettings` gespeichert; `plans.json` bleibt unverändert.
+- Pin-Koordinaten und Berichtsausgabe bleiben unverändert; fachliche Pins werden weiterhin im Check-Markierungsdialog gesetzt.
+

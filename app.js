@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v114";
+const APP_VERSION = "v116";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -472,6 +472,7 @@ function normalizeMasterData(masterData = {}) {
       address: normalizeAddress(item.address || item.siteAddress || item.baustellenAdresse || ""),
       phone: item.phone || "",
       email: item.email || "",
+      aliases: item.aliases || item.nickname || item.nickName || "",
       isDefault: !!item.isDefault
     })),
     companies: (source.companies || []).map((item) => ({
@@ -559,6 +560,11 @@ function normalizeDailyWorker(worker = {}, index = 0) {
     breakHours: worker.breakHours || worker.pause || "",
     hours: worker.hours || "",
     note: worker.note || "",
+    employeeId: worker.employeeId || worker.personId || "",
+    source: worker.source || "manual",
+    confidence: worker.confidence || "",
+    matchStatus: worker.matchStatus || "",
+    sourceName: worker.sourceName || "",
     order: Number(worker.order) || index + 1
   };
   normalized.hours = normalized.hours || workerHours(normalized);
@@ -1216,6 +1222,25 @@ function normalizeDailyReportMeta(meta = {}, protocol = {}) {
     defects: meta.defects || "",
     weather: meta.weather || protocol.weather?.weatherCondition || "",
     confirmedBy: meta.confirmedBy || "",
+    source_audio_ids: meta.source_audio_ids || [],
+    raw_transcript: meta.raw_transcript || meta.voiceDraft || "",
+    voiceDraft: meta.voiceDraft || meta.raw_transcript || "",
+    cleaned_text_de: meta.cleaned_text_de || "",
+    original_language: meta.original_language || meta.inputLanguage || "de",
+    translated_text_de: meta.translated_text_de || "",
+    field_sources: meta.field_sources || {},
+    field_confidence: meta.field_confidence || {},
+    ai_form_extraction_used: !!meta.ai_form_extraction_used,
+    user_confirmed: !!meta.user_confirmed,
+    signed_at: meta.signed_at || "",
+    report_status: meta.report_status || meta.status || "draft",
+    mitarbeiter_count_spoken: meta.mitarbeiter_count_spoken || "",
+    selected_employee_ids: meta.selected_employee_ids || [],
+    unmatched_employee_names: meta.unmatched_employee_names || [],
+    employee_field_sources: meta.employee_field_sources || [],
+    employee_confidence: meta.employee_confidence || "",
+    ai_employee_extraction_used: !!meta.ai_employee_extraction_used,
+    voice_warnings: meta.voice_warnings || [],
     workers: normalizeDailyWorkers(meta.workers || []),
     photos: (meta.photos || []).map((photo) => ({ ...normalizePhotoRef(photo), caption: photo.caption || "" }))
   };
@@ -1605,7 +1630,9 @@ function openProtocol(protocol) {
   state.currentProjectId = state.current.projectId || "";
   const project = projectById(state.currentProjectId);
   if (project) syncProtocolProjectFields(state.current, project, { overwriteProtocol: false });
-  state.selectedPlanId = state.current.activePlanId || state.current.plans[0]?.id || "";
+  const availablePlans = plansForCurrentProtocol();
+  state.selectedPlanId = availablePlans.find((plan) => plan.id === state.current.activePlanId)?.id || availablePlans[0]?.id || "";
+  state.current.activePlanId = state.selectedPlanId;
   state.selectedPinId = currentPins()[0]?.id || "";
   state.pinMode = false;
   state.placementModePinId = "";
@@ -1916,6 +1943,83 @@ function markPlansForCurrentContext() {
     seen.add(key);
     return true;
   });
+}
+
+function annotatePlanContext(plan, context = {}) {
+  if (!plan) return null;
+  Object.defineProperty(plan, "_planContext", {
+    value: context,
+    configurable: true,
+    enumerable: false
+  });
+  return plan;
+}
+
+function planContext(plan) {
+  if (!plan) return { scope: "none" };
+  if (plan._planContext) return plan._planContext;
+  const isLocal = !!state.current?.plans?.some((item) => item.id === plan.id);
+  return { scope: isLocal ? "protocol" : "project" };
+}
+
+function isProjectPlan(plan) {
+  return planContext(plan).scope === "project";
+}
+
+function plansForCurrentProtocol() {
+  if (!state.current) return [];
+  const projectId = state.current.projectId || state.currentProjectId || "";
+  const seen = new Set();
+  const plans = [];
+  const add = (sourcePlan, context) => {
+    if (!sourcePlan) return;
+    const plan = annotatePlanContext(normalizePlanMeta(sourcePlan), context);
+    const key = plan.id || projectPlanDedupeKey(plan, projectId);
+    if (seen.has(key)) return;
+    seen.add(key);
+    plans.push(plan);
+  };
+  (state.current.plans || []).forEach((plan) => add(plan, { scope: "protocol", protocolId: state.current.id }));
+  projectPlanEntries(projectId).forEach(({ protocol, plan }) => {
+    add(plan, {
+      scope: protocol?.id === state.current.id ? "protocol" : "project",
+      protocolId: protocol?.id || "",
+      protocolTitle: acceptanceLabel(protocol)
+    });
+  });
+  return plans;
+}
+
+function selectedPlanSourceText(plan) {
+  if (!plan) return "";
+  const context = planContext(plan);
+  if (context.scope === "project") return "Projektplan" + (context.protocolTitle ? " aus " + context.protocolTitle : "");
+  return "Abnahmeplan";
+}
+
+function currentPlanViewSettings(plan) {
+  if (!state.current || !plan?.id) return { rotation: 0 };
+  state.current.planViewSettings = state.current.planViewSettings || {};
+  state.current.planViewSettings[plan.id] = state.current.planViewSettings[plan.id] || { rotation: 0 };
+  return state.current.planViewSettings[plan.id];
+}
+
+function planRotation(plan = selectedPlan()) {
+  const rotation = Number(currentPlanViewSettings(plan).rotation) || 0;
+  return ((rotation % 360) + 360) % 360;
+}
+
+function setPlanRotation(delta) {
+  const plan = selectedPlan();
+  if (!plan) return;
+  const settings = currentPlanViewSettings(plan);
+  settings.rotation = ((Number(settings.rotation) || 0) + delta + 360) % 360;
+  plan.panX = 0;
+  plan.panY = 0;
+  state.pinMode = false;
+  state.placementModePinId = "";
+  saveFromForm({ persistNow: false });
+  renderPlan();
 }
 
 function siteControlPinForItem(item) {
@@ -2534,8 +2638,15 @@ function deleteSignature(id) {
 
 
 function selectedPlan() {
-  const plan = state.current?.plans.find((plan) => plan.id === state.selectedPlanId) || null;
-  return plan ? normalizePlanMeta(plan) : null;
+  if (!state.current) return null;
+  const plans = plansForCurrentProtocol();
+  let plan = plans.find((item) => item.id === state.selectedPlanId) || null;
+  if (!plan && plans.length) {
+    plan = plans[0];
+    state.selectedPlanId = plan.id;
+    state.current.activePlanId = plan.id;
+  }
+  return plan || null;
 }
 
 function acceptanceLabel(protocol) {
@@ -3320,19 +3431,28 @@ function currentMarkPlacement(pin) {
 }
 
 function renderPlanControls() {
-  const plan = selectedPlan();
+  const plans = plansForCurrentProtocol();
+  let plan = selectedPlan();
+  if (!plan && plans.length) {
+    plan = plans[0];
+    state.selectedPlanId = plan.id;
+    state.current.activePlanId = plan.id;
+  }
+  const projectPlan = isProjectPlan(plan);
   const isRenderable = isPlanRenderable(plan);
   const planSelect = $("#planSelect");
-  planSelect.innerHTML = state.current.plans.length
-    ? state.current.plans.map((item) => `<option value="${item.id}">${escapeHtml(planDisplayName(item))}</option>`).join("")
+  planSelect.innerHTML = plans.length
+    ? plans.map((item) => `<option value="${escapeAttr(item.id)}">${escapeHtml(planDisplayName(item))}${isProjectPlan(item) ? " (Projektplan)" : ""}</option>`).join("")
     : `<option value="">Kein Plan vorhanden</option>`;
   planSelect.value = plan?.id || "";
   $$("#planMetaFields [data-plan-field]").forEach((field) => {
     field.value = plan ? plan[field.dataset.planField] || "" : "";
-    field.disabled = !plan;
+    field.disabled = !plan || projectPlan;
   });
   const pageCountField = $('[data-plan-field="pageCount"]');
   if (pageCountField) pageCountField.disabled = true;
+  const metaDetails = $(".plan-meta-details");
+  if (metaDetails) metaDetails.classList.toggle("readonly-plan", !!projectPlan);
   renderPlanAutoHint(plan);
   const pageSelect = $("#pageSelect");
   if (plan?.type === "application/pdf") {
@@ -3359,6 +3479,8 @@ function renderPlanControls() {
     ? `${pinLabel(placementPin)} Platzierungsmodus aktiv – auf Planstelle tippen`
     : "Pin-Modus aktiv – auf Planstelle tippen";
   $("#zoomLabel").textContent = `${Math.round((plan?.zoom || 1) * 100)} %`;
+  const rotationLabel = $("#rotationLabel");
+  if (rotationLabel) rotationLabel.textContent = `${planRotation(plan)}°`;
   renderPlanListStatus();
   renderPlanDebug();
   appendPlanSelectionDebug();
@@ -3371,17 +3493,22 @@ function isPlanRenderable(plan) {
 }
 
 function renderPlanListStatus() {
+  const plans = plansForCurrentProtocol();
   const plan = selectedPlan();
-  $("#planStatus").textContent = plan ? planStatusText(plan) : "Noch kein Plan hochgeladen.";
-  $("#planList").innerHTML = state.current.plans.map((item) => `
-    <div class="plan-row ${item.id === state.selectedPlanId ? "active" : ""}">
-      <button data-select-plan="${item.id}" type="button">
+  $("#planStatus").textContent = plan
+    ? `${planStatusText(plan)} · ${selectedPlanSourceText(plan)}`
+    : "Noch kein Plan im Projekt vorhanden.";
+  $("#planList").innerHTML = plans.length ? plans.map((item) => {
+    const projectPlan = isProjectPlan(item);
+    return `
+    <div class="plan-row ${item.id === state.selectedPlanId ? "active" : ""} ${projectPlan ? "project-plan-row" : ""}">
+      <button data-select-plan="${escapeAttr(item.id)}" type="button">
         <strong>${escapeHtml(planDisplayName(item))}</strong>
-        <span class="muted">${escapeHtml(item.documentStatus || "verwendet")} · Quelle: ${escapeHtml(planSourceLabel(item))} · ${escapeHtml(item.fileName)} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
+        <span class="muted">${escapeHtml(item.documentStatus || "verwendet")} · ${escapeHtml(selectedPlanSourceText(item))} · Quelle: ${escapeHtml(planSourceLabel(item))} · ${escapeHtml(item.fileName || item.dropboxFileName || "Datei")} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
       </button>
-      <button class="project-delete-link" data-delete-plan="${item.id}" type="button">Plan löschen</button>
-    </div>
-  `).join("");
+      ${projectPlan ? `<span class="plan-source-chip">Projektplan</span>` : `<button class="project-delete-link" data-delete-plan="${escapeAttr(item.id)}" type="button">Plan löschen</button>`}
+    </div>`;
+  }).join("") : `<div class="plan-row"><span class="muted">Keine Projektpläne vorhanden. Bitte Plan hochladen.</span></div>`;
 }
 
 function planStatusText(plan) {
@@ -3569,7 +3696,7 @@ async function renderPdfPlan(plan) {
     plan.pageCount = doc.numPages;
     plan.currentPage = Math.min(Math.max(1, plan.currentPage || 1), doc.numPages);
     const page = await doc.getPage(plan.currentPage);
-    const viewport = page.getViewport({ scale: 2 });
+    const viewport = page.getViewport({ scale: 2, rotation: planRotation(plan) });
     canvas.width = Math.max(1, Math.floor(viewport.width));
     canvas.height = Math.max(1, Math.floor(viewport.height));
     const ctx = canvas.getContext("2d", { alpha: false });
@@ -3765,18 +3892,30 @@ function visiblePlanElement() {
 }
 
 function applyPlanElementSize(element, plan, naturalWidth) {
-  element.style.width = "100%";
+  const stage = $("#planStage");
+  const viewer = $(".plan-viewer");
+  const baseWidth = Math.max(240, (viewer?.clientWidth || stage?.parentElement?.clientWidth || 800) - 16);
+  const zoom = Math.min(5, Math.max(0.5, Number(plan?.zoom) || 1));
+  const displayWidth = Math.max(180, Math.round(baseWidth * zoom));
+  element.style.width = `${displayWidth}px`;
   element.style.maxWidth = "none";
   element.style.height = "auto";
-  const stage = $("#planStage");
-  stage.style.width = "100%";
-  stage.style.minWidth = "100%";
-  stage.style.minHeight = "0";
-  stage.style.transform = "none";
-  requestAnimationFrame(() => {
-    stage.style.width = `${element.clientWidth || stage.clientWidth || 1}px`;
+  element.style.transform = "none";
+  if (stage) {
+    stage.style.width = `${displayWidth}px`;
     stage.style.minWidth = stage.style.width;
-  });
+    stage.style.maxWidth = "none";
+    stage.style.minHeight = "0";
+    stage.style.transform = "none";
+    requestAnimationFrame(() => {
+      const width = element.clientWidth || displayWidth || 1;
+      const height = element.clientHeight || stage.clientHeight || 1;
+      stage.style.width = `${width}px`;
+      stage.style.minWidth = stage.style.width;
+      stage.style.height = `${height}px`;
+      stage.style.minHeight = stage.style.height;
+    });
+  }
 }
 
 function clampPlanPan(plan) {
@@ -6496,10 +6635,18 @@ function insertVoiceText(btn, text) {
       if (language === "sq") state.current.dailyReport.workAlbanian = appendVoiceText(state.current.dailyReport.workAlbanian || "", text);
       state.current.dailyReport.translationStatus = "nicht übersetzt";
     } else {
+      if (fieldName === "voiceDraft") {
+        state.current.dailyReport.inputLanguage = language;
+        state.current.dailyReport.original_language = language;
+      }
       state.current.dailyReport[fieldName] = appendVoiceText(state.current.dailyReport[fieldName] || "", text);
     }
     state.current.updatedAt = new Date().toISOString();
     persist();
+    if (fieldName === "voiceDraft" || btn.dataset.voiceDailyMode === "full") {
+      applyDailyVoiceExtraction(state.current.dailyReport.voiceDraft || text);
+      return;
+    }
     renderDailyReportEditor();
   }
 }
@@ -7044,6 +7191,230 @@ function renderDailyReportView() {
   list.innerHTML = `<section class="panel project-hub-summary"><div><h3>${escapeHtml(project.name || "Projekt")}</h3><p class="muted">${escapeHtml(projectAddressText(project, { multiline: false }) || "Adresse offen")}</p></div><button class="primary-btn" data-new-daily-report="${project.id}" type="button">Neuer Bautagesbericht</button></section><section class="panel"><div class="acceptance-list">${reports.length ? reports.map(dailyReportListCard).join("") : `<div class="empty-card muted">Noch kein Bautagesbericht in diesem Projekt.</div>`}</div></section>`;
 }
 
+function normalizeMatchText(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9äöüÄÖÜ\s-]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function germanNumberFromText(text = "") {
+  const normalized = normalizeMatchText(text);
+  const digit = normalized.match(/\b(\d{1,2})\s*(mitarbeiter|mann|leute|personen|arbeiter)\b/);
+  if (digit) return Number(digit[1]);
+  const words = {
+    ein: 1, eine: 1, einen: 1, einem: 1, eins: 1,
+    zwei: 2, zweit: 2, drei: 3, dritt: 3, vier: 4, funf: 5, fuenf: 5,
+    sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, elf: 11, zwolf: 12, zwoelf: 12
+  };
+  const phrase = normalized.match(/\bzu\s+(zweit|dritt|viert|funft|fuenft|sechst|siebt|acht|neunt|zehnt)\b/);
+  if (phrase) return words[phrase[1].replace(/t$/, "")] || ({dritt: 3, viert: 4, funft: 5, fuenft: 5, sechst: 6, siebt: 7, acht: 8, neunt: 9, zehnt: 10})[phrase[1]] || "";
+  for (const [word, value] of Object.entries(words)) {
+    const pattern = new RegExp(`\\b${word}\\s*(mitarbeiter|mann|leute|personen|arbeiter)\\b`, "i");
+    if (pattern.test(normalized)) return value;
+  }
+  return "";
+}
+
+function dailyEmployeeCandidates() {
+  const master = normalizeMasterData(state.masterData);
+  return (master.ownPersons || []).map((person) => ({
+    id: person.id,
+    name: person.name || "",
+    company: person.company || "",
+    role: person.role || "",
+    aliases: uniqueValues(String(person.aliases || "").split(/[,;|]/).map((item) => item.trim()))
+  })).filter((person) => person.name);
+}
+
+function findCompanyInText(text = "") {
+  const normalized = normalizeMatchText(text);
+  const companies = normalizeMasterData(state.masterData).companies || [];
+  return companies.find((company) => {
+    const label = normalizeMatchText(companyLabel(company));
+    const name = normalizeMatchText(company.name || "");
+    return (name && normalized.includes(name)) || (label && normalized.includes(label));
+  }) || null;
+}
+
+function matchEmployeeName(rawName = "", companyName = "") {
+  const value = normalizeMatchText(rawName);
+  if (!value) return { status: "empty", matches: [] };
+  const companyNorm = normalizeMatchText(companyName || "");
+  let matches = dailyEmployeeCandidates().filter((person) => {
+    const parts = [person.name, ...person.aliases].map(normalizeMatchText).filter(Boolean);
+    const nameParts = normalizeMatchText(person.name).split(" ").filter((part) => part.length > 2);
+    return parts.some((part) => part === value || part.includes(value) || value.includes(part)) || nameParts.some((part) => part === value);
+  });
+  if (companyNorm) {
+    const byCompany = matches.filter((person) => normalizeMatchText(person.company).includes(companyNorm) || companyNorm.includes(normalizeMatchText(person.company)));
+    if (byCompany.length) matches = byCompany;
+  }
+  if (matches.length === 1) return { status: "matched", person: matches[0], matches };
+  if (matches.length > 1) return { status: "ambiguous", matches };
+  return { status: "unmatched", matches: [] };
+}
+
+function employeeNamesFromSpeech(text = "") {
+  const original = String(text || "");
+  const stop = new Set(["heute", "waren", "war", "wir", "mit", "mitarbeiter", "mann", "leute", "personen", "baustelle", "vor", "ort", "da", "von", "firma", "bau", "drei", "vier", "zwei", "funf", "fuenf", "sechs", "sieben", "und", "auf", "der", "die", "das", "es", "wurde", "wurden"]);
+  const segments = [];
+  const named = original.match(/(?:mitarbeiter|personal)\s*:?\s*([^.;]+)/i);
+  if (named) segments.push(named[1]);
+  const were = original.match(/(?:waren|war)\s+([^.;:]+?)(?:\s+vor\s+ort|\s+da|\.|$)/i);
+  if (were) segments.push(were[1]);
+  const afterColon = original.match(/:\s*([^.;]+)/);
+  if (afterColon) segments.push(afterColon[1]);
+  const candidates = segments.join(", ").split(/,|\bund\b|\+|\/|;/i)
+    .map((item) => item.trim().replace(/^(von|mit|und)\s+/i, "").replace(/\b(vor ort|da|auf der baustelle)\b/gi, "").trim())
+    .filter((item) => item && item.length > 1)
+    .filter((item) => !stop.has(normalizeMatchText(item)) && !/^\d+$/.test(item));
+  const known = [];
+  for (const person of dailyEmployeeCandidates()) {
+    const nameNorm = normalizeMatchText(person.name);
+    if (nameNorm && normalizeMatchText(original).includes(nameNorm)) known.push(person.name);
+    for (const alias of person.aliases) if (alias && normalizeMatchText(original).includes(normalizeMatchText(alias))) known.push(alias);
+  }
+  return uniqueValues([...known, ...candidates]).filter((name) => normalizeMatchText(name).split(" ").some((part) => part.length > 2));
+}
+
+function extractDailyReportFieldsFromSpeech(text = "") {
+  const normalized = normalizeMatchText(text);
+  const result = { fields: {}, sources: {}, confidence: {}, warnings: [] };
+  const time = normalized.match(/(?:von|ab)\s*(\d{1,2})(?::?(\d{2}))?\s*(?:bis|-)\s*(\d{1,2})(?::?(\d{2}))?/);
+  if (time) {
+    result.fields.workStart = `${time[1].padStart(2, "0")}:${(time[2] || "00").padStart(2, "0")}`;
+    result.fields.workEnd = `${time[3].padStart(2, "0")}:${(time[4] || "00").padStart(2, "0")}`;
+    result.sources.workStart = result.sources.workEnd = time[0];
+    result.confidence.workStart = result.confidence.workEnd = "medium";
+  }
+  const weather = text.match(/(wetter[^.]+|trocken[^.]*|regen[^.]*|sonnig[^.]*|bew[öo]lkt[^.]*)/i);
+  const temp = text.match(/(\d{1,2})\s*(grad|°c)/i);
+  if (weather || temp) {
+    result.fields.weather = [weather?.[0], temp?.[0]].filter(Boolean).join(", ");
+    result.sources.weather = result.fields.weather;
+    result.confidence.weather = "medium";
+  }
+  const trade = (normalizeMasterData(state.masterData).trades || []).find((item) => normalized.includes(normalizeMatchText(item)));
+  if (trade) {
+    result.fields.trade = trade;
+    result.sources.trade = trade;
+    result.confidence.trade = "medium";
+  }
+  const material = text.match(/(?:material|lieferung|geliefert)\s*:?\s*([^.;]+)/i);
+  if (material) {
+    result.fields.materials = material[1].trim();
+    result.sources.materials = material[0];
+    result.confidence.materials = "medium";
+  }
+  const equipment = text.match(/(?:gerät|geräte|maschine|maschinen)\s*:?\s*([^.;]+)/i);
+  if (equipment) {
+    result.fields.equipment = equipment[1].trim();
+    result.sources.equipment = equipment[0];
+    result.confidence.equipment = "medium";
+  }
+  const delay = text.match(/(?:behinderung|behindert|wartezeit|zufahrt blockiert)\s*:?\s*([^.;]+)/i);
+  if (delay) {
+    result.fields.delays = delay[0].trim();
+    result.sources.delays = delay[0];
+    result.confidence.delays = "medium";
+  }
+  const defect = text.match(/(?:mangel|mängel|offene punkte|problem)\s*:?\s*([^.;]+)/i);
+  if (defect) {
+    result.fields.defects = defect[0].trim();
+    result.sources.defects = defect[0];
+    result.confidence.defects = "medium";
+  }
+  result.fields.workOriginal = text.trim();
+  result.fields.workGerman = text.trim();
+  result.sources.workOriginal = text.trim();
+  result.confidence.workOriginal = "medium";
+  return result;
+}
+
+function extractDailyEmployeesFromSpeech(text = "") {
+  const company = findCompanyInText(text);
+  const count = germanNumberFromText(text);
+  const names = employeeNamesFromSpeech(text);
+  const workers = [];
+  const unmatched = [];
+  const sources = [];
+  const selectedIds = [];
+  for (const rawName of names) {
+    const match = matchEmployeeName(rawName, company?.name || "");
+    if (match.status === "matched") {
+      selectedIds.push(match.person.id);
+      sources.push({ name: rawName, employeeId: match.person.id, confidence: "high", status: "matched" });
+      workers.push(normalizeDailyWorker({ name: match.person.name, company: match.person.company || company?.name || "", role: match.person.role || "", employeeId: match.person.id, source: "voice", confidence: "high", matchStatus: "matched", sourceName: rawName }, workers.length));
+    } else if (match.status === "ambiguous") {
+      unmatched.push(rawName);
+      sources.push({ name: rawName, confidence: "low", status: "ambiguous", candidates: match.matches.map((item) => item.name) });
+      workers.push(normalizeDailyWorker({ name: rawName, company: company?.name || "", source: "voice", confidence: "low", matchStatus: "ambiguous", sourceName: rawName, note: "Mehrere Stammdaten-Treffer – bitte auswählen." }, workers.length));
+    } else {
+      unmatched.push(rawName);
+      sources.push({ name: rawName, confidence: "low", status: "unmatched" });
+      workers.push(normalizeDailyWorker({ name: rawName, company: company?.name || "", source: "voice", confidence: "low", matchStatus: "unmatched", sourceName: rawName, note: "Mitarbeiter nicht in Stammdaten gefunden – bitte auswählen oder neu anlegen." }, workers.length));
+    }
+  }
+  const targetCount = Math.max(Number(count) || 0, workers.length);
+  while (workers.length < targetCount) workers.push(normalizeDailyWorker({ company: company?.name || "", source: "voice", confidence: "medium", matchStatus: "empty", note: "Per Sprache angelegt – bitte Mitarbeiter auswählen." }, workers.length));
+  return { count: targetCount || "", spokenCount: count || "", company, workers, unmatched, selectedIds, sources, confidence: unmatched.length ? "medium" : (workers.length ? "high" : "") };
+}
+
+function applyDailyVoiceExtraction(text = "") {
+  if (!isDailyReportProtocol()) return;
+  saveDailyReportForm({ persistNow: false });
+  const report = state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
+  const raw = String(text || report.voiceDraft || report.raw_transcript || "").trim();
+  if (!raw) return showAppToast("Bitte zuerst einen Bautagesbericht einsprechen oder Text einfügen.", { type: "info" });
+  const fieldResult = extractDailyReportFieldsFromSpeech(raw);
+  const employeeResult = extractDailyEmployeesFromSpeech(raw);
+  report.voiceDraft = raw;
+  report.raw_transcript = raw;
+  report.cleaned_text_de = raw;
+  report.original_language = report.inputLanguage || "de";
+  report.ai_form_extraction_used = true;
+  report.field_sources = { ...(report.field_sources || {}), ...fieldResult.sources };
+  report.field_confidence = { ...(report.field_confidence || {}), ...fieldResult.confidence };
+  Object.entries(fieldResult.fields).forEach(([key, value]) => {
+    if (value && (!report[key] || ["workOriginal", "workGerman"].includes(key))) report[key] = key === "workOriginal" || key === "workGerman" ? appendVoiceText(report[key] || "", value) : value;
+  });
+  if (employeeResult.count) report.personCount = String(employeeResult.count);
+  if (employeeResult.company?.name && !report.company) report.company = employeeResult.company.name;
+  if (employeeResult.workers.length) report.workers = employeeResult.workers;
+  report.mitarbeiter_count_spoken = employeeResult.spokenCount ? String(employeeResult.spokenCount) : "";
+  report.selected_employee_ids = employeeResult.selectedIds;
+  report.unmatched_employee_names = employeeResult.unmatched;
+  report.employee_field_sources = employeeResult.sources;
+  report.employee_confidence = employeeResult.confidence;
+  report.ai_employee_extraction_used = !!employeeResult.workers.length;
+  report.voice_warnings = employeeResult.unmatched.length ? ["Mitarbeiter nicht eindeutig in Stammdaten gefunden – bitte prüfen."] : [];
+  state.current.updatedAt = new Date().toISOString();
+  persist();
+  renderDailyReportEditor();
+  showAppToast("Diktat ausgewertet. Bitte Vorschau und Felder prüfen.", { type: "success" });
+}
+
+function renderDailyVoicePreview(report = state.current?.dailyReport || {}) {
+  const target = $("#dailyVoicePreview");
+  if (!target) return;
+  const workers = normalizeDailyWorkers(report.workers || []);
+  const matched = workers.filter((worker) => worker.matchStatus === "matched");
+  const open = workers.filter((worker) => !worker.name || worker.matchStatus === "unmatched" || worker.matchStatus === "ambiguous" || worker.matchStatus === "empty");
+  const warnings = report.voice_warnings || [];
+  target.innerHTML = report.ai_employee_extraction_used || report.ai_form_extraction_used ? `
+    <div class="voice-preview-card">
+      <strong>Personal erkannt</strong>
+      <p class="muted">Erkannt: ${escapeHtml(String(report.mitarbeiter_count_spoken || report.personCount || workers.length || 0))} Mitarbeiter vor Ort</p>
+      <ul>${workers.map((worker, index) => `<li>${escapeHtml(worker.name || `Mitarbeiter ${index + 1} auswählen`)} ${worker.matchStatus === "matched" ? "✓" : "– bitte prüfen"}${worker.company ? ` · ${escapeHtml(worker.company)}` : ""}</li>`).join("")}</ul>
+      ${warnings.length ? `<p class="field-warning">${escapeHtml(warnings.join(" "))}</p>` : ""}
+      <p class="muted">Gefunden: ${matched.length} · offen: ${open.length}</p>
+    </div>` : `<p class="muted">Noch kein Bautagesbericht-Diktat ausgewertet.</p>`;
+}
 function renderDailyReportEditor() {
   const protocol = state.current;
   if (!isDailyReportProtocol(protocol)) return;
@@ -7051,6 +7422,7 @@ function renderDailyReportEditor() {
   if (!form) return;
   const project = projectById(protocol.projectId);
   const report = protocol.dailyReport = normalizeDailyReportMeta(protocol.dailyReport, protocol);
+  if (form.elements.dailyVoiceDraft) form.elements.dailyVoiceDraft.value = report.voiceDraft || report.raw_transcript || "";
   form.elements.dailyTitle.value = protocol.head.acceptanceTitle || "Bautagesbericht";
   form.elements.dailyDate.value = report.date || (protocol.head.createdAt || "").slice(0, 10);
   form.elements.dailyProject.value = project?.name || protocol.head.projectName || "";
@@ -7084,6 +7456,7 @@ function renderDailyReportEditor() {
   form.elements.dailyTotal.value = dailyReportTotalHours(report);
   const banner = $("#dailyReportModeBanner");
   if (banner) banner.innerHTML = `<strong>Bautagesbericht</strong><span>${escapeHtml(project?.name || protocol.head.projectName || "Projekt")} · ${escapeHtml(formatDate(report.date || protocol.head.createdAt))}</span>`;
+  renderDailyVoicePreview(report);
   renderDailyWorkers();
   renderDailyReportPhotos();
 }
@@ -7105,7 +7478,11 @@ function saveDailyReportForm({ persistNow = true } = {}) {
     crew: form.elements.dailyCrew.value || "", company: form.elements.dailyCompany.value || "", personCount: form.elements.dailyPersonCount.value || "", foreman: form.elements.dailyForeman.value || "",
     area: form.elements.dailyArea.value || "", trade: form.elements.dailyTrade.value || "", inputLanguage: form.elements.dailyInputLanguage.value || "de", translationStatus: form.elements.dailyTranslationStatus.value || "nicht übersetzt", workOriginal: form.elements.dailyWorkOriginal.value || "", workGerman: form.elements.dailyWorkGerman.value || "", workAlbanian: form.elements.dailyWorkAlbanian.value || "", workDescription: form.elements.dailyWorkDescription.value || "",
     materials: form.elements.dailyMaterials.value || "", equipment: form.elements.dailyEquipment.value || "", incidentsOriginal: form.elements.dailyIncidentsOriginal.value || "", incidentsGerman: form.elements.dailyIncidentsGerman.value || "", incidentsAlbanian: form.elements.dailyIncidentsAlbanian.value || "", delays: form.elements.dailyDelays.value || "", defects: form.elements.dailyDefects.value || "",
-    weather: form.elements.dailyWeather.value || "", confirmedBy: form.elements.dailyConfirmedBy.value || "", workers, photos
+    weather: form.elements.dailyWeather.value || "", confirmedBy: form.elements.dailyConfirmedBy.value || "",
+    voiceDraft: form.elements.dailyVoiceDraft?.value || p.dailyReport?.voiceDraft || "",
+    raw_transcript: form.elements.dailyVoiceDraft?.value || p.dailyReport?.raw_transcript || "",
+    source_audio_ids: p.dailyReport?.source_audio_ids || [], cleaned_text_de: p.dailyReport?.cleaned_text_de || "", original_language: p.dailyReport?.original_language || form.elements.dailyInputLanguage.value || "de", translated_text_de: p.dailyReport?.translated_text_de || "", field_sources: p.dailyReport?.field_sources || {}, field_confidence: p.dailyReport?.field_confidence || {}, ai_form_extraction_used: !!p.dailyReport?.ai_form_extraction_used, user_confirmed: !!p.dailyReport?.user_confirmed, signed_at: p.dailyReport?.signed_at || "", report_status: p.dailyReport?.report_status || "draft", mitarbeiter_count_spoken: p.dailyReport?.mitarbeiter_count_spoken || "", selected_employee_ids: p.dailyReport?.selected_employee_ids || [], unmatched_employee_names: p.dailyReport?.unmatched_employee_names || [], employee_field_sources: p.dailyReport?.employee_field_sources || [], employee_confidence: p.dailyReport?.employee_confidence || "", ai_employee_extraction_used: !!p.dailyReport?.ai_employee_extraction_used, voice_warnings: p.dailyReport?.voice_warnings || [],
+    workers, photos
   }, p);
   p.dailyReport.totalHours = dailyReportTotalHours(p.dailyReport);
   form.elements.dailyTotal.value = p.dailyReport.totalHours;
@@ -7134,6 +7511,7 @@ function renderDailyWorkers() {
         <label>Pause (h)<input data-daily-worker-field="breakHours" type="number" min="0" step="0.25" value="${escapeAttr(worker.breakHours)}"></label>
         <label>Stunden<input data-daily-worker-field="hours" value="${escapeAttr(workerHours(worker))}" readonly></label>
       </div>
+      ${worker.matchStatus && worker.matchStatus !== "matched" ? `<p class="field-warning">${escapeHtml(worker.note || "Bitte Mitarbeiter prüfen oder auswählen.")}</p>` : ""}
       <label>Bemerkung<textarea data-daily-worker-field="note" rows="2">${escapeHtml(worker.note)}</textarea></label>
       <div class="card-actions compact-actions"><button class="danger-btn" type="button" data-delete-daily-worker="${escapeAttr(worker.id)}">Mitarbeiter entfernen</button></div>
     </article>
@@ -7164,6 +7542,17 @@ function updateDailyWorkerField(input) {
   const field = input.dataset.dailyWorkerField;
   if (["start", "end"].includes(field)) worker[field] = normalizeTimeValue(input.value || "");
   else worker[field] = input.value || "";
+  if (field === "name") {
+    const match = matchEmployeeName(worker.name, worker.company);
+    if (match.status === "matched") {
+      worker.employeeId = match.person.id;
+      worker.name = match.person.name;
+      worker.company = worker.company || match.person.company || "";
+      worker.role = worker.role || match.person.role || "";
+      worker.matchStatus = "matched";
+      worker.confidence = "high";
+    }
+  }
   worker.hours = workerHours(worker);
   state.current.updatedAt = new Date().toISOString();
   const card = input.closest("[data-daily-worker]");
@@ -9945,7 +10334,7 @@ function bindEvents() {
   bindOptional("#protocolForm", "input", (event) => {
     if (event.target.matches("[data-plan-field]")) {
       const plan = selectedPlan();
-      if (plan) {
+      if (plan && !isProjectPlan(plan)) {
         plan[event.target.dataset.planField] = event.target.value;
         syncPlanRecord(plan);
         saveFromForm({ persistNow: false });
@@ -10016,8 +10405,8 @@ function bindEvents() {
   });
   bindOptional("#protocolForm", "change", (event) => {
     if (event.target.matches("[data-plan-field]")) {
+      if (!isProjectPlan(selectedPlan())) persist();
       renderPlanListStatus();
-      persist();
       return;
     }
     if (event.target.matches("[data-pin-field]")) {
@@ -10199,6 +10588,8 @@ function bindEvents() {
     if (dailyTranslate) runDailyTranslation(dailyTranslate.dataset.dailyTranslate);
     const dailyCopyPrompt = event.target.closest("[data-daily-copy-prompt]");
     if (dailyCopyPrompt) copyDailyTranslationPrompt(dailyCopyPrompt.dataset.dailyCopyPrompt);
+    const dailyAnalyzeVoice = event.target.closest("#dailyAnalyzeVoiceBtn");
+    if (dailyAnalyzeVoice) applyDailyVoiceExtraction($("#dailyReportForm")?.elements?.dailyVoiceDraft?.value || state.current?.dailyReport?.voiceDraft || "");
     const dailyPdfSave = event.target.closest("#dailyPdfSaveBtn");
     if (dailyPdfSave) savePdfFromA4Report();
     const dailyPdfPreview = event.target.closest("#dailyPdfPreviewBtn");
@@ -10649,6 +11040,9 @@ function bindEvents() {
   bindOptional("#zoomInBtn", "click", () => changeZoom(0.25));
   bindOptional("#zoomResetBtn", "click", () => setPlanZoom(1));
   bindOptional("#zoomFitBtn", "click", fitPlanToView);
+  bindOptional("#rotateLeftBtn", "click", () => setPlanRotation(-90));
+  bindOptional("#rotateRightBtn", "click", () => setPlanRotation(90));
+  bindOptional("#rotateHalfBtn", "click", () => setPlanRotation(180));
   bindOptional("#planTopBtn", "click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
   bindOptional("#markBackBtn", "click", closePlanMarkDialog);
   bindOptional("#markPinBtn", "click", () => {
@@ -10809,6 +11203,10 @@ async function deleteProtocol(protocolId) {
 
 async function deletePlanById(planId) {
   if (!state.current || !planId) return;
+  if (!state.current.plans.some((plan) => plan.id === planId)) {
+    showAppToast("Zentrale Projektpläne bitte in der Projektzentrale verwalten.", { type: "info" });
+    return;
+  }
   state.current.plans = state.current.plans.filter((plan) => plan.id !== planId);
   const removedPinIds = state.current.pins
     .filter((pin) => pinPlacements(pin).some((placement) => placement.planId === planId))
@@ -10825,7 +11223,8 @@ async function deletePlanById(planId) {
     });
   });
   await idbDelete("plans", planId);
-  state.selectedPlanId = state.current.plans[0]?.id || "";
+  const remainingPlans = plansForCurrentProtocol();
+  state.selectedPlanId = remainingPlans[0]?.id || "";
   state.current.activePlanId = state.selectedPlanId;
   await persist();
   renderPlanControls();
@@ -11416,10 +11815,9 @@ function fitPlanToView() {
   const wrap = $(".plan-viewer");
   const naturalWidth = target instanceof HTMLCanvasElement ? target.width : target.naturalWidth;
   if (!naturalWidth) return;
-  const baseWidth = Math.min(naturalWidth, 1200);
   plan.panX = 0;
   plan.panY = 0;
-  setPlanZoom(Math.max(0.5, Math.min(5, (wrap.clientWidth - 12) / baseWidth)));
+  setPlanZoom(1);
 }
 
 function bindPlanGestures() {
@@ -11682,6 +12080,15 @@ async function boot() {
 }
 
 boot();
+
+
+
+
+
+
+
+
+
 
 
 

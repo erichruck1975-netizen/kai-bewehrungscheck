@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=114">
-  <link rel="stylesheet" href="styles.css?v=114">
+  <link rel="manifest" href="manifest.webmanifest?v=116">
+  <link rel="stylesheet" href="styles.css?v=116">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v107</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v116</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -133,6 +133,21 @@
       <section id="dailyReportEditorView" class="view">
         <div id="dailyReportModeBanner" class="followup-context"></div>
         <form id="dailyReportForm">
+          <div class="panel daily-voice-panel">
+            <div class="section-head">
+              <div>
+                <h3>Bautagesbericht einsprechen</h3>
+                <p class="muted">Ein Knopf: frei diktieren, danach Vorschau prüfen und Felder korrigieren.</p>
+              </div>
+              <button class="primary-btn mic-btn" type="button" data-voice-daily-field="voiceDraft" data-voice-lang="de-DE" data-voice-daily-mode="full">Bautagesbericht einsprechen</button>
+            </div>
+            <label>Rohtranskript / Diktattext<textarea name="dailyVoiceDraft" rows="4" placeholder="Hier erscheint das Diktat. Alternativ Text einfügen und auswerten."></textarea></label>
+            <div class="result-actions site-photo-actions">
+              <button class="secondary-btn" id="dailyAnalyzeVoiceBtn" type="button">Diktat auswerten</button>
+              <button class="secondary-btn mic-btn" type="button" data-voice-daily-field="voiceDraft" data-voice-lang="sq-AL" data-voice-daily-mode="full">Albanisch einsprechen</button>
+            </div>
+            <div id="dailyVoicePreview" class="voice-preview"></div>
+          </div>
           <div class="panel"><div class="grid">
             <label>Berichtsbezeichnung<input name="dailyTitle"></label>
             <label>Datum<input name="dailyDate" type="date"></label>
@@ -233,7 +248,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v107</p>
+              <p id="appVersionInfo" class="muted">Version: v116</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -350,6 +365,10 @@
                 <button class="small-btn" id="zoomInBtn" type="button">+</button>
                 <button class="small-btn" id="zoomResetBtn" type="button">100 %</button>
                 <button class="small-btn" id="zoomFitBtn" type="button">Einpassen</button>
+                <button class="small-btn" id="rotateLeftBtn" type="button">90° links</button>
+                <button class="small-btn" id="rotateRightBtn" type="button">90° rechts</button>
+                <button class="small-btn" id="rotateHalfBtn" type="button">180°</button>
+                <span id="rotationLabel" class="muted">0°</span>
               </div>
               <input id="planInput" class="visually-hidden" type="file" accept="application/pdf,image/png,image/jpeg" multiple>
               <details class="plan-extra-actions">
@@ -361,6 +380,7 @@
               </label>
               <details class="plan-meta-details">
                 <summary>Plandaten bearbeiten</summary>
+                <p class="muted project-plan-readonly-note">Zentrale Projektpläne werden hier angezeigt. Metadaten bitte in der Projektzentrale bearbeiten.</p>
                 <div id="planMetaFields" class="grid">
                   <label>Dateiname<input data-plan-field="fileName" placeholder="Dateiname"></label>
                   <label>Plan-Nr.<input data-plan-field="planNumber" placeholder="z. B. B-001"></label>
@@ -720,11 +740,12 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=114"></script>
-  <script src="app.js?v=114"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=116"></script>
+  <script src="app.js?v=116"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
+
 
 
 
