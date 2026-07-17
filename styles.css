@@ -2900,3 +2900,50 @@ dialog button {
     height: calc(100dvh - 220px);
   }
 }
+
+/* v119: mobile accordion for individual check samples / Pruefstellen */
+.sample-card.collapsed {
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+}
+
+.sample-toggle {
+  appearance: none;
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  border-radius: 8px;
+  text-align: left;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  min-height: 54px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.sample-card.open .sample-toggle {
+  border-color: #9dbfd5;
+  background: #f2f8fc;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.sample-toggle-title {
+  font-weight: 850;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.sample-toggle-summary {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.sample-detail {
+  padding-top: 10px;
+}
+

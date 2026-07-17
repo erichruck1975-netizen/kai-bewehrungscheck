@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v117";
+const APP_VERSION = "v119";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -173,6 +173,7 @@ const state = {
   lastPdfFileShareDebug: null,
   checkScopeOnlyActive: false,
   openCheckId: "",
+  openSampleId: "",
   signatureEditId: "",
   photoTarget: null,
   pinMode: false,
@@ -4217,6 +4218,11 @@ function renderChecklist() {
   const templateValue = checkTemplateLabel();
   const preferredOpen = visibleChecks.find((item) => item.id === state.openCheckId) || visibleChecks.find((item) => item.active && !checkIsComplete(item)) || visibleChecks[0] || null;
   state.openCheckId = preferredOpen?.id || "";
+  const visibleSamples = visibleChecks.flatMap((check) => check.samples || []);
+  if (!visibleSamples.some((sample) => sample.id === state.openSampleId)) {
+    const freshSample = visibleSamples.find(sampleNeedsInitialOpen);
+    state.openSampleId = freshSample?.id || "";
+  }
   wrap.innerHTML = `
     <section class="panel check-scope-panel">
       <div class="section-head">
@@ -4283,6 +4289,23 @@ function checkIsComplete(check) {
   return ["fertig / OK", "Dokumentation", "nicht relevant"].includes(check.status);
 }
 
+function sampleNeedsInitialOpen(sample = {}) {
+  const status = sample.followupStatus || sample.status || "offen / nicht bewertet";
+  return !sampleHasDocumentation(sample) || status === "offen / nicht bewertet";
+}
+
+function sampleSummary(sample = {}, check = null, statusOverride = "") {
+  const status = statusOverride || sample.followupStatus || sample.status || "offen / nicht bewertet";
+  const parts = [statusLabel(status)];
+  if (sample.location) parts.push(sample.location);
+  const photos = (sample.photos || []).length;
+  if (photos) parts.push(`${photos} Foto${photos === 1 ? "" : "s"}`);
+  if (sample.note || sample.followupNote) parts.push("Bemerkung vorhanden");
+  if (sample.pinId) parts.push("Pin vorhanden");
+  if (!photos && !(sample.note || sample.followupNote) && !sample.pinId) parts.push("noch ohne Foto/Pin/Bemerkung");
+  return parts.map(escapeHtml).join(" · ");
+}
+
 function checkSummary(check) {
   const photos = (check.photos || []).length + (check.samples || []).reduce((sum, sample) => sum + ((sample.photos || []).length), 0);
   const hasNote = !!(check.note || (check.samples || []).some((sample) => sample.note));
@@ -4307,31 +4330,38 @@ function checkScopeRow(item) {
 
 function sampleCard(check, sample) {
   if (isFollowupProtocol()) return followupSampleCard(check, sample);
+  const isOpen = state.openSampleId === sample.id;
   return `
-    <section class="sample-card" data-sample="${sample.id}">
-      <div class="sample-title">
-        <h4>${escapeHtml(check.title)} – Prüfstelle ${sample.number}</h4>
-        <span class="sample-status ${statusClass(sample.status).replace("status ", "status-")}">${escapeHtml(sample.status)}</span>
-      </div>
-      ${comboField({ label: "Bereich / Achse / Bauteil", field: "location", list: "areaOptions", value: sample.location, placeholder: "z. B. Achse A/3, Bodenplatte Unterfahrt", dataAttr: "data-sample-field" })}
-      ${statusButtons(sample.status, "sample-status")}
-      <label>Pin zuordnen
-        <select data-sample-field="pinId">${pinOptionsHtml()}</select>
-      </label>
-      <p class="muted">${escapeHtml(samplePinMeta(sample))}</p>
-      ${samplePlanMarkControls(check, sample)}
-      <label class="voice-field">Bemerkung
-        <textarea data-sample-field="note" rows="3">${escapeHtml(sample.note)}</textarea>
-        <button class="mic-btn" type="button" data-voice-sample="${sample.id}">Mikrofon</button>
-      </label>
-      ${isOverlapCheckItem(check) ? overlapCheckBlock(sample) : ""}
-      ${samplePhotoGrid(sample)}
-      <div class="sample-actions">
-        <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
-        <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
-        <button class="small-btn" type="button" data-duplicate-sample="${sample.id}">Prüfstelle duplizieren</button>
-        <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
-      </div>
+    <section class="sample-card ${isOpen ? "open" : "collapsed"}" data-sample="${sample.id}">
+      <button class="sample-toggle" type="button" data-toggle-sample-panel="${sample.id}" aria-expanded="${isOpen ? "true" : "false"}">
+        <span class="sample-toggle-title">${escapeHtml(check.title)} - Prüfstelle ${sample.number}</span>
+        <span class="sample-toggle-summary">${sampleSummary(sample, check)}</span>
+      </button>
+      ${isOpen ? `<div class="sample-detail">
+        <div class="sample-title">
+          <h4>${escapeHtml(check.title)} - Prüfstelle ${sample.number}</h4>
+          <span class="sample-status ${statusClass(sample.status).replace("status ", "status-")}">${escapeHtml(sample.status)}</span>
+        </div>
+        ${comboField({ label: "Bereich / Achse / Bauteil", field: "location", list: "areaOptions", value: sample.location, placeholder: "z. B. Achse A/3, Bodenplatte Unterfahrt", dataAttr: "data-sample-field" })}
+        ${statusButtons(sample.status, "sample-status")}
+        <label>Pin zuordnen
+          <select data-sample-field="pinId">${pinOptionsHtml()}</select>
+        </label>
+        <p class="muted">${escapeHtml(samplePinMeta(sample))}</p>
+        ${samplePlanMarkControls(check, sample)}
+        <label class="voice-field">Bemerkung
+          <textarea data-sample-field="note" rows="3">${escapeHtml(sample.note)}</textarea>
+          <button class="mic-btn" type="button" data-voice-sample="${sample.id}">Mikrofon</button>
+        </label>
+        ${isOverlapCheckItem(check) ? overlapCheckBlock(sample) : ""}
+        ${samplePhotoGrid(sample)}
+        <div class="sample-actions">
+          <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
+          <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
+          <button class="small-btn" type="button" data-duplicate-sample="${sample.id}">Prüfstelle duplizieren</button>
+          <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
+        </div>
+      </div>` : ""}
     </section>
   `;
 }
@@ -4340,37 +4370,44 @@ function followupSampleCard(check, sample) {
   const isNew = isNewFollowupSample(check, sample);
   const sourceStatus = sample.sourceStatus || initialSampleStatus(sample) || "offen";
   const currentStatus = sample.followupStatus || sample.status || (isNew ? "neu hinzugekommen" : "weiterhin offen");
+  const isOpen = state.openSampleId === sample.id;
   return `
-    <section class="sample-card ${isNew ? "followup-new-sample" : ""}" data-sample="${sample.id}">
-      <div class="sample-title">
-        <h4>${escapeHtml(check.title)} – ${isNew ? "Neu in dieser Nachbegehung" : `Nachkontrolle ${sample.number}`}</h4>
-        ${statusBadge(currentStatus)}
-      </div>
-      ${isNew ? `<div class="followup-new-note"><strong>Neu festgestellt in Nachbegehung</strong><p class="muted">Dieser Prüfpunkt wurde erst in dieser Nachbegehung ergänzt.</p></div>` : `<div class="followup-reference">
-        <strong>Referenz aus Erstabnahme</strong>
-        <p>${statusBadge(sourceStatus)} ${escapeHtml(sample.location || "ohne Bereich")}${sample.pinId ? " · " + escapeHtml(samplePinMeta(sample)) : ""}</p>
-        ${sample.sourceNote ? `<p>${escapeHtml(sample.sourceNote)}</p>` : `<p class="muted">Keine Referenzbemerkung vorhanden.</p>`}
-        ${sample.referencePhotos?.length ? `<p class="muted">Referenzfotos: ${sample.referencePhotos.length}</p>${thumbs(sample.referencePhotos)}` : ""}
-      </div>`}
-      ${comboField({ label: "Bereich / Achse / Bauteil", field: "location", list: "areaOptions", value: sample.location, placeholder: "z. B. Achse A/3, Bodenplatte Unterfahrt", dataAttr: "data-sample-field" })}
-      <div class="status-row followup-status-row">${FOLLOWUP_STATUSES.map((status) => `
-        <button class="status-btn ${currentStatus === status ? "active" : ""}" data-followup-status="${status}" type="button">${escapeHtml(status)}</button>
-      `).join("")}</div>
-      <label>Pin zuordnen
-        <select data-sample-field="pinId">${pinOptionsHtml()}</select>
-      </label>
-      <p class="muted">${escapeHtml(samplePinMeta(sample))}</p>
-      ${samplePlanMarkControls(check, sample)}
-      <label class="voice-field">Neue Bemerkung Nachbegehung
-        <textarea data-sample-field="note" rows="3">${escapeHtml(sample.note || sample.followupNote || "")}</textarea>
-        <button class="mic-btn" type="button" data-voice-sample="${sample.id}">Mikrofon</button>
-      </label>
-      ${samplePhotoGrid(sample)}
-      <div class="sample-actions">
-        <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
-        <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
-        <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
-      </div>
+    <section class="sample-card ${isNew ? "followup-new-sample" : ""} ${isOpen ? "open" : "collapsed"}" data-sample="${sample.id}">
+      <button class="sample-toggle" type="button" data-toggle-sample-panel="${sample.id}" aria-expanded="${isOpen ? "true" : "false"}">
+        <span class="sample-toggle-title">${escapeHtml(check.title)} - ${isNew ? "Neu in dieser Nachbegehung" : `Nachkontrolle ${sample.number}`}</span>
+        <span class="sample-toggle-summary">${sampleSummary(sample, check, currentStatus)}</span>
+      </button>
+      ${isOpen ? `<div class="sample-detail">
+        <div class="sample-title">
+          <h4>${escapeHtml(check.title)} - ${isNew ? "Neu in dieser Nachbegehung" : `Nachkontrolle ${sample.number}`}</h4>
+          ${statusBadge(currentStatus)}
+        </div>
+        ${isNew ? `<div class="followup-new-note"><strong>Neu festgestellt in Nachbegehung</strong><p class="muted">Dieser Prüfpunkt wurde erst in dieser Nachbegehung ergänzt.</p></div>` : `<div class="followup-reference">
+          <strong>Referenz aus Erstabnahme</strong>
+          <p>${statusBadge(sourceStatus)} ${escapeHtml(sample.location || "ohne Bereich")}${sample.pinId ? " · " + escapeHtml(samplePinMeta(sample)) : ""}</p>
+          ${sample.sourceNote ? `<p>${escapeHtml(sample.sourceNote)}</p>` : `<p class="muted">Keine Referenzbemerkung vorhanden.</p>`}
+          ${sample.referencePhotos?.length ? `<p class="muted">Referenzfotos: ${sample.referencePhotos.length}</p>${thumbs(sample.referencePhotos)}` : ""}
+        </div>`}
+        ${comboField({ label: "Bereich / Achse / Bauteil", field: "location", list: "areaOptions", value: sample.location, placeholder: "z. B. Achse A/3, Bodenplatte Unterfahrt", dataAttr: "data-sample-field" })}
+        <div class="status-row followup-status-row">${FOLLOWUP_STATUSES.map((status) => `
+          <button class="status-btn ${currentStatus === status ? "active" : ""}" data-followup-status="${status}" type="button">${escapeHtml(status)}</button>
+        `).join("")}</div>
+        <label>Pin zuordnen
+          <select data-sample-field="pinId">${pinOptionsHtml()}</select>
+        </label>
+        <p class="muted">${escapeHtml(samplePinMeta(sample))}</p>
+        ${samplePlanMarkControls(check, sample)}
+        <label class="voice-field">Neue Bemerkung Nachbegehung
+          <textarea data-sample-field="note" rows="3">${escapeHtml(sample.note || sample.followupNote || "")}</textarea>
+          <button class="mic-btn" type="button" data-voice-sample="${sample.id}">Mikrofon</button>
+        </label>
+        ${samplePhotoGrid(sample)}
+        <div class="sample-actions">
+          <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
+          <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
+          <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
+        </div>
+      </div>` : ""}
     </section>
   `;
 }
@@ -4952,6 +4989,7 @@ function addSample(checkId, seed = {}) {
     updatedAt: new Date().toISOString()
   }, check.id, nextSampleNumber(check));
   check.samples.push(sample);
+  state.openSampleId = sample.id;
   updateCheckStatus(check);
   persist();
   renderChecklist();
@@ -7833,8 +7871,8 @@ async function buildReportParts() {
   p.checkpoints.forEach(updateCheckStatus);
   const issues = sampleIssues(p);
   const overviewPhotosHtml = await overviewPhotoReport(p);
-  const planAppendixHtml = planAppendixReport(p);
-  const photoReportHtml = await photoReport(p);
+  const planAppendixHtml = await planAppendixReport(p);
+  const unplacedFindingsHtml = await unplacedFindingsReport(p);
   const followup = isFollowupProtocol(p);
   const reportTitle = followup ? "Nachbegehung / Nachkontrolle" : "Bewehrungskontrolle / Bewehrungsabnahme";
   const reportSubtitle = followup
@@ -7880,10 +7918,10 @@ async function buildReportParts() {
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
     .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}
-    .appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.pin-table{font-size:11px}
+    .appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:8px 10px}.pin-finding-body{padding:9px 10px}.pin-finding-body p{white-space:pre-wrap;margin:6px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}.pin-photo{margin:0}.pin-photo img{width:100%;height:115px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.pin-photo figcaption{font-size:10px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
-    .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:165px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
+    .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:120px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
     .signature-report{break-inside:avoid;page-break-inside:avoid;margin:10px 0 14px;border:1px solid #d8dee6;border-radius:8px;padding:10px}.signature-print-box{width:90mm;max-width:100%;height:35mm;border-bottom:1px solid #25313d;display:flex;align-items:center;justify-content:center;background:#fff;margin-top:8px}.signature-image{display:block;max-width:80mm;max-height:28mm;width:auto;height:auto;object-fit:contain;background:#fff}.signature-empty{width:90mm;max-width:100%;height:35mm;border:1px dashed #9aa5b1;border-bottom:1px solid #25313d;display:grid;place-items:center;color:#6b7280;background:#fff;margin-top:8px}
     .footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}.manual-page-footer{position:absolute;right:0;color:#697586;font-size:10px;border-top:1px solid #d8dee6;padding-top:3px;background:#fff}.report-total-pages{font-weight:800;color:#17212b}
     .page-break,.page-break-before{break-before:page;page-break-before:always}.avoid-break{break-inside:avoid;page-break-inside:avoid}
@@ -7953,9 +7991,7 @@ async function buildReportParts() {
         ${followup ? `<h2>Neu festgestellte Punkte in der Nachbegehung</h2>${followupNewPointsReport(p)}` : ""}
 
         ${planAppendixHtml}
-
-        <h2 class="page-break">Fotodokumentation</h2>
-        ${photoReportHtml}
+        ${unplacedFindingsHtml}
 
         <h2>Schlussformulierung</h2>
         <section class="info-card avoid-break">
@@ -9730,36 +9766,39 @@ function followupSourceLabel(protocol) {
 
 function issuesReport(issues) {
   if (!issues.length) return `<p>Keine Auflagen / Mängel dokumentiert.</p>`;
-  return `<ol class="issues-list">
+  return `<section class="compact-summary"><p class="muted">Kurzübersicht. Die ausführliche Feststellung mit Bemerkung und Fotos steht direkt bei der Planmarkierung.</p><ol class="issues-list">
     ${issues.map((issue) => {
       const followup = !!(issue.sample.sourceStatus || issue.sample.followupStatus);
       const status = followup ? (issue.sample.followupStatus || issue.sample.status) : (issue.sample.overlapCheck?.resultStatus || issue.sample.status);
-      const note = followup ? (issue.sample.followupNote || issue.sample.note || issue.sample.sourceNote || "") : (issue.sample.note || issue.sample.overlapCheck?.generatedText || "");
-      return `<li><strong>${escapeHtml(issue.check.title)} · ${followup ? "Nachkontrolle" : "Prüfstelle"} ${issue.sample.number}</strong><br>${statusBadge(status)} ${escapeHtml(issue.sample.location || "")}${issue.sample.pinId ? " · " + escapeHtml(pinName(issue.sample.pinId)) : ""}${note ? `<br>${escapeHtml(note)}` : ""}</li>`;
+      const pin = issue.sample.pinId ? pinName(issue.sample.pinId) : "ohne Pin";
+      return `<li><strong>${escapeHtml(pin)}</strong> - ${statusBadge(status)} ${escapeHtml(issue.check.title)}${issue.sample.location ? " - " + escapeHtml(issue.sample.location) : ""}</li>`;
     }).join("")}
-  </ol>`;
+  </ol></section>`;
 }
 
 function checklistReport(protocol) {
   const followup = isFollowupProtocol(protocol);
-  const checks = protocol.checkpoints
-    .filter(shouldIncludeCheckInReport)
-    .map((check) => followup ? { ...check, samples: (check.samples || []).filter((sample) => !isNewFollowupSample(check, sample)) } : check)
-    .filter((check) => !followup || check.samples.length || checkHasFollowupReference(check));
+  const checks = protocol.checkpoints.filter(shouldIncludeCheckInReport);
   if (!checks.length) {
     return followup
       ? `<p>Keine übernommenen offenen Punkte dokumentiert.</p>`
       : `<p>Keine Checkbereiche aktiviert oder dokumentiert.</p><p class="small">Nicht aufgeführte Prüfpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
   }
-  return `${checks.map((check) => `
-    <section class="check-card">
-      <div class="check-head">
-        <h3>${escapeHtml(check.title)}</h3>
-        ${statusBadge(check.status || "offen / nicht bewertet")}
-      </div>
-      ${check.samples?.length ? check.samples.map((sample) => sampleReport(sample, check)).join("") : `<p class="muted" style="padding:10px 12px">Dieser Prüfumfang wurde aktiviert, jedoch ohne Einzelprüfstelle dokumentiert.</p>`}
-    </section>
-  `).join("")}<p class="small">Nicht aufgeführte Prüfpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
+  const counts = checks.reduce((acc, check) => {
+    const status = check.status || "offen / nicht bewertet";
+    if (status.includes("Mangel")) acc.bad += 1;
+    else if (status.includes("Auflage") || status.includes("teilweise")) acc.partial += 1;
+    else if (status.includes("Dokumentation")) acc.doc += 1;
+    else if (status.includes("OK")) acc.ok += 1;
+    else if (status.includes("nicht relevant")) acc.na += 1;
+    else acc.open += 1;
+    return acc;
+  }, { bad: 0, partial: 0, doc: 0, ok: 0, na: 0, open: 0 });
+  return `<section class="compact-summary">
+    <p><strong>${checks.length} Prüfumfang(e) dokumentiert.</strong> Mängel: ${counts.bad}, Auflagen/teilweise: ${counts.partial}, Dokumentation: ${counts.doc}, OK: ${counts.ok}, nicht relevant: ${counts.na}, offen: ${counts.open}.</p>
+    <ul>${checks.map((check) => `<li>${statusBadge(check.status || "offen / nicht bewertet")} ${escapeHtml(check.title)} · ${(check.samples || []).length} Prüfstelle(n)</li>`).join("")}</ul>
+    <p class="small">Ausführliche Bemerkungen, Fotos und Planbezüge werden nur einmal direkt bei der jeweiligen Planmarkierung ausgegeben.</p>
+  </section>`;
 }
 
 function followupNewPoints(protocol) {
@@ -9925,25 +9964,101 @@ function reportPinCallouts(pins, planId, pageNumber) {
     return `<span class="pin-marker" style="left:${x * 100}%;top:${y * 100}%;--dx:${dx}px;--dy:${dy}px;--line:${line}px;--angle:${angle}deg"><span class="pin-point"></span><span class="pin-leader"></span><span class="pin-chip ${statusClass}">${escapeHtml(pinLabel(item.pin))}</span></span>`;
   }).join("");
 }
-function planAppendixReport(p) {
-  if (!p.plans.length) return `<h2 class="page-break">Plananhang</h2><p>Keine Pläne hinterlegt.</p>`;
-  return p.plans.map((plan, planIndex) => {
+function sampleShouldAppearInPlanFindings(sample = {}) {
+  if (!sample) return false;
+  if (sample.status === "nicht relevant" && !(sample.note || sample.photos?.length || sample.pinId)) return false;
+  if (sample.status === "offen / nicht bewertet" && !(sample.note || sample.photos?.length || sample.pinId)) return false;
+  return !!(sample.pinId || sample.note || sample.photos?.length || sample.overlapCheck || sample.status === "Dokumentation" || isInitialOpenSample(sample) || sample.followupStatus);
+}
+
+function reportFindingEntriesForPin(protocol, pin) {
+  const entries = [];
+  const used = new Set();
+  (protocol.checkpoints || []).forEach((check) => {
+    (check.samples || []).forEach((sample) => {
+      if (sample.pinId !== pin.id && sample.sourcePinId !== pin.id) return;
+      if (!sampleShouldAppearInPlanFindings(sample)) return;
+      used.add(sample.id);
+      entries.push({ check, sample, pin, status: sample.followupStatus || sample.overlapCheck?.resultStatus || sample.status || pin.status, title: check.title, location: sample.location || "", note: sample.followupNote || sample.note || sample.sourceNote || sample.overlapCheck?.generatedText || pin.note || "", photos: uniquePhotoRefs([...(sample.photos || []), ...(pin.photos || [])]) });
+    });
+  });
+  if (!entries.length && (pin.note || pin.photos?.length || pin.title)) {
+    entries.push({ check: null, sample: null, pin, status: pin.status || "Dokumentation", title: pin.title || "Planmarkierung", location: "", note: pin.note || "", photos: uniquePhotoRefs(pin.photos || []) });
+  }
+  return entries;
+}
+
+function uniquePhotoRefs(photos = []) {
+  const seen = new Set();
+  return (photos || []).filter((photo) => {
+    if (!photo?.id || seen.has(photo.id)) return false;
+    seen.add(photo.id);
+    return true;
+  });
+}
+
+async function reportFindingPhotosHtml(photos = []) {
+  const items = [];
+  for (const photo of uniquePhotoRefs(photos)) {
+    const src = await reportPhotoDataUrl(photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
+    if (src) items.push({ photo, src });
+  }
+  if (!items.length) return "";
+  return `<div class="pin-photo-grid">${items.map((item, index) => `<figure class="pin-photo"><img src="${item.src}" alt="${escapeAttr(item.photo.name || "Foto")}"><figcaption>Foto ${index + 1}${item.photo.name ? " · " + escapeHtml(item.photo.name) : ""}</figcaption>${barCountReportHtml(item.photo)}</figure>`).join("")}</div>`;
+}
+
+async function planFindingCardHtml(entry) {
+  const pin = entry.pin;
+  const pinText = pin ? pinLabel(pin) : "ohne Pin";
+  const photoHtml = await reportFindingPhotosHtml(entry.photos || []);
+  return `<article class="pin-finding-card">
+    <div class="pin-finding-head"><strong>${escapeHtml(pinText)} - ${escapeHtml(statusLabel(entry.status || "Dokumentation"))} - ${escapeHtml(entry.title || "Feststellung")}</strong>${statusBadge(entry.status || "Dokumentation")}</div>
+    <div class="pin-finding-body">
+      ${entry.location ? `<p><strong>Bereich:</strong> ${escapeHtml(entry.location)}</p>` : ""}
+      ${entry.note ? `<p><strong>Bemerkung:</strong> ${escapeHtml(entry.note)}</p>` : `<p class="muted">Keine Bemerkung erfasst.</p>`}
+      ${entry.sample?.overlapCheck ? overlapPdfRows(entry.sample) : ""}
+      ${photoHtml || `<p class="small">Keine Fotos zu dieser Feststellung hinterlegt.</p>`}
+    </div>
+  </article>`;
+}
+
+async function planAppendixReport(p) {
+  const planSections = [];
+  const plansWithPins = (p.plans || []).filter((plan) => p.pins.some((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id)));
+  if (!plansWithPins.length) return `<h2 class="page-break">Planmarkierungen und Feststellungen</h2><p>Keine Planmarkierungen mit Pins dokumentiert.</p>`;
+  for (const [planIndex, plan] of plansWithPins.entries()) {
     const pages = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
-    if (!pages.length) pages.push(plan.currentPage || 1);
-    return pages.map((pageNumber) => {
-      const pins = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber));
+    for (const pageNumber of pages) {
+      const pins = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber)).sort((a, b) => (a.number || 0) - (b.number || 0));
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
-      return `
+      const findingCards = [];
+      for (const pin of pins) {
+        const entries = reportFindingEntriesForPin(p, pin);
+        for (const entry of entries) findingCards.push(await planFindingCardHtml(entry));
+      }
+      planSections.push(`
         <section class="appendix-block page-break">
-          <h2>Anlage ${planIndex + 1} – Plan ${escapeHtml(displayPlanNumber(plan) || plan.fileName)} – ${escapeHtml(plan.title || "Plananlage")} – Seite ${pageNumber}</h2>
+          <h2>Anlage ${planIndex + 1} - Plan ${escapeHtml(displayPlanNumber(plan) || plan.fileName)} - ${escapeHtml(plan.title || "Plananlage")} - Seite ${pageNumber}</h2>
           ${image ? `<div class="plan"><img class="report-plan-image" src="${image}" alt="Plan">${reportPinCallouts(pins, plan.id, pageNumber)}</div>` : `<p>${escapeHtml(plan.renderError || "Planbild nicht verfügbar.")}</p>`}
-          <table class="pin-table"><thead><tr><th>Pin</th><th>Zuordnung</th><th>Titel / Bereich</th><th>Status</th><th>Bemerkung</th></tr></thead><tbody>
-          ${pins.map((pin) => `<tr><td><strong>${pinLabel(pin)}</strong></td><td>${escapeHtml(pinContextLabel(pin))}</td><td>${escapeHtml(pin.title || "")}</td><td>${statusBadge(pin.status)}</td><td>${escapeHtml(pin.note || "")}</td></tr>`).join("") || `<tr><td colspan="5">Keine Pins auf dieser Seite.</td></tr>`}
-          </tbody></table>
+          <div class="pin-finding-list">${findingCards.join("") || `<p class="muted">Pins vorhanden, aber keine zugeordneten Feststellungen mit Text/Fotos.</p>`}</div>
         </section>
-      `;
-    }).join("");
-  }).join("");
+      `);
+    }
+  }
+  return planSections.join("");
+}
+
+async function unplacedFindingsReport(p) {
+  const entries = [];
+  (p.checkpoints || []).forEach((check) => (check.samples || []).forEach((sample) => {
+    if (sample.pinId || sample.sourcePinId) return;
+    if (!sampleShouldAppearInPlanFindings(sample)) return;
+    entries.push({ check, sample, pin: null, status: sample.followupStatus || sample.overlapCheck?.resultStatus || sample.status || check.status, title: check.title, location: sample.location || "", note: sample.followupNote || sample.note || sample.sourceNote || sample.overlapCheck?.generatedText || "", photos: sample.photos || [] });
+  }));
+  if (!entries.length) return "";
+  const cards = [];
+  for (const entry of entries) cards.push(await planFindingCardHtml(entry));
+  return `<h2 class="page-break">Dokumentierte Punkte ohne Planmarkierung</h2><p class="muted">Diese Punkte haben keinen Pin und werden deshalb separat aufgeführt.</p><div class="pin-finding-list">${cards.join("")}</div>`;
 }
 
 async function overviewPhotoReport(p) {
@@ -9976,52 +10091,7 @@ async function overviewPhotoReport(p) {
 }
 
 async function photoReport(p) {
-  const groups = [];
-  p.plans.forEach((plan) => {
-    p.pins
-      .filter((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id))
-      .sort((a, b) => (a.number || 0) - (b.number || 0))
-      .forEach((pin) => pin.photos.forEach((photo, index) => {
-        const placement = pinPlacements(pin).find((item) => item.planId === plan.id);
-        let group = groups.find((item) => item.key === `pin:${pin.id}`);
-        if (!group) {
-          group = { key: `pin:${pin.id}`, title: `${pinLabel(pin)} – ${pin.title || "Pin"}`, status: pin.status, note: pin.note, meta: `Plan ${displayPlanNumber(plan) || plan.fileName} / Seite ${placement?.pageNumber || pin.pageNumber || 1}`, photos: [] };
-          groups.push(group);
-        }
-        group.photos.push({ label: `Foto ${index + 1}`, photo });
-      }));
-  });
-  p.checkpoints.forEach((check) => {
-    check.samples?.forEach((sample) => {
-      sample.photos?.forEach((photo, index) => {
-        let group = groups.find((item) => item.key === `sample:${sample.id}`);
-        if (!group) {
-          group = { key: `sample:${sample.id}`, title: `${check.title} – Prüfstelle ${sample.number}${sample.location ? " – " + sample.location : ""}`, status: sample.status, note: sample.note, meta: sample.pinId ? pinName(sample.pinId) : "", photos: [] };
-          groups.push(group);
-        }
-        group.photos.push({ label: `Foto ${index + 1}`, photo });
-      });
-    });
-  });
-  p.checkpoints.forEach((check) => check.photos.forEach((photo, index) => {
-    let group = groups.find((item) => item.key === `check:${check.id}`);
-    if (!group) {
-      group = { key: `check:${check.id}`, title: check.title, status: check.status, note: check.note, meta: check.pinId ? pinName(check.pinId) : "", photos: [] };
-      groups.push(group);
-    }
-    group.photos.push({ label: `Foto ${index + 1}`, photo });
-  }));
-  if (!groups.length) return "<p>Keine Fotos hinterlegt.</p>";
-  for (const group of groups) {
-    for (const item of group.photos) item.src = await reportPhotoDataUrl(item.photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
-  }
-  return groups.map((group) => `
-    <section class="photo-group">
-      <h3>${escapeHtml(group.title)}</h3>
-      <div class="photo-meta">${statusBadge(group.status || "offen / nicht bewertet")} ${group.meta ? escapeHtml(group.meta) : ""}${group.note ? `<br>${escapeHtml(group.note)}` : ""}</div>
-      <div class="photo-grid">${group.photos.map((item) => `<div class="photo"><img src="${item.src}" alt="${escapeAttr(item.photo.name || "Foto")}"><p>${escapeHtml(item.label)} · ${escapeHtml(item.photo.name || "")}</p>${barCountReportHtml(item.photo)}</div>`).join("")}</div>
-    </section>
-  `).join("");
+  return "<p>Fotos werden im kompakten Bericht direkt bei der jeweiligen Planmarkierung/Feststellung ausgegeben.</p>";
 }
 
 function barCountReportHtml(photo) {
@@ -10908,6 +10978,16 @@ function bindEvents() {
       item.status = statusCheck.dataset.checkStatus;
       persist();
       renderChecklist();
+    }
+    const toggleSamplePanel = event.target.closest("[data-toggle-sample-panel]");
+    if (toggleSamplePanel) {
+      const id = toggleSamplePanel.dataset.toggleSamplePanel;
+      const sample = findSample(id);
+      const check = sample ? findCheckBySample(id) : null;
+      if (check) state.openCheckId = check.id;
+      state.openSampleId = state.openSampleId === id ? "" : id;
+      renderChecklist();
+      return;
     }
     const addSampleButton = event.target.closest("[data-add-sample]");
     if (addSampleButton) addSample(addSampleButton.dataset.addSample);
