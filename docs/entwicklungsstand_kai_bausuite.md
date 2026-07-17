@@ -1754,3 +1754,22 @@ Erfolgreich geprüft:
 - Syntaxcheck `dist/app.js`
 - ZIP-Erstellung
 - `plans.json` unverändert
+
+## v114 – Hotfix Adresse / Plan-Pin im Baustellenkontroll-Bericht
+
+### Behoben
+- Projektadresse im Bautagesbericht wird mit sauberer Trennung von Straße, Hausnummer, PLZ und Ort ausgegeben.
+- Baustellenkontroll-Berichte zeigen nun Planseiten mit markierten Pins, wenn eine Feststellung über einen Planpin dokumentiert wurde.
+- Zentrale Projektpläne werden bei der Berichtsausgabe der Baustellenkontrolle berücksichtigt.
+- Wenn ein Plan zu einem Pin nicht geladen werden kann, erscheint eine Diagnose-Warnung im Bericht statt eines leeren Bereichs.
+
+### Nicht verändert
+- plans.json wurde nicht geändert.
+- Keine IndexedDB-Migration.
+- Keine Änderung an Pin-Koordinaten, Planviewer oder Bewehrungsabnahme-Berichtspfad.
+
+### Prüfpunkte
+- Syntaxcheck app.js
+- Build dist
+- Syntaxcheck dist/app.js
+- ZIP-Erstellung

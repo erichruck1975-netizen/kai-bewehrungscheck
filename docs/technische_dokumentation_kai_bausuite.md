@@ -3600,3 +3600,17 @@ Der offizielle PDF-Weg bleibt der A4-Bericht über Vorschau und Druckdialog. v11
 
 ### Bestandsschutz
 Es wurden keine Datenbank-Stores, keine Planspeicher-Dateien und keine `plans.json`-Strukturen geändert. Bestehende Projektpläne bleiben unverändert. Der Hotfix arbeitet nur mit vorhandenen Verknüpfungen und Berichtsdaten.
+
+## v114 Hotfix: Adressformatierung und Planmarkierungen im Baustellenkontroll-Bericht
+
+### Adressformatierung
+Die gemeinsame Adressformatierung berücksichtigt nun Straße, Hausnummer, PLZ und Ort getrennt. Ausgabe einzeilig: Straße Hausnummer, PLZ Ort; mehrzeilig: Straße Hausnummer und darunter PLZ Ort.
+
+### Baustellenkontrolle: Planmarkierungen im Bericht
+Für Baustellenkontroll-Feststellungen mit Pin wird die verknüpfte Planseite nun für den Bericht gerendert. Dabei werden auch zentrale Projektpläne berücksichtigt, nicht nur Pläne, die direkt im aktuellen Protokoll gespeichert sind. Die Ausgabe verwendet den bestehenden Planbild-/Pinmarker-Mechanismus des A4-Berichts.
+
+### Fehlerfall
+Wenn ein Pin vorhanden ist, der Plan oder die Planseite aber nicht geladen werden kann, wird im Bericht eine sichtbare Warnung mit plan_id und pin_id ausgegeben. Es bleibt kein still leerer Bereich.
+
+### Bestandsschutz
+Keine Änderung an plans.json, keine Datenbankmigration, keine Änderung der Pin-Koordinaten und keine Änderung des Planviewers.

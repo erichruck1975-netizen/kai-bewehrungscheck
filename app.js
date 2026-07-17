@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v113";
+const APP_VERSION = "v114";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -514,10 +514,11 @@ function getProjectAddress(project = {}) {
   if (!project) return normalizeAddress();
   const direct = normalizeAddress(project.address || project.siteAddress || project.baustellenAdresse || project.location || "");
   const street = direct.street || project.street || project.siteStreet || project.addressStreet || project.road || "";
+  const houseNumber = direct.houseNumber || project.houseNumber || project.house_number || project.streetNumber || project.siteHouseNumber || project.addressNumber || "";
   const zip = direct.zip || project.zip || project.postalCode || project.postcode || project.siteZip || "";
   const city = direct.city || project.city || project.town || project.siteCity || "";
   const country = direct.country || project.country || project.siteCountry || "Deutschland";
-  return normalizeAddress({ street, zip, city, country });
+  return normalizeAddress({ street, houseNumber, zip, city, country });
 }
 
 function projectAddressText(project = {}, { multiline = false } = {}) {
@@ -592,6 +593,7 @@ function normalizeAddress(value = {}) {
     const match = text.match(/^(.*?)[,\s]+(\d{5})\s+(.+)$/);
     return {
       street: match ? match[1].trim().replace(/,\s*$/, "") : text,
+      houseNumber: "",
       zip: match ? match[2].trim() : "",
       city: match ? match[3].trim() : "",
       country: "Deutschland"
@@ -599,16 +601,20 @@ function normalizeAddress(value = {}) {
   }
   return {
     street: value.street || "",
-    zip: value.zip || "",
-    city: value.city || "",
+    houseNumber: value.houseNumber || value.house_number || value.streetNumber || value.addressNumber || value.number || "",
+    zip: value.zip || value.postalCode || value.postcode || "",
+    city: value.city || value.town || "",
     country: value.country || "Deutschland"
   };
 }
 
 function formatAddress(address, { multiline = true } = {}) {
   const item = normalizeAddress(address);
+  const street = String(item.street || "").trim();
+  const houseNumber = String(item.houseNumber || "").trim();
+  const streetLine = houseNumber && street && !street.endsWith(houseNumber) ? `${street} ${houseNumber}` : (street || houseNumber);
   const cityLine = [item.zip, item.city].filter(Boolean).join(" ");
-  const parts = [item.street, cityLine, item.country && item.country !== "Deutschland" ? item.country : ""].filter(Boolean);
+  const parts = [streetLine, cityLine, item.country && item.country !== "Deutschland" ? item.country : ""].filter(Boolean);
   return parts.join(multiline ? "\n" : ", ");
 }
 
@@ -6869,6 +6875,78 @@ function siteControlPlanReferencesReport(items = []) {
   return `<div class="site-report-card"><div class="site-item-body">${rows.map(({ item, pin, ref }) => `<div class="info-row"><strong>${escapeHtml(pin ? pinLabel(pin) : "Planbezug")}</strong><span>${escapeHtml(ref)}<br><span class="muted">${escapeHtml(siteControlItemContext(item))}</span></span></div>`).join("")}</div></div>`;
 }
 
+function siteControlPinReportEntries(items = []) {
+  const entries = [];
+  for (const item of items) {
+    const pin = siteControlPinForItem(item);
+    if (!pin) continue;
+    const placements = pinPlacements(pin);
+    for (const placement of placements) {
+      const planId = placement.planId || pin.planId || item.planId || "";
+      if (!planId) continue;
+      const plan = planById(planId);
+      entries.push({
+        item,
+        pin,
+        plan,
+        planId,
+        pageNumber: Math.max(1, Number(placement.pageNumber || pin.pageNumber || item.pageNumber) || 1),
+        placement
+      });
+    }
+  }
+  return entries;
+}
+
+async function ensureSiteControlReportPlanImages(items = []) {
+  state.reportPlanImages = new Map();
+  state.reportImageCache ||= new Map();
+  const seen = new Set();
+  for (const entry of siteControlPinReportEntries(items)) {
+    const plan = entry.plan;
+    const key = `${entry.planId}:${entry.pageNumber}`;
+    if (!plan || seen.has(key)) continue;
+    seen.add(key);
+    try {
+      if (plan.type === "application/pdf") {
+        const dataUrl = await renderPdfPageToDataUrl(plan, entry.pageNumber);
+        state.reportPlanImages.set(key, await prepareImageForReport(dataUrl, { maxWidth: 2200, maxHeight: 2200, quality: 0.82, mimeType: "image/jpeg" }));
+      } else {
+        const record = await idbGet("plans", plan.id);
+        if (!record?.blob) throw new Error("Planinhalt fehlt");
+        const dataUrl = await prepareImageForReport(record.blob, { maxWidth: 2200, maxHeight: 2200, quality: 0.82, mimeType: "image/jpeg" });
+        state.reportPlanImages.set(key, dataUrl);
+      }
+    } catch (error) {
+      plan.renderError = `Plan zum Pin konnte nicht geladen werden. plan_id: ${entry.planId}, pin_id: ${entry.pin.id}. ${error?.message || ""}`.trim();
+    }
+  }
+}
+
+function siteControlPlanAppendixReport(items = []) {
+  const entries = siteControlPinReportEntries(items);
+  if (!entries.length) return siteControlPlanReferencesReport(items);
+  const groups = new Map();
+  for (const entry of entries) {
+    const key = `${entry.planId}:${entry.pageNumber}`;
+    if (!groups.has(key)) groups.set(key, { ...entry, rows: [] });
+    groups.get(key).rows.push(entry);
+  }
+  return [...groups.values()].map((group, index) => {
+    const plan = group.plan;
+    const pins = [...new Map(group.rows.map((row) => [row.pin.id, row.pin])).values()];
+    const image = state.reportPlanImages.get(`${group.planId}:${group.pageNumber}`);
+    const title = plan ? `${displayPlanNumber(plan) || plan.fileName || "Plan"}${plan.title ? " – " + plan.title : ""}` : `Plan ${group.planId || "unbekannt"}`;
+    return `
+      <section class="appendix-block site-plan-appendix ${index ? "page-break" : ""}">
+        <h3>Planmarkierung – ${escapeHtml(title)} – Seite ${group.pageNumber}</h3>
+        ${image ? `<div class="plan"><img class="report-plan-image" src="${image}" alt="Plan">${reportPinCallouts(pins, group.planId, group.pageNumber)}</div>` : `<p class="report-warning">${escapeHtml(plan?.renderError || `Plan zum Pin konnte nicht geladen werden. plan_id: ${group.planId || "-"}, pin_id: ${pins.map((pin) => pin.id).join(", ") || "-"}`)}</p>`}
+        <table class="pin-table"><thead><tr><th>Pin</th><th>Feststellung</th><th>Status</th><th>Bemerkung</th></tr></thead><tbody>
+          ${group.rows.map(({ item, pin }) => `<tr><td><strong>${escapeHtml(pinLabel(pin))}</strong></td><td>${escapeHtml(siteControlItemContext(item))}</td><td>${escapeHtml(item.status || pin.status || "")}</td><td>${escapeHtml(siteControlItemDescription(item) || pin.note || "")}</td></tr>`).join("")}
+        </tbody></table>
+      </section>`;
+  }).join("");
+}
 async function buildSiteControlReportParts() {
   saveSiteControlForm({ persistNow: false });
   const p = state.current;
@@ -6883,7 +6961,7 @@ async function buildSiteControlReportParts() {
     }
   }
   const css = `
-    @page{size:A4;margin:18mm 15mm 20mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2933;margin:0;line-height:1.45;background:#fff;font-size:12px}.print-btn{position:fixed;right:18px;top:18px;z-index:20;background:#1f4e79;color:#fff;border:0;border-radius:4px;padding:10px 14px;font-weight:700}.save-hint{position:sticky;top:0;z-index:19;background:#fff7d6;border-bottom:1px solid #e6c65c;color:#4f3b00;padding:12px 18px;font-size:13px;font-weight:700}.report-export,.report-page{width:190mm;max-width:190mm;margin:0 auto;background:#fff}.report-header{display:grid;grid-template-columns:1fr auto;gap:18px;border-bottom:3px solid #1f4e79;padding-bottom:18px;margin-bottom:22px}.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#5b6773;font-weight:700}h1{font-size:28px;line-height:1.15;margin:6px 0 8px;color:#17212b}h2{font-size:17px;color:#17212b;margin:24px 0 12px;padding-bottom:7px;border-bottom:1.5px solid #aab4bf;break-after:avoid}h3{font-size:14px;margin:0 0 8px;color:#17212b}.muted{color:#697586}.doc-meta{min-width:185px;border:1px solid #d8dee6;border-radius:6px;padding:10px 12px;background:#f7f9fb}.doc-meta div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e4e8ee;padding:4px 0}.doc-meta div:last-child{border-bottom:0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 20px}.info-card,.site-report-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;margin:10px 0 14px}.info-card h3,.site-report-card h3{background:#f3f6f9;margin:0;padding:9px 11px;border-bottom:1px solid #d8dee6;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}.info-row{display:grid;grid-template-columns:48mm 1fr;gap:10px;padding:8px 11px;border-bottom:1px solid #edf0f3}.info-row:last-child{border-bottom:0}.info-row strong{color:#52606d;font-size:11px}.status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;border:1px solid transparent}.status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.site-item-title{display:flex;justify-content:space-between;gap:10px;align-items:start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}.site-item-body{padding:10px 12px}.site-item-body p{white-space:pre-wrap}.worker-table{width:100%;border-collapse:collapse;font-size:10.5px}.worker-table th,.worker-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.worker-table th{background:#f3f6f9;color:#4b5563}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.info-grid{grid-template-columns:1fr 1fr}.site-report-card,.photo{break-inside:avoid;page-break-inside:avoid}}
+    @page{size:A4;margin:18mm 15mm 20mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2933;margin:0;line-height:1.45;background:#fff;font-size:12px}.print-btn{position:fixed;right:18px;top:18px;z-index:20;background:#1f4e79;color:#fff;border:0;border-radius:4px;padding:10px 14px;font-weight:700}.save-hint{position:sticky;top:0;z-index:19;background:#fff7d6;border-bottom:1px solid #e6c65c;color:#4f3b00;padding:12px 18px;font-size:13px;font-weight:700}.report-export,.report-page{width:190mm;max-width:190mm;margin:0 auto;background:#fff}.report-header{display:grid;grid-template-columns:1fr auto;gap:18px;border-bottom:3px solid #1f4e79;padding-bottom:18px;margin-bottom:22px}.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#5b6773;font-weight:700}h1{font-size:28px;line-height:1.15;margin:6px 0 8px;color:#17212b}h2{font-size:17px;color:#17212b;margin:24px 0 12px;padding-bottom:7px;border-bottom:1.5px solid #aab4bf;break-after:avoid}h3{font-size:14px;margin:0 0 8px;color:#17212b}.muted{color:#697586}.doc-meta{min-width:185px;border:1px solid #d8dee6;border-radius:6px;padding:10px 12px;background:#f7f9fb}.doc-meta div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e4e8ee;padding:4px 0}.doc-meta div:last-child{border-bottom:0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 20px}.info-card,.site-report-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;margin:10px 0 14px}.info-card h3,.site-report-card h3{background:#f3f6f9;margin:0;padding:9px 11px;border-bottom:1px solid #d8dee6;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}.info-row{display:grid;grid-template-columns:48mm 1fr;gap:10px;padding:8px 11px;border-bottom:1px solid #edf0f3}.info-row:last-child{border-bottom:0}.info-row strong{color:#52606d;font-size:11px}.status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;border:1px solid transparent}.status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.site-item-title{display:flex;justify-content:space-between;gap:10px;align-items:start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}.site-item-body{padding:10px 12px}.site-item-body p{white-space:pre-wrap}.worker-table{width:100%;border-collapse:collapse;font-size:10.5px}.worker-table th,.worker-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.worker-table th{background:#f3f6f9;color:#4b5563}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}.pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}.appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.site-plan-appendix h3{background:#f3f6f9;border:1px solid #d8dee6;border-bottom:0;border-radius:8px 8px 0 0;padding:9px 11px;margin:10px 0 0}.pin-table{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px}.pin-table th,.pin-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.pin-table th{background:#f3f6f9}.report-warning{border:1px solid #f0c56c;background:#fff7d6;color:#5c4200;border-radius:6px;padding:10px 12px}.page-break{break-before:page;page-break-before:always}.footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.info-grid{grid-template-columns:1fr 1fr}.site-report-card,.photo{break-inside:avoid;page-break-inside:avoid}}
   `;
   const rows = [
     ["Projekt", project?.name || p.head.projectName],
@@ -6902,7 +6980,8 @@ async function buildSiteControlReportParts() {
         <p>${escapeHtml(siteControlItemDescription(item) || "Keine Beschreibung erfasst.")}</p>
       </div>
     </article>`).join("") : `<p class="muted">Keine Feststellungen dokumentiert.</p>`;
-  const planReferenceHtml = siteControlPlanReferencesReport(items);
+  await ensureSiteControlReportPlanImages(items);
+  const planReferenceHtml = siteControlPlanAppendixReport(items);
   const photoHtml = photoCards.length ? `<div class="photo-grid">${photoCards.map(({ item, photo, url }) => `<figure class="photo"><img src="${url}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><p><strong>${escapeHtml(item.type)}</strong> · ${escapeHtml(item.location || "ohne Bereich")}</p><p>${escapeHtml(photo.name || "Foto")}</p></figcaption></figure>`).join("")}</div>` : `<p class="muted">Keine Fotos dokumentiert.</p>`;
   const body = `
     <div class="report-export"><main class="report-page">
@@ -11603,6 +11682,8 @@ async function boot() {
 }
 
 boot();
+
+
 
 
 
