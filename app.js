@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v121";
+const APP_VERSION = "v122";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -6687,9 +6687,12 @@ function polishDictationText(text = "") {
     .replace(/\bmatten\s+lage\b/gi, "Mattenlage")
     .replace(/\buntergeschoss\s+grundriss\b/gi, "Untergeschoss-Grundriss")
     .replace(/\bbeton\s+deckung\b/gi, "Betondeckung")
-    .replace(/\bübergreifungslänge\b/gi, "Übergreifungslänge")
-    .replace(/\bunterstützungskörbe\b/gi, "Unterstützungskörbe");
-  value = value.replace(/\s+(es müssen|sie muss|die obere betondeckung|bitte)\s+/gi, (match, phrase) => `. ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} `);
+    .replace(/übergreifungslänge/gi, "Übergreifungslänge")
+    .replace(/unterstützungskörbe/gi, "Unterstützungskörbe");
+  value = value
+    .replace(/\bist\s+zu\s+gering\s+ist\s+müssen\b/gi, "ist zu gering. Es müssen")
+    .replace(/\bist\s+zu\s+gering\s+es\s+müssen\b/gi, "ist zu gering. Es müssen")
+    .replace(/\s+(es müssen|sie muss|die obere betondeckung|bitte)\s+/gi, (match, phrase) => `. ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} `);
   value = value.replace(/\s+([.,;:!?])/g, "$1").replace(/\.{2,}/g, ".").replace(/\s+/g, " ").trim();
   if (!value) return "";
   value = value.charAt(0).toUpperCase() + value.slice(1);
@@ -8012,7 +8015,7 @@ async function buildReportParts() {
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
     .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}
-    .appendix-block{break-before:page;page-break-before:always;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:7px 9px}.pin-finding-body{padding:8px 9px}.pin-finding-body p{white-space:pre-wrap;margin:5px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:7px}.pin-photo-grid.single{grid-template-columns:minmax(0,0.68fr)}.pin-photo{margin:0}.pin-photo img{width:100%;height:92px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.pin-photo-grid.single .pin-photo img{height:130px}.pin-photo figcaption{font-size:9.5px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}.report-section{margin:0 0 12px}.report-section.compact-keep{break-inside:avoid;page-break-inside:avoid}
+    .appendix-block{break-before:page;page-break-before:always;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:7px 9px}.pin-finding-body{padding:8px 9px}.pin-finding-body p{white-space:pre-wrap;margin:5px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}.pin-photo-grid.single{grid-template-columns:minmax(0,0.62fr)}.pin-photo{margin:0;break-inside:avoid;page-break-inside:avoid}.pin-photo img{width:100%;height:30mm;max-height:30mm;object-fit:contain;border:1px solid #cfd6dd;background:#fff}.pin-photo-grid.single .pin-photo img{height:42mm;max-height:42mm}.pin-photo figcaption{font-size:9.2px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}.report-section{margin:0 0 12px}.report-section.compact-keep{break-inside:avoid;page-break-inside:avoid}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
     .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:120px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
@@ -8063,7 +8066,7 @@ async function buildReportParts() {
         <h2>Wetterdaten</h2>
         ${weatherReport(p)}
 
-        <section class="report-section compact-keep">
+        <section class="report-section">
           <h2>Übersichtsfotos Baustelle</h2>
           ${overviewPhotosHtml}
         </section>
@@ -8137,6 +8140,12 @@ function reportPrintOverrides() {
       #printReportMount tr{break-inside:avoid;page-break-inside:avoid}
       #printReportMount td,#printReportMount th{overflow-wrap:anywhere!important;word-break:break-word!important}
       #printReportMount img{max-width:100%!important;height:auto!important;break-inside:avoid;page-break-inside:avoid}
+      #printReportMount .pin-finding-card{break-inside:avoid!important;page-break-inside:avoid!important}
+      #printReportMount .pin-photo-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important;margin-top:6px!important}
+      #printReportMount .pin-photo-grid.single{grid-template-columns:minmax(0,0.62fr)!important}
+      #printReportMount .pin-photo{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important}
+      #printReportMount .pin-photo img{width:100%!important;height:30mm!important;max-height:30mm!important;object-fit:contain!important;background:#fff!important}
+      #printReportMount .pin-photo-grid.single .pin-photo img{height:42mm!important;max-height:42mm!important}
       #printReportMount .signature-print-box{width:90mm!important;height:35mm!important;max-width:100%!important}
       #printReportMount .signature-image{max-width:80mm!important;max-height:28mm!important;width:auto!important;height:auto!important;object-fit:contain!important}
       #printReportMount .signature-empty{width:90mm!important;height:35mm!important;max-width:100%!important}
