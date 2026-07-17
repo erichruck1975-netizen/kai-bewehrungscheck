@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v119";
+const APP_VERSION = "v121";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -6596,13 +6596,15 @@ function bindVoice() {
         const result = resultEvent.results[index];
         if (!result.isFinal) continue;
         const transcript = cleanDictationText(result[0]?.transcript || "");
-        const key = normalizeDictationKey(transcript);
-        if (transcript && key && !state.voice.finalResults[key]) {
-          state.voice.finalResults[key] = true;
-          state.voice.finalChunks.push(transcript);
+        if (transcript) {
+          state.voice.finalResults[index] = transcript;
         }
       }
-      state.voice.finalText = (state.voice.finalChunks || []).join(" ").trim();
+      state.voice.finalChunks = Object.keys(state.voice.finalResults || {})
+        .sort((a, b) => Number(a) - Number(b))
+        .map((key) => state.voice.finalResults[key])
+        .filter(Boolean);
+      state.voice.finalText = normalizeSpeechRecognitionTranscript(state.voice.finalChunks);
     };
     recognition.onerror = (errorEvent) => {
       if (!state.voice || state.voice.button !== btn) return;
@@ -6646,6 +6648,74 @@ function resetVoiceButton(btn) {
 
 function cleanDictationText(text = "") {
   return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function dictationWordKey(word = "") {
+  return String(word || "")
+    .toLowerCase()
+    .replace(/[.,;:!?"'„“”]/g, "")
+    .replace(/[\u2010-\u2015-]/g, "")
+    .trim();
+}
+
+function removeIncrementalPrefixes(text = "") {
+  const words = cleanDictationText(text).split(" ").filter(Boolean);
+  const output = [];
+  let index = 0;
+  while (index < words.length) {
+    if (output.length) {
+      let matchesOutputPrefix = true;
+      for (let offset = 0; offset < output.length; offset += 1) {
+        if (index + offset >= words.length || dictationWordKey(words[index + offset]) !== dictationWordKey(output[offset])) {
+          matchesOutputPrefix = false;
+          break;
+        }
+      }
+      if (matchesOutputPrefix) {
+        index += output.length;
+        continue;
+      }
+    }
+    output.push(words[index]);
+    index += 1;
+  }
+  return output.join(" ");
+}
+
+function polishDictationText(text = "") {
+  let value = cleanDictationText(text)
+    .replace(/\bmatten\s+lage\b/gi, "Mattenlage")
+    .replace(/\buntergeschoss\s+grundriss\b/gi, "Untergeschoss-Grundriss")
+    .replace(/\bbeton\s+deckung\b/gi, "Betondeckung")
+    .replace(/\bübergreifungslänge\b/gi, "Übergreifungslänge")
+    .replace(/\bunterstützungskörbe\b/gi, "Unterstützungskörbe");
+  value = value.replace(/\s+(es müssen|sie muss|die obere betondeckung|bitte)\s+/gi, (match, phrase) => `. ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} `);
+  value = value.replace(/\s+([.,;:!?])/g, "$1").replace(/\.{2,}/g, ".").replace(/\s+/g, " ").trim();
+  if (!value) return "";
+  value = value.charAt(0).toUpperCase() + value.slice(1);
+  if (!/[.!?]$/.test(value)) value += ".";
+  return value;
+}
+
+function normalizeSpeechRecognitionTranscript(chunks = []) {
+  const list = Array.isArray(chunks) ? chunks : [chunks];
+  const merged = [];
+  for (const raw of list) {
+    const text = removeIncrementalPrefixes(cleanDictationText(raw || ""));
+    if (!text) continue;
+    const key = normalizeDictationKey(text);
+    const previous = merged[merged.length - 1] || "";
+    const previousKey = normalizeDictationKey(previous);
+    if (!key) continue;
+    if (previousKey && key.startsWith(previousKey)) {
+      merged[merged.length - 1] = text;
+      continue;
+    }
+    if (previousKey && previousKey.startsWith(key)) continue;
+    if (merged.some((item) => normalizeDictationKey(item) === key)) continue;
+    merged.push(text);
+  }
+  return polishDictationText(removeIncrementalPrefixes(merged.join(" ")));
 }
 
 function normalizeDictationKey(text = "") {
@@ -7853,8 +7923,32 @@ async function buildDailyReportParts() {
 }
 
 
+function protocolDateMinuteKey(value = "") {
+  if (!value) return "";
+  const text = String(value);
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+  return match ? `${match[1]}T${match[2]}` : text.slice(0, 16);
+}
+
+function protocolSignatureDateTime(protocol = state.current) {
+  return (protocol?.signatures || [])
+    .map((signature) => signature?.signedAt || "")
+    .filter(Boolean)
+    .sort()
+    .at(-1) || "";
+}
+
 function protocolInspectionDateTime(protocol = state.current) {
-  return protocol?.head?.inspectionDateTime || protocol?.weather?.weatherDateTime || nowLocalInput();
+  const inspection = protocol?.head?.inspectionDateTime || protocol?.head?.reportDateTime || "";
+  const weather = protocol?.weather?.weatherDateTime || "";
+  const signature = protocolSignatureDateTime(protocol);
+  const created = protocol?.head?.createdAt || protocol?.createdAt || "";
+  const inspectionLooksTechnical = inspection && created && protocolDateMinuteKey(inspection) === protocolDateMinuteKey(created);
+  if (inspection && !inspectionLooksTechnical) return inspection;
+  if (weather) return weather;
+  if (signature) return signature;
+  if (inspection) return inspection;
+  return nowLocalInput();
 }
 
 async function buildReportParts() {
@@ -7918,7 +8012,7 @@ async function buildReportParts() {
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
     .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}
-    .appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:8px 10px}.pin-finding-body{padding:9px 10px}.pin-finding-body p{white-space:pre-wrap;margin:6px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}.pin-photo{margin:0}.pin-photo img{width:100%;height:115px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.pin-photo figcaption{font-size:10px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}
+    .appendix-block{break-before:page;page-break-before:always;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:7px 9px}.pin-finding-body{padding:8px 9px}.pin-finding-body p{white-space:pre-wrap;margin:5px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:7px}.pin-photo-grid.single{grid-template-columns:minmax(0,0.68fr)}.pin-photo{margin:0}.pin-photo img{width:100%;height:92px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.pin-photo-grid.single .pin-photo img{height:130px}.pin-photo figcaption{font-size:9.5px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}.report-section{margin:0 0 12px}.report-section.compact-keep{break-inside:avoid;page-break-inside:avoid}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
     .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:120px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
@@ -7969,8 +8063,10 @@ async function buildReportParts() {
         <h2>Wetterdaten</h2>
         ${weatherReport(p)}
 
-        <h2>Übersichtsfotos Baustelle</h2>
-        ${overviewPhotosHtml}
+        <section class="report-section compact-keep">
+          <h2>Übersichtsfotos Baustelle</h2>
+          ${overviewPhotosHtml}
+        </section>
 
         <h2>${followup ? "Ergebnis der Nachbegehung" : "Ergebnis"}</h2>
         <section class="result-box ${resultClass(p.result.resultStatus)}">
@@ -8372,7 +8468,7 @@ function buildReportShareText({ compact = false } = {}) {
   const project = p.head.projectName || "ohne Projektangabe";
   const component = [p.head.component, p.head.floor].filter(Boolean).join(" / ") || "ohne Angabe";
   const area = p.head.areaAxes || "ohne Angabe";
-  const date = formatDate(p.head.createdAt || p.createdAt || new Date().toISOString());
+  const date = formatDate(protocolInspectionDateTime(p));
   const result = p.result?.resultStatus || "ohne Ergebnis";
   const lines = compact ? [
     `Bewehrungsabnahme – ${project}`,
@@ -10004,15 +10100,20 @@ async function reportFindingPhotosHtml(photos = []) {
     if (src) items.push({ photo, src });
   }
   if (!items.length) return "";
-  return `<div class="pin-photo-grid">${items.map((item, index) => `<figure class="pin-photo"><img src="${item.src}" alt="${escapeAttr(item.photo.name || "Foto")}"><figcaption>Foto ${index + 1}${item.photo.name ? " · " + escapeHtml(item.photo.name) : ""}</figcaption>${barCountReportHtml(item.photo)}</figure>`).join("")}</div>`;
+  const gridClass = items.length === 1 ? "pin-photo-grid single" : "pin-photo-grid";
+  return `<div class="${gridClass}">${items.map((item, index) => `<figure class="pin-photo"><img src="${item.src}" alt="${escapeAttr(item.photo.name || "Foto")}"><figcaption>Foto ${index + 1}${item.photo.name ? " · " + escapeHtml(item.photo.name) : ""}</figcaption>${barCountReportHtml(item.photo)}</figure>`).join("")}</div>`;
 }
 
 async function planFindingCardHtml(entry) {
   const pin = entry.pin;
   const pinText = pin ? pinLabel(pin) : "ohne Pin";
+  const hasPhotos = !!(entry.photos || []).length;
+  const rawStatus = entry.status || "Dokumentation";
+  const displayStatus = rawStatus === "nicht relevant" && hasPhotos ? "Dokumentation / nicht relevant" : statusLabel(rawStatus);
+  const badgeStatus = rawStatus === "nicht relevant" && hasPhotos ? "Dokumentation" : rawStatus;
   const photoHtml = await reportFindingPhotosHtml(entry.photos || []);
   return `<article class="pin-finding-card">
-    <div class="pin-finding-head"><strong>${escapeHtml(pinText)} - ${escapeHtml(statusLabel(entry.status || "Dokumentation"))} - ${escapeHtml(entry.title || "Feststellung")}</strong>${statusBadge(entry.status || "Dokumentation")}</div>
+    <div class="pin-finding-head"><strong>${escapeHtml(pinText)} - ${escapeHtml(displayStatus)} - ${escapeHtml(entry.title || "Feststellung")}</strong>${statusBadge(badgeStatus || "Dokumentation")}</div>
     <div class="pin-finding-body">
       ${entry.location ? `<p><strong>Bereich:</strong> ${escapeHtml(entry.location)}</p>` : ""}
       ${entry.note ? `<p><strong>Bemerkung:</strong> ${escapeHtml(entry.note)}</p>` : `<p class="muted">Keine Bemerkung erfasst.</p>`}
@@ -10025,7 +10126,7 @@ async function planFindingCardHtml(entry) {
 async function planAppendixReport(p) {
   const planSections = [];
   const plansWithPins = (p.plans || []).filter((plan) => p.pins.some((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id)));
-  if (!plansWithPins.length) return `<h2 class="page-break">Planmarkierungen und Feststellungen</h2><p>Keine Planmarkierungen mit Pins dokumentiert.</p>`;
+  if (!plansWithPins.length) return `<section class="report-section"><h2>Planmarkierungen und Feststellungen</h2><p>Keine Planmarkierungen mit Pins dokumentiert.</p></section>`;
   for (const [planIndex, plan] of plansWithPins.entries()) {
     const pages = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
     for (const pageNumber of pages) {
@@ -10052,13 +10153,15 @@ async function unplacedFindingsReport(p) {
   const entries = [];
   (p.checkpoints || []).forEach((check) => (check.samples || []).forEach((sample) => {
     if (sample.pinId || sample.sourcePinId) return;
-    if (!sampleShouldAppearInPlanFindings(sample)) return;
-    entries.push({ check, sample, pin: null, status: sample.followupStatus || sample.overlapCheck?.resultStatus || sample.status || check.status, title: check.title, location: sample.location || "", note: sample.followupNote || sample.note || sample.sourceNote || sample.overlapCheck?.generatedText || "", photos: sample.photos || [] });
+    const note = sample.followupNote || sample.note || sample.sourceNote || sample.overlapCheck?.generatedText || "";
+    const photos = uniquePhotoRefs(sample.photos || []);
+    if (!note && !photos.length) return;
+    entries.push({ check, sample, pin: null, status: sample.followupStatus || sample.overlapCheck?.resultStatus || sample.status || check.status, title: check.title, location: sample.location || "", note, photos });
   }));
   if (!entries.length) return "";
   const cards = [];
   for (const entry of entries) cards.push(await planFindingCardHtml(entry));
-  return `<h2 class="page-break">Dokumentierte Punkte ohne Planmarkierung</h2><p class="muted">Diese Punkte haben keinen Pin und werden deshalb separat aufgeführt.</p><div class="pin-finding-list">${cards.join("")}</div>`;
+  return `<section class="report-section unplaced-findings"><h2>Dokumentierte Punkte ohne Planmarkierung</h2><p class="muted">Diese Punkte haben keinen Pin und werden deshalb separat aufgeführt.</p><div class="pin-finding-list">${cards.join("")}</div></section>`;
 }
 
 async function overviewPhotoReport(p) {
