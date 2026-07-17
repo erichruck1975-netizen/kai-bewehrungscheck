@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v122";
+const APP_VERSION = "v123";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -4117,6 +4117,30 @@ function checkHasIssue(check) {
   );
 }
 
+function documentedStatusClass(status = "", hasDocumentation = false) {
+  const value = status || "offen / nicht bewertet";
+  const base = statusClassName(value);
+  if (value.includes("nicht relevant") && hasDocumentation) return "doc neutral-documented";
+  if (!hasDocumentation && (!value || value.includes("offen / nicht bewertet"))) return "empty";
+  return base;
+}
+
+function checkVisualClass(check = {}) {
+  const documented = checkHasDocumentation(check);
+  const statusParts = documentedStatusClass(check.status, documented).split(/\s+/).filter(Boolean).map((item) => `check-status-${item}`);
+  const parts = [documented ? "check-state-documented" : "check-state-empty", ...statusParts];
+  if (!check.active && !documented) parts.push("check-state-inactive");
+  if (checkHasIssue(check)) parts.push("check-state-issue");
+  return parts.join(" ");
+}
+
+function sampleVisualClass(sample = {}) {
+  const documented = sampleHasDocumentation(sample);
+  const status = sample.followupStatus || sample.status || "offen / nicht bewertet";
+  const statusParts = documentedStatusClass(status, documented).split(/\s+/).filter(Boolean).map((item) => `sample-status-${item}`);
+  return [documented ? "sample-state-documented" : "sample-state-empty", ...statusParts].join(" ");
+}
+
 function shouldIncludeCheckInReport(check) {
   return !!(check.manuallyActivated || checkHasDocumentation(check) || checkHasIssue(check));
 }
@@ -4266,13 +4290,13 @@ function renderChecklist() {
 
 function checkAccordionCard(item, isOpen) {
   return `
-    <article class="check-item ${item.active ? "" : "inactive"} ${isOpen ? "open" : "collapsed"}" data-check="${item.id}">
+    <article class="check-item ${item.active ? "" : "inactive"} ${isOpen ? "open" : "collapsed"} ${checkVisualClass(item)}" data-check="${item.id}">
       <div class="check-head compact-check-head">
         <button class="check-toggle" type="button" data-toggle-check-panel="${item.id}" aria-expanded="${isOpen ? "true" : "false"}">
           <span class="check-toggle-title">${escapeHtml(item.title)}</span>
           <span class="check-toggle-summary">${checkSummary(item)}</span>
         </button>
-        ${item.active ? `<button class="primary-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>` : `<button class="secondary-btn" type="button" data-activate-check="${item.id}">aktivieren</button>`}
+        ${item.active ? `<button class="secondary-btn check-add-sample-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>` : `<button class="secondary-btn" type="button" data-activate-check="${item.id}">aktivieren</button>`}
       </div>
       <div class="check-body ${isOpen ? "" : "hidden"}">
         ${item.active
@@ -4302,19 +4326,21 @@ function sampleSummary(sample = {}, check = null, statusOverride = "") {
   if (photos) parts.push(`${photos} Foto${photos === 1 ? "" : "s"}`);
   if (sample.note || sample.followupNote) parts.push("Bemerkung vorhanden");
   if (sample.pinId) parts.push("Pin vorhanden");
-  if (!photos && !(sample.note || sample.followupNote) && !sample.pinId) parts.push("noch ohne Foto/Pin/Bemerkung");
+  if (!sampleHasDocumentation(sample)) parts.push("noch nicht dokumentiert");
   return parts.map(escapeHtml).join(" · ");
 }
 
 function checkSummary(check) {
   const photos = (check.photos || []).length + (check.samples || []).reduce((sum, sample) => sum + ((sample.photos || []).length), 0);
-  const hasNote = !!(check.note || (check.samples || []).some((sample) => sample.note));
+  const hasNote = !!(check.note || (check.samples || []).some((sample) => sample.note || sample.followupNote));
+  const hasPin = !!(check.pinId || (check.samples || []).some((sample) => sample.pinId));
   const location = (check.samples || []).map((sample) => sample.location).filter(Boolean)[0] || "";
   const parts = [statusLabel(check.status || "offen / nicht bewertet")];
   if (location) parts.push(location);
   if (photos) parts.push(`${photos} Foto${photos === 1 ? "" : "s"}`);
   if (hasNote) parts.push("Bemerkung vorhanden");
-  if (!photos && !hasNote && !(check.samples || []).length) parts.push("noch nicht dokumentiert");
+  if (hasPin) parts.push("Pin vorhanden");
+  if (!checkHasDocumentation(check)) parts.push("noch nicht dokumentiert");
   return parts.map(escapeHtml).join(" · ");
 }
 
@@ -4332,7 +4358,7 @@ function sampleCard(check, sample) {
   if (isFollowupProtocol()) return followupSampleCard(check, sample);
   const isOpen = state.openSampleId === sample.id;
   return `
-    <section class="sample-card ${isOpen ? "open" : "collapsed"}" data-sample="${sample.id}">
+    <section class="sample-card ${isOpen ? "open" : "collapsed"} ${sampleVisualClass(sample)}" data-sample="${sample.id}">
       <button class="sample-toggle" type="button" data-toggle-sample-panel="${sample.id}" aria-expanded="${isOpen ? "true" : "false"}">
         <span class="sample-toggle-title">${escapeHtml(check.title)} - Prüfstelle ${sample.number}</span>
         <span class="sample-toggle-summary">${sampleSummary(sample, check)}</span>
@@ -4372,7 +4398,7 @@ function followupSampleCard(check, sample) {
   const currentStatus = sample.followupStatus || sample.status || (isNew ? "neu hinzugekommen" : "weiterhin offen");
   const isOpen = state.openSampleId === sample.id;
   return `
-    <section class="sample-card ${isNew ? "followup-new-sample" : ""} ${isOpen ? "open" : "collapsed"}" data-sample="${sample.id}">
+    <section class="sample-card ${isNew ? "followup-new-sample" : ""} ${isOpen ? "open" : "collapsed"} ${sampleVisualClass(sample)}" data-sample="${sample.id}">
       <button class="sample-toggle" type="button" data-toggle-sample-panel="${sample.id}" aria-expanded="${isOpen ? "true" : "false"}">
         <span class="sample-toggle-title">${escapeHtml(check.title)} - ${isNew ? "Neu in dieser Nachbegehung" : `Nachkontrolle ${sample.number}`}</span>
         <span class="sample-toggle-summary">${sampleSummary(sample, check, currentStatus)}</span>

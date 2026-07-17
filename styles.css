@@ -2947,3 +2947,111 @@ dialog button {
   padding-top: 10px;
 }
 
+/* v123: high-contrast check tab states for sunlight/mobile use */
+.check-item.check-state-empty .check-toggle,
+.sample-card.sample-state-empty .sample-toggle {
+  background: #f4f6f8;
+  border: 2px dashed #aeb8c2;
+  color: #334155;
+  box-shadow: none;
+}
+
+.check-item.check-state-empty .check-toggle-summary,
+.sample-card.sample-state-empty .sample-toggle-summary {
+  color: #475569;
+  font-weight: 700;
+}
+
+.check-item.check-state-documented .check-toggle,
+.sample-card.sample-state-documented .sample-toggle {
+  background: #fff;
+  border-width: 2px;
+  border-style: solid;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+
+.check-item.check-status-bad .check-toggle,
+.sample-card.sample-status-bad .sample-toggle {
+  border-color: #b42318;
+  background: #fff1f0;
+}
+
+.check-item.check-status-bad .check-toggle-title,
+.sample-card.sample-status-bad .sample-toggle-title {
+  color: #7a1f16;
+}
+
+.check-item.check-status-partial .check-toggle,
+.sample-card.sample-status-partial .sample-toggle {
+  border-color: #b76e00;
+  background: #fff7e6;
+}
+
+.check-item.check-status-ok .check-toggle,
+.sample-card.sample-status-ok .sample-toggle {
+  border-color: #168451;
+  background: #edfdf4;
+}
+
+.check-item.check-status-doc .check-toggle,
+.sample-card.sample-status-doc .sample-toggle {
+  border-color: #1f6f95;
+  background: #edf8fd;
+}
+
+.check-item.check-status-neutral .check-toggle,
+.sample-card.sample-status-neutral .sample-toggle {
+  border-color: #64748b;
+  background: #f8fafc;
+}
+
+.check-item.check-status-empty .check-toggle,
+.sample-card.sample-status-empty .sample-toggle {
+  border-color: #aeb8c2;
+  background: #f4f6f8;
+}
+
+.check-item.check-status-neutral-documented .check-toggle,
+.sample-card.sample-status-neutral-documented .sample-toggle {
+  border-color: #1f6f95;
+  background: #eef8fb;
+}
+
+.check-toggle-summary,
+.sample-toggle-summary {
+  color: #263445;
+  font-weight: 750;
+}
+
+.check-item.check-state-documented .check-toggle-summary,
+.sample-card.sample-state-documented .sample-toggle-summary {
+  color: #172033;
+}
+
+.check-add-sample-btn {
+  min-height: 44px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  color: #25313d;
+  border: 1.5px solid #94a3b8;
+  box-shadow: none;
+}
+
+.check-item.open .check-add-sample-btn,
+.check-add-sample-btn:focus-visible {
+  background: #eef6fb;
+  border-color: #4f8bae;
+}
+
+@media (max-width: 640px) {
+  .check-toggle,
+  .sample-toggle {
+    min-height: 58px;
+    padding: 12px 13px;
+  }
+  .check-add-sample-btn {
+    width: 100%;
+    min-height: 46px;
+  }
+}
+
