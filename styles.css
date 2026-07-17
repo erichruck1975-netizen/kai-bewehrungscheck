@@ -2820,3 +2820,83 @@ dialog button {
 .project-plan-row {
   border-style: dashed;
 }
+
+/* v117: mobile check accordion, documentation status, stable plan viewer sizing */
+.inline-input-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.status-btn[data-status="Dokumentation"], .status-doc {
+  background: #2f6f8f;
+}
+.status-badge.doc,
+.status.doc {
+  background: #e7f2f8;
+  color: #1f5d78;
+  border-color: #a9cfe0;
+}
+.status.doc {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-weight: 800;
+}
+.compact-check-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+.check-toggle {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  min-height: 54px;
+  cursor: pointer;
+}
+.check-toggle-title {
+  font-weight: 850;
+  font-size: 16px;
+}
+.check-toggle-summary {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.check-item.open .check-toggle {
+  border-color: #9dbfd5;
+  background: #f2f8fc;
+}
+.check-body.hidden {
+  display: none;
+}
+.plan-viewer {
+  min-height: 55vh;
+  height: min(72vh, 760px);
+  overflow: hidden;
+  touch-action: none;
+}
+.plan-stage,
+#planImage,
+#pdfCanvas {
+  touch-action: none;
+  max-width: none;
+}
+@media (max-width: 640px) {
+  .compact-check-head {
+    grid-template-columns: 1fr;
+  }
+  .inline-input-action {
+    grid-template-columns: 1fr;
+  }
+  .plan-viewer {
+    min-height: calc(100dvh - 260px);
+    height: calc(100dvh - 220px);
+  }
+}

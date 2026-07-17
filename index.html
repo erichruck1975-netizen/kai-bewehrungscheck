@@ -7,7 +7,7 @@
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
   <link rel="manifest" href="manifest.webmanifest?v=116">
-  <link rel="stylesheet" href="styles.css?v=116">
+  <link rel="stylesheet" href="styles.css?v=117">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v116</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v117</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -248,7 +248,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v116</p>
+              <p id="appVersionInfo" class="muted">Version: v117</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -320,7 +320,10 @@
       <label>Allgemeiner Planstand / Prüfstand<input name="planDate"></label>
               <label>Ausführende Firma<input name="contractor" list="companyOptions"></label>
               <label>Anwesende Personen<textarea name="peoplePresent" rows="2" placeholder="Namen/Firma/Rolle frei eintragen"></textarea></label>
-              <label>Datum / Uhrzeit<input name="createdAt" type="datetime-local"></label>
+              <label>Technische Anlagezeit<input name="createdAt" type="datetime-local"></label>
+              <label>Uhrzeit der Abnahme / Baustellenzeit
+                <span class="inline-input-action"><input name="inspectionDateTime" type="datetime-local"><button class="small-btn" id="inspectionNowBtn" type="button">Jetzt</button></span>
+              </label>
             </div>
             <p class="muted">Planunterlagen werden im Reiter Plan verwaltet. Die verwendeten Planunterlagen werden automatisch aus den hochgeladenen Plänen im Reiter Plan übernommen.</p>
             <label class="voice-field">Allgemeine Bemerkung
@@ -741,7 +744,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=116"></script>
-  <script src="app.js?v=116"></script>
+  <script src="app.js?v=117"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>

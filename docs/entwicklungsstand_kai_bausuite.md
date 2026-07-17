@@ -1806,3 +1806,13 @@ Erfolgreich geprüft:
 - Rotation wird pro Abnahme/Plan in `planViewSettings` gespeichert; `plans.json` bleibt unverändert.
 - Pin-Koordinaten und Berichtsausgabe bleiben unverändert; fachliche Pins werden weiterhin im Check-Markierungsdialog gesetzt.
 
+
+## v117 Live-Test-Nachbesserung
+
+- Spracheingabe in Bewehrungsabnahme-/Checkpunktfeldern wieder diktat-first gehärtet: nur finale SpeechRecognition-Ergebnisse werden übernommen, doppelte finale Chunks werden normalisiert dedupliziert, es wird keine freie KI-Prosa erzeugt.
+- Fotoaufnahme/Galerie-Zuordnung stabilisiert: der Zielkontext (Projekt, Protokoll, Prüfstelle/Check/Pin) wird beim Auslösen eingefroren und beim Kamera-Rücksprung explizit an die Speicherlogik übergeben. Fotos werden in IndexedDB gespeichert und sofort dem Ziel zugeordnet.
+- Checkpunkte werden als mobile Accordion-Übersicht dargestellt: aktive/neue Punkte öffnen, abgeschlossene/dokumentierte Punkte können kompakt eingeklappt bleiben. Die Zusammenfassung zeigt Status, Lage, Fotoanzahl und Bemerkungshinweis.
+- Projektkontext in der Bewehrungsabnahme-Liste projectId-basiert gefiltert, damit in einer geöffneten Projektzentrale keine fremden Projekte/Abnahmen erscheinen.
+- Neuer Status "Dokumentation" für Prüfpunkte/Prüfstellen ergänzt. Er zählt als bearbeitet/dokumentiert, aber nicht als Mangel/Auflage/offener Punkt.
+- Berichtsuhrzeit nutzt bevorzugt `head.inspectionDateTime` (Uhrzeit der Abnahme/Baustellenzeit), danach Wetterzeit, erst zuletzt aktuelle Fallback-Zeit; technische Anlagezeit `createdAt` ist nicht mehr maßgebend für die Bewehrungsbericht-Uhrzeit.
+- Plan-Tab-Vorschau stabilisiert: Viewer erhält eine echte mobile Bedienfläche, Touch/Pinch/Pan bleiben auf den Planviewer begrenzt, Rotation bleibt unverändert.

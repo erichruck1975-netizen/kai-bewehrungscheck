@@ -3,12 +3,12 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v116";
+const APP_VERSION = "v117";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
 const STABLE_TAG = "v52-stable-before-v53";
-const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "nicht relevant"];
+const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "Dokumentation", "nicht relevant"];
 const FOLLOWUP_STATUSES = ["erledigt", "teilweise erledigt", "weiterhin offen", "nicht prüfbar", "neu hinzugekommen"];
 const OVERLAP_PLAN_MODE = "plan_value";
 const OVERLAP_EC2_MODE = "ec2_na";
@@ -172,6 +172,7 @@ const state = {
   selectedPinId: "",
   lastPdfFileShareDebug: null,
   checkScopeOnlyActive: false,
+  openCheckId: "",
   signatureEditId: "",
   photoTarget: null,
   pinMode: false,
@@ -997,6 +998,7 @@ function normalizeProtocol(protocol) {
   protocol.head.inspectorPersonId = protocol.head.inspectorPersonId || inspectorSelection.id;
   protocol.head.inspectorPersonSnapshot = protocol.head.inspectorPersonSnapshot || inspectorSelection.snapshot;
   protocol.head.projectName = protocol.head.projectName || "";
+  protocol.head.inspectionDateTime = protocol.head.inspectionDateTime || protocol.head.reportDateTime || protocol.head.createdAt || protocol.weather?.weatherDateTime || nowLocalInput();
   const protocolAddress = normalizeAddress(protocol.head.siteAddress || {
     street: protocol.head.siteStreet || "",
     zip: protocol.head.siteZip || "",
@@ -3077,7 +3079,7 @@ function acceptanceCard(p) {
     <article class="acceptance-card">
       <div>
         <h4>${escapeHtml(p.head.acceptanceTitle || p.head.component || "Unbenannte Abnahme")}</h4>
-        <div class="muted">${escapeHtml(formatDate(p.head.createdAt))} · ${escapeHtml(p.head.acceptanceType || "Erstabnahme")} · ${escapeHtml(p.head.component || "Bauteil offen")}</div>
+        <div class="muted">${escapeHtml(formatDate(protocolInspectionDateTime(p)))} · ${escapeHtml(p.head.acceptanceType || "Erstabnahme")} · ${escapeHtml(p.head.component || "Bauteil offen")}</div>
         <div>${escapeHtml(p.head.areaAxes || p.head.floor || "")}</div>
         <div class="muted">${escapeHtml(p.result?.resultStatus || "Ergebnis offen")} · ${issues} Auflage(n)/Mangel · ${p.pins.length} Pin(s)</div>
         <div class="muted">Zuletzt bearbeitet: ${escapeHtml(formatDate(p.updatedAt || p.createdAt || p.head.createdAt))}</div>
@@ -3337,7 +3339,10 @@ function renderList() {
     list.innerHTML = `<div class="panel"><p class="muted">Noch keine lokalen Projekte vorhanden.</p></div>`;
     return;
   }
-  const projects = [...state.projects].sort((a, b) => (b.id === state.currentProjectId) - (a.id === state.currentProjectId));
+  const projects = (state.currentProjectId
+    ? state.projects.filter((project) => project.id === state.currentProjectId)
+    : [...state.projects]
+  ).sort((a, b) => (b.id === state.currentProjectId) - (a.id === state.currentProjectId));
   list.innerHTML = projects.map((project) => {
     const stats = projectStats(project);
     const acceptances = stats.acceptances;
@@ -4086,8 +4091,19 @@ function checkHasDocumentation(check) {
     check.note ||
     check.pinId ||
     check.photos?.length ||
-    check.samples?.length ||
-    (check.status && check.status !== "offen / nicht bewertet" && check.status !== "nicht relevant")
+    (check.status && check.status !== "offen / nicht bewertet" && check.status !== "nicht relevant") ||
+    (check.samples || []).some((sample) => sampleHasDocumentation(sample))
+  );
+}
+
+function sampleHasDocumentation(sample = {}) {
+  return !!(
+    sample.note ||
+    sample.location ||
+    sample.pinId ||
+    sample.photos?.length ||
+    sample.status === "Dokumentation" ||
+    (sample.status && sample.status !== "offen / nicht bewertet" && sample.status !== "nicht relevant")
   );
 }
 
@@ -4167,6 +4183,7 @@ function applyCheckScopeTemplate({ confirmUser = true } = {}) {
 
 function activateCheck(check, manual = false) {
   if (!check) return;
+  state.openCheckId = check.id;
   check.active = true;
   if (manual) check.manuallyActivated = true;
   if (isFollowupProtocol() && !checkHasFollowupReference(check)) markFollowupNewCheck(check);
@@ -4198,6 +4215,8 @@ function renderChecklist() {
   const activeCount = visibleChecks.length;
   const documentedCount = state.current.checkpoints.filter(checkHasDocumentation).length;
   const templateValue = checkTemplateLabel();
+  const preferredOpen = visibleChecks.find((item) => item.id === state.openCheckId) || visibleChecks.find((item) => item.active && !checkIsComplete(item)) || visibleChecks[0] || null;
+  state.openCheckId = preferredOpen?.id || "";
   wrap.innerHTML = `
     <section class="panel check-scope-panel">
       <div class="section-head">
@@ -4226,20 +4245,7 @@ function renderChecklist() {
         </div>
       </details>
     </section>
-    ${visibleChecks.map((item) => `
-    <article class="check-item ${item.active ? "" : "inactive"}" data-check="${item.id}">
-      <div class="check-head">
-        <div>
-          <h3>${escapeHtml(item.title)}</h3>
-          <p class="muted">${item.active ? "Im Protokoll berücksichtigt" : "Nicht im Protokoll berücksichtigt"} · Gesamtstatus: <strong>${escapeHtml(item.status)}</strong> · ${item.samples.length} Prüfstelle(n)</p>
-        </div>
-        ${item.active ? `<button class="primary-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>` : `<button class="secondary-btn" type="button" data-activate-check="${item.id}">aktivieren</button>`}
-      </div>
-      ${item.active
-        ? (item.samples.length ? item.samples.map((sample) => sampleCard(item, sample)).join("") : `<p class="muted">Noch keine Prüfstelle angelegt. Mit „+ Bereich“ eine Stichprobe dokumentieren.</p>`)
-        : `<p class="muted">Nicht im Protokoll berücksichtigt.</p>`}
-    </article>
-  `).join("")}
+    ${visibleChecks.map((item) => checkAccordionCard(item, item.id === state.openCheckId)).join("")}
   `;
   state.current.checkpoints.forEach((check) => {
     check.samples.forEach((sample) => {
@@ -4250,6 +4256,43 @@ function renderChecklist() {
     });
   });
   hydratePhotoThumbs(wrap);
+}
+
+function checkAccordionCard(item, isOpen) {
+  return `
+    <article class="check-item ${item.active ? "" : "inactive"} ${isOpen ? "open" : "collapsed"}" data-check="${item.id}">
+      <div class="check-head compact-check-head">
+        <button class="check-toggle" type="button" data-toggle-check-panel="${item.id}" aria-expanded="${isOpen ? "true" : "false"}">
+          <span class="check-toggle-title">${escapeHtml(item.title)}</span>
+          <span class="check-toggle-summary">${checkSummary(item)}</span>
+        </button>
+        ${item.active ? `<button class="primary-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>` : `<button class="secondary-btn" type="button" data-activate-check="${item.id}">aktivieren</button>`}
+      </div>
+      <div class="check-body ${isOpen ? "" : "hidden"}">
+        ${item.active
+          ? (item.samples.length ? item.samples.map((sample) => sampleCard(item, sample)).join("") : `<p class="muted">Noch keine Prüfstelle angelegt. Mit „+ Bereich“ eine Stichprobe dokumentieren.</p>`)
+          : `<p class="muted">Nicht im Protokoll berücksichtigt.</p>`}
+      </div>
+    </article>
+  `;
+}
+
+function checkIsComplete(check) {
+  if (!checkHasDocumentation(check)) return false;
+  if (checkHasIssue(check)) return false;
+  return ["fertig / OK", "Dokumentation", "nicht relevant"].includes(check.status);
+}
+
+function checkSummary(check) {
+  const photos = (check.photos || []).length + (check.samples || []).reduce((sum, sample) => sum + ((sample.photos || []).length), 0);
+  const hasNote = !!(check.note || (check.samples || []).some((sample) => sample.note));
+  const location = (check.samples || []).map((sample) => sample.location).filter(Boolean)[0] || "";
+  const parts = [statusLabel(check.status || "offen / nicht bewertet")];
+  if (location) parts.push(location);
+  if (photos) parts.push(`${photos} Foto${photos === 1 ? "" : "s"}`);
+  if (hasNote) parts.push("Bemerkung vorhanden");
+  if (!photos && !hasNote && !(check.samples || []).length) parts.push("noch nicht dokumentiert");
+  return parts.map(escapeHtml).join(" · ");
 }
 
 function checkScopeRow(item) {
@@ -4961,6 +5004,8 @@ function updateCheckStatus(check) {
     check.status = "nicht OK / Mangel";
   } else if (check.samples.some((sample) => sample.status === "teilweise / Auflage")) {
     check.status = "teilweise / Auflage";
+  } else if (check.samples.some((sample) => sample.status === "Dokumentation")) {
+    check.status = "Dokumentation";
   } else if (check.samples.every((sample) => sample.status === "fertig / OK")) {
     check.status = "fertig / OK";
   } else {
@@ -5041,6 +5086,7 @@ function statusButtons(active, group) {
 }
 
 function statusLabel(status) {
+  if (status === "Dokumentation") return "Doku";
   return status.replace("fertig / ", "").replace("teilweise / ", "").replace("nicht OK / ", "");
 }
 
@@ -5399,22 +5445,27 @@ function guessFileType(name) {
   return "image/jpeg";
 }
 
-async function addPhotos(files) {
-  const target = state.photoTarget;
-  if (!target || !files.length) return;
+async function addPhotos(files, explicitTarget = null) {
+  const target = explicitTarget || state.photoTarget;
+  if (!target || !files.length || !state.current) return;
   const photos = [];
   const overviewEntries = [];
+  const projectId = state.current.projectId || state.currentProjectId || "";
+  const protocolId = state.current.id || "";
   for (const file of files) {
-    const photo = { id: uid("photo"), name: file.name, type: file.type || "image/jpeg", createdAt: new Date().toISOString(), barCountAnalysis: null };
+    if (!file || !file.size) continue;
+    const photo = { id: uid("photo"), name: file.name || "Foto", type: file.type || "image/jpeg", createdAt: new Date().toISOString(), barCountAnalysis: null };
+    const sample = target.kind === "sample" ? findSample(target.id) : null;
+    const check = target.kind === "check" ? state.current.checkpoints.find((item) => item.id === target.id) : (sample ? findCheckBySample(sample.id) : null);
     await idbPut("photos", {
       id: photo.id,
-      projectId: state.current.projectId,
-      acceptanceId: state.current.id,
-      protocolId: state.current.id,
-      pinId: target.kind === "pin" ? target.id : (target.kind === "sample" ? findSample(target.id)?.pinId || "" : ""),
-      checkItemId: target.kind === "check" ? target.id : (target.kind === "sample" ? findCheckBySample(target.id)?.id || "" : ""),
-      sampleId: target.kind === "sample" ? target.id : "",
-      fileName: file.name,
+      projectId,
+      acceptanceId: protocolId,
+      protocolId,
+      pinId: target.kind === "pin" ? target.id : (sample?.pinId || ""),
+      checkItemId: check?.id || "",
+      sampleId: sample?.id || "",
+      fileName: file.name || "Foto",
       fileType: photo.type,
       blob: file,
       note: "",
@@ -5425,7 +5476,7 @@ async function addPhotos(files) {
     if (target.kind === "overview") {
       overviewEntries.push({
         id: uid("overview"),
-        protocolId: state.current.id,
+        protocolId,
         photoId: photo.id,
         caption: "",
         order: (state.current.overviewPhotos || []).length + overviewEntries.length + 1,
@@ -5434,6 +5485,10 @@ async function addPhotos(files) {
         updatedAt: photo.createdAt
       });
     }
+  }
+  if (!photos.length) {
+    showAppToast("Foto konnte nicht gelesen werden.", { type: "error" });
+    return;
   }
   if (target.kind === "overview") {
     state.current.overviewPhotos = normalizeOverviewPhotos([...(state.current.overviewPhotos || []), ...overviewEntries], state.current.id);
@@ -5449,50 +5504,62 @@ async function addPhotos(files) {
   }
   if (target.kind === "check") {
     const check = state.current.checkpoints.find((item) => item.id === target.id);
-    activateCheck(check);
-    check.photos.push(...photos);
+    if (check) {
+      activateCheck(check);
+      check.photos = check.photos || [];
+      check.photos.push(...photos);
+    }
   }
   if (target.kind === "sample") {
     const sample = findSample(target.id);
-    activateCheck(findCheckBySample(target.id));
-    sample.photos.push(...photos);
-    if (sample.pinId) {
-      const pin = state.current.pins.find((item) => item.id === sample.pinId);
-      if (pin) {
-        pin.photos = pin.photos || [];
-        photos.forEach((photo) => {
-          if (!pin.photos.some((item) => item.id === photo.id)) pin.photos.push(photo);
-        });
-      }
-    }
-    sample.updatedAt = new Date().toISOString();
     const check = findCheckBySample(target.id);
-    if (check) updateCheckStatus(check);
+    if (sample) {
+      activateCheck(check);
+      sample.photos = sample.photos || [];
+      sample.photos.push(...photos);
+      if (sample.pinId) {
+        const pin = state.current.pins.find((item) => item.id === sample.pinId);
+        if (pin) {
+          pin.photos = pin.photos || [];
+          photos.forEach((photo) => {
+            if (!pin.photos.some((item) => item.id === photo.id)) pin.photos.push(photo);
+          });
+        }
+      }
+      sample.updatedAt = new Date().toISOString();
+      if (check) updateCheckStatus(check);
+    }
   }
   if (target.kind === "siteItem") {
     const item = findSiteControlItem(target.id);
     if (item) {
+      item.photos = item.photos || [];
       item.photos.push(...photos);
       item.updatedAt = new Date().toISOString();
-      persist();
+      await persist();
       renderSiteControlEditor();
+      showAppToast("Foto gespeichert und zugeordnet.", { type: "success" });
       return;
     }
   }
   if (target.kind === "dailyReport") {
     state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
+    state.current.dailyReport.photos = state.current.dailyReport.photos || [];
     state.current.dailyReport.photos.push(...photos.map((photo) => ({ ...photo, caption: "" })));
     state.current.updatedAt = new Date().toISOString();
-    persist();
+    await persist();
     renderDailyReportEditor();
+    showAppToast("Foto gespeichert und zugeordnet.", { type: "success" });
     return;
   }
-  saveFromForm();
+  saveFromForm(false);
+  await persist();
   renderPinEditor();
   renderChecklist();
   renderOverviewPhotos();
   renderPhotoDialog();
   renderMarkPinSheet(state.selectedPinId);
+  showAppToast("Foto gespeichert und zugeordnet. Fotos werden in der App gespeichert, nicht automatisch in der Handy-Galerie.", { type: "success" });
 }
 
 function triggerPhotoPicker(kind, id, source) {
@@ -5520,7 +5587,8 @@ function triggerOverviewPhotoPicker(source) {
 }
 
 function triggerInlinePhotoPicker(kind, id, source) {
-  state.photoTarget = { kind, id };
+  const target = { kind, id };
+  state.photoTarget = target;
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -5528,7 +5596,7 @@ function triggerInlinePhotoPicker(kind, id, source) {
   if (source === "gallery") input.multiple = true;
   input.className = "visually-hidden";
   input.addEventListener("change", async () => {
-    await addPhotos(Array.from(input.files || []));
+    await addPhotos(Array.from(input.files || []), target);
     input.remove();
   }, { once: true });
   document.body.appendChild(input);
@@ -6489,8 +6557,12 @@ function bindVoice() {
       for (let index = resultEvent.resultIndex; index < resultEvent.results.length; index += 1) {
         const result = resultEvent.results[index];
         if (!result.isFinal) continue;
-        const transcript = (result[0]?.transcript || "").trim();
-        if (transcript && state.voice.finalChunks[state.voice.finalChunks.length - 1] !== transcript) state.voice.finalChunks.push(transcript);
+        const transcript = cleanDictationText(result[0]?.transcript || "");
+        const key = normalizeDictationKey(transcript);
+        if (transcript && key && !state.voice.finalResults[key]) {
+          state.voice.finalResults[key] = true;
+          state.voice.finalChunks.push(transcript);
+        }
       }
       state.voice.finalText = (state.voice.finalChunks || []).join(" ").trim();
     };
@@ -6534,11 +6606,22 @@ function resetVoiceButton(btn) {
   });
 }
 
+function cleanDictationText(text = "") {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeDictationKey(text = "") {
+  return cleanDictationText(text).toLowerCase().replace(/[.,;:!?\-–—"'„“”]/g, "").replace(/\s+/g, " ").trim();
+}
+
 function appendVoiceText(existing, addition) {
-  const left = (existing || "").trim();
-  const right = (addition || "").trim();
+  const left = cleanDictationText(existing || "");
+  const right = cleanDictationText(addition || "");
   if (!right) return left;
   if (!left) return right;
+  const leftKey = normalizeDictationKey(left);
+  const rightKey = normalizeDictationKey(right);
+  if (leftKey.endsWith(rightKey) || leftKey.includes(` ${rightKey} `)) return left;
   return `${left}${/[.!?:;]$/.test(left) ? " " : ". "}${right}`;
 }
 
@@ -6672,8 +6755,13 @@ async function fetchWeather() {
       $('[name="precipitation"]').value = current.precipitation > 0 ? "ja" : "nein";
       $('[name="weatherCondition"]').value = weatherCode(current.weather_code);
       $('[name="weatherLocation"]').value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      const weatherStamp = nowLocalInput();
+      const weatherTimeField = $('[name="weatherDateTime"]');
+      if (weatherTimeField) weatherTimeField.value = weatherStamp;
+      const inspectionTimeField = $('[name="inspectionDateTime"]');
+      if (inspectionTimeField && !inspectionTimeField.value) inspectionTimeField.value = weatherStamp;
       saveFromForm();
-      status.textContent = "Wetter übernommen, manuell änderbar.";
+      status.textContent = "Wetter übernommen, Baustellenzeit gesetzt und manuell änderbar.";
     } catch {
       status.textContent = "Wetterabruf fehlgeschlagen.";
     }
@@ -6965,7 +7053,8 @@ function updateSiteControlItemField(element) {
 }
 
 function triggerSiteControlPhotoPicker(itemId, source) {
-  state.photoTarget = { kind: "siteItem", id: itemId };
+  const target = { kind: "siteItem", id: itemId };
+  state.photoTarget = target;
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -6973,7 +7062,7 @@ function triggerSiteControlPhotoPicker(itemId, source) {
   if (source === "gallery") input.multiple = true;
   input.className = "visually-hidden";
   input.addEventListener("change", async () => {
-    await addPhotos(Array.from(input.files || []));
+    await addPhotos(Array.from(input.files || []), target);
     input.remove();
   }, { once: true });
   document.body.appendChild(input);
@@ -7108,12 +7197,12 @@ async function buildSiteControlReportParts() {
     }
   }
   const css = `
-    @page{size:A4;margin:18mm 15mm 20mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2933;margin:0;line-height:1.45;background:#fff;font-size:12px}.print-btn{position:fixed;right:18px;top:18px;z-index:20;background:#1f4e79;color:#fff;border:0;border-radius:4px;padding:10px 14px;font-weight:700}.save-hint{position:sticky;top:0;z-index:19;background:#fff7d6;border-bottom:1px solid #e6c65c;color:#4f3b00;padding:12px 18px;font-size:13px;font-weight:700}.report-export,.report-page{width:190mm;max-width:190mm;margin:0 auto;background:#fff}.report-header{display:grid;grid-template-columns:1fr auto;gap:18px;border-bottom:3px solid #1f4e79;padding-bottom:18px;margin-bottom:22px}.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#5b6773;font-weight:700}h1{font-size:28px;line-height:1.15;margin:6px 0 8px;color:#17212b}h2{font-size:17px;color:#17212b;margin:24px 0 12px;padding-bottom:7px;border-bottom:1.5px solid #aab4bf;break-after:avoid}h3{font-size:14px;margin:0 0 8px;color:#17212b}.muted{color:#697586}.doc-meta{min-width:185px;border:1px solid #d8dee6;border-radius:6px;padding:10px 12px;background:#f7f9fb}.doc-meta div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e4e8ee;padding:4px 0}.doc-meta div:last-child{border-bottom:0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 20px}.info-card,.site-report-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;margin:10px 0 14px}.info-card h3,.site-report-card h3{background:#f3f6f9;margin:0;padding:9px 11px;border-bottom:1px solid #d8dee6;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}.info-row{display:grid;grid-template-columns:48mm 1fr;gap:10px;padding:8px 11px;border-bottom:1px solid #edf0f3}.info-row:last-child{border-bottom:0}.info-row strong{color:#52606d;font-size:11px}.status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;border:1px solid transparent}.status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.site-item-title{display:flex;justify-content:space-between;gap:10px;align-items:start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}.site-item-body{padding:10px 12px}.site-item-body p{white-space:pre-wrap}.worker-table{width:100%;border-collapse:collapse;font-size:10.5px}.worker-table th,.worker-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.worker-table th{background:#f3f6f9;color:#4b5563}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}.pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}.appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.site-plan-appendix h3{background:#f3f6f9;border:1px solid #d8dee6;border-bottom:0;border-radius:8px 8px 0 0;padding:9px 11px;margin:10px 0 0}.pin-table{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px}.pin-table th,.pin-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.pin-table th{background:#f3f6f9}.report-warning{border:1px solid #f0c56c;background:#fff7d6;color:#5c4200;border-radius:6px;padding:10px 12px}.page-break{break-before:page;page-break-before:always}.footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.info-grid{grid-template-columns:1fr 1fr}.site-report-card,.photo{break-inside:avoid;page-break-inside:avoid}}
+    @page{size:A4;margin:18mm 15mm 20mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2933;margin:0;line-height:1.45;background:#fff;font-size:12px}.print-btn{position:fixed;right:18px;top:18px;z-index:20;background:#1f4e79;color:#fff;border:0;border-radius:4px;padding:10px 14px;font-weight:700}.save-hint{position:sticky;top:0;z-index:19;background:#fff7d6;border-bottom:1px solid #e6c65c;color:#4f3b00;padding:12px 18px;font-size:13px;font-weight:700}.report-export,.report-page{width:190mm;max-width:190mm;margin:0 auto;background:#fff}.report-header{display:grid;grid-template-columns:1fr auto;gap:18px;border-bottom:3px solid #1f4e79;padding-bottom:18px;margin-bottom:22px}.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#5b6773;font-weight:700}h1{font-size:28px;line-height:1.15;margin:6px 0 8px;color:#17212b}h2{font-size:17px;color:#17212b;margin:24px 0 12px;padding-bottom:7px;border-bottom:1.5px solid #aab4bf;break-after:avoid}h3{font-size:14px;margin:0 0 8px;color:#17212b}.muted{color:#697586}.doc-meta{min-width:185px;border:1px solid #d8dee6;border-radius:6px;padding:10px 12px;background:#f7f9fb}.doc-meta div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e4e8ee;padding:4px 0}.doc-meta div:last-child{border-bottom:0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 20px}.info-card,.site-report-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;margin:10px 0 14px}.info-card h3,.site-report-card h3{background:#f3f6f9;margin:0;padding:9px 11px;border-bottom:1px solid #d8dee6;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}.info-row{display:grid;grid-template-columns:48mm 1fr;gap:10px;padding:8px 11px;border-bottom:1px solid #edf0f3}.info-row:last-child{border-bottom:0}.info-row strong{color:#52606d;font-size:11px}.status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;border:1px solid transparent}.status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.status-badge.doc{background:#e7f2f8;color:#1f5d78;border-color:#a9cfe0}.site-item-title{display:flex;justify-content:space-between;gap:10px;align-items:start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}.site-item-body{padding:10px 12px}.site-item-body p{white-space:pre-wrap}.worker-table{width:100%;border-collapse:collapse;font-size:10.5px}.worker-table th,.worker-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.worker-table th{background:#f3f6f9;color:#4b5563}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}.pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}.appendix-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:18px}.site-plan-appendix h3{background:#f3f6f9;border:1px solid #d8dee6;border-bottom:0;border-radius:8px 8px 0 0;padding:9px 11px;margin:10px 0 0}.pin-table{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px}.pin-table th,.pin-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.pin-table th{background:#f3f6f9}.report-warning{border:1px solid #f0c56c;background:#fff7d6;color:#5c4200;border-radius:6px;padding:10px 12px}.page-break{break-before:page;page-break-before:always}.footer-note{margin-top:28px;border-top:1px solid #d8dee6;padding-top:8px;color:#697586;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.info-grid{grid-template-columns:1fr 1fr}.site-report-card,.photo{break-inside:avoid;page-break-inside:avoid}}
   `;
   const rows = [
     ["Projekt", project?.name || p.head.projectName],
     ["Adresse", projectAddressText(project, { multiline: false }) || formatAddress(p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"],
-    ["Datum / Uhrzeit", formatDate(p.head.createdAt)],
+    ["Datum / Uhrzeit", formatDate(protocolInspectionDateTime(p))],
     ["Anlass", p.siteControl?.reason],
     ["Bereich", p.siteControl?.area],
     ["Teilnehmer", p.siteControl?.participants],
@@ -7132,14 +7221,14 @@ async function buildSiteControlReportParts() {
   const photoHtml = photoCards.length ? `<div class="photo-grid">${photoCards.map(({ item, photo, url }) => `<figure class="photo"><img src="${url}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><p><strong>${escapeHtml(item.type)}</strong> · ${escapeHtml(item.location || "ohne Bereich")}</p><p>${escapeHtml(photo.name || "Foto")}</p></figcaption></figure>`).join("")}</div>` : `<p class="muted">Keine Fotos dokumentiert.</p>`;
   const body = `
     <div class="report-export"><main class="report-page">
-      <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(p.head.createdAt))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
+      <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
       <section class="info-grid"><div class="info-card"><h3>Projekt</h3>${rows.slice(0,3).map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Kontrolle</h3>${rows.slice(3).map(([k,v]) => infoRow(k,v)).join("")}</div></section>
       <h2>Ergebnis / Zusammenfassung</h2><section class="info-card result-box">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
       <h2>Offene Punkte</h2>${openItems.length ? openItems.map((item) => `<article class="site-report-card"><div class="site-item-title"><strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong><span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="site-item-body"><p>${escapeHtml(siteControlItemDescription(item) || "")}</p></div></article>`).join("") : `<p class="muted">Keine offenen Punkte dokumentiert.</p>`}
       <h2>Feststellungen / Aufgaben</h2>${itemHtml}
       ${planReferenceHtml ? `<h2>Plananlagen / Markierungen</h2>${planReferenceHtml}` : ""}
       <h2 class="page-break">Fotodokumentation</h2>${photoHtml}
-      <footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(p.head.createdAt))}</span><span>Kai BauSuite</span></footer>
+      <footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</span><span>Kai BauSuite</span></footer>
     </main></div>`;
   const title = sanitizeFileName(`Baustellenkontrolle_${project?.name || p.head.projectName || "Projekt"}_${(p.head.createdAt || "").slice(0,10)}`);
   return { css, body, title, fileName: `${title}.pdf` };
@@ -7726,6 +7815,10 @@ async function buildDailyReportParts() {
 }
 
 
+function protocolInspectionDateTime(protocol = state.current) {
+  return protocol?.head?.inspectionDateTime || protocol?.weather?.weatherDateTime || nowLocalInput();
+}
+
 async function buildReportParts() {
   if (isDailyReportProtocol()) return buildDailyReportParts();
   if (isSiteControlProtocol()) return buildSiteControlReportParts();
@@ -7777,7 +7870,7 @@ async function buildReportParts() {
     .result-box.ok{border-left-color:#168451;background:#f1fbf6}.result-box.partial{border-left-color:#c47a00;background:#fff8ec}.result-box.bad{border-left-color:#c93c37;background:#fff3f2}.result-box.neutral{border-left-color:#7b8794;background:#f7f8fa}
     .result-box .status-badge{font-size:13px}
     .status-badge{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:800;font-size:11px;white-space:nowrap;border:1px solid transparent}
-    .status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}
+    .status-badge.ok{background:#e7f6ee;color:#12663e;border-color:#adddc2}.status-badge.partial{background:#fff1d6;color:#8a5400;border-color:#f0c56c}.status-badge.bad{background:#ffe1df;color:#9f2a25;border-color:#efa6a1}.status-badge.neutral{background:#eef1f4;color:#4f5b67;border-color:#cfd6dd}.status-badge.doc{background:#e7f2f8;color:#1f5d78;border-color:#a9cfe0}
     .issues-list{margin:8px 0 20px;padding-left:22px}.issues-list li{margin:7px 0;padding-left:4px}
     .check-card{border:1px solid #d8dee6;border-radius:8px;margin:12px 0 16px;break-inside:avoid;page-break-inside:avoid;background:#fff;overflow:hidden}
     .check-head{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:10px 12px}
@@ -7806,7 +7899,7 @@ async function buildReportParts() {
             <p class="subtitle">${escapeHtml(reportSubtitle)}</p>
           </div>
           <aside class="doc-meta">
-            <div><span>Datum</span><strong>${escapeHtml(formatDate(p.head.createdAt))}</strong></div>
+            <div><span>Datum</span><strong>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</strong></div>
             <div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div>
             
           </aside>
@@ -7828,7 +7921,7 @@ async function buildReportParts() {
           </div>
           <div class="info-card">
             <h3>Prüfung</h3>
-            ${infoRow("Datum / Uhrzeit", formatDate(p.head.createdAt))}
+            ${infoRow("Datum / Uhrzeit", formatDate(protocolInspectionDateTime(p)))}
             ${infoRow("Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName))}
             ${infoRow("Ausführende Firma", companyReportText(contractorCompany, p.head.contractor))}
             ${infoRow("Allgemeiner Planstand / Prüfstand", p.head.planDate)}
@@ -7875,7 +7968,7 @@ async function buildReportParts() {
 
         <footer class="footer-note">
           <span>${escapeHtml(p.head.projectName || "Kai BewehrungsCheck")}</span>
-          <span>${escapeHtml(formatDate(p.head.createdAt))}</span>
+          <span>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</span>
           <span>Kai BewehrungsCheck</span>
         </footer>
       </main>
@@ -8887,7 +8980,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const metaX = pageWidth - margin - 148;
   addRect(metaX, headerTop, 148, 58, { fill: "#f4f7fa", stroke: "#d8dee6", lineWidth: 0.8 });
   addOp({ type: "text", text: "Datum", x: metaX + 10, y: headerTop + 15, size: 7.8, font: "F2", color: "#52606d" });
-  addOp({ type: "text", text: formatDate(p.head.createdAt) || "-", x: metaX + 54, y: headerTop + 15, size: 8, font: "F1", color: "#17212b" });
+  addOp({ type: "text", text: formatDate(protocolInspectionDateTime(p)) || "-", x: metaX + 54, y: headerTop + 15, size: 8, font: "F1", color: "#17212b" });
   addOp({ type: "text", text: "Protokoll", x: metaX + 10, y: headerTop + 33, size: 7.8, font: "F2", color: "#52606d" });
   addOp({ type: "text", text: p.id.slice(-8).toUpperCase(), x: metaX + 54, y: headerTop + 33, size: 8, font: "F1", color: "#17212b" });
   addTextLine("Kai BewehrungsCheck · LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
@@ -8907,7 +9000,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     ["Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim()],
     ["Bereich / Achsen", p.head.areaAxes]
   ], "Prüfung", [
-    ["Datum / Uhrzeit", formatDate(p.head.createdAt)],
+    ["Datum / Uhrzeit", formatDate(protocolInspectionDateTime(p))],
     ["Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
     ["Ausführende Firma", companyReportText(contractorCompany, p.head.contractor)],
     ["Allgemeiner Planstand / Prüfstand", p.head.planDate],
@@ -10031,6 +10124,7 @@ function statusClassName(status = "") {
   if (status.includes("nicht OK") || status.includes("Nicht zur Betonage")) return "bad";
   if (status.includes("teilweise") || status.includes("Auflage") || status.includes("Nachkontrolle") || status.includes("weiterhin offen") || status.includes("nicht prüfbar")) return "partial";
   if (status.includes("OK") || status.includes("freigegeben") || status.includes("erledigt")) return "ok";
+  if (status.includes("Dokumentation")) return "doc";
   return "neutral";
 }
 
@@ -10085,6 +10179,7 @@ function statusClass(status) {
   if (status.includes("OK") && !status.includes("nicht")) return "status ok";
   if (status.includes("Auflage")) return "status partial";
   if (status.includes("Mangel")) return "status bad";
+  if (status.includes("Dokumentation")) return "status doc";
   return "status na";
 }
 
@@ -10799,6 +10894,13 @@ function bindEvents() {
     }
     const applyTemplate = event.target.closest("[data-apply-check-template]");
     if (applyTemplate) applyCheckScopeTemplate();
+    const toggleCheckPanel = event.target.closest("[data-toggle-check-panel]");
+    if (toggleCheckPanel) {
+      const id = toggleCheckPanel.dataset.toggleCheckPanel;
+      state.openCheckId = state.openCheckId === id ? "" : id;
+      renderChecklist();
+      return;
+    }
     const statusCheck = event.target.closest("[data-check-status]");
     if (statusCheck) {
       const item = state.current.checkpoints.find((check) => check.id === statusCheck.closest("[data-check]").dataset.check);
@@ -11154,6 +11256,14 @@ function bindEvents() {
   bindOptional("#cancelBarCountBtn", "click", () => $("#barCountDialog").close());
   bindOptional("#saveBarCountBtn", "click", saveBarCountAnalysis);
   bindOptional("#weatherBtn", "click", fetchWeather);
+  bindOptional("#inspectionNowBtn", "click", () => {
+    const field = $('[name="inspectionDateTime"]');
+    if (field) {
+      field.value = nowLocalInput();
+      saveFromForm();
+      showAppToast("Uhrzeit der Abnahme gesetzt.", { type: "success" });
+    }
+  });
   bindOptional("#exportJsonBtn", "click", exportJson);
   bindOptional("#exportFullBackupBtn", "click", exportFullBackup);
   bindOptional("#importFullBackupBtn", "click", () => $("#fullBackupInput").click());
