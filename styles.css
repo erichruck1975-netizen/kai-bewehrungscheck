@@ -571,7 +571,7 @@ input:focus, textarea:focus, select:focus, button:focus {
   overflow: hidden;
   position: relative;
   margin-top: 12px;
-  touch-action: none;
+  touch-action: pan-y pinch-zoom;
 }
 
 .plan-wrap.pin-mode-active {
@@ -2877,15 +2877,15 @@ dialog button {
   display: none;
 }
 .plan-viewer {
-  min-height: 55vh;
-  height: min(72vh, 760px);
+  min-height: 280px;
+  height: min(48vh, 520px);
   overflow: hidden;
-  touch-action: none;
+  touch-action: pan-y pinch-zoom;
 }
 .plan-stage,
 #planImage,
 #pdfCanvas {
-  touch-action: none;
+  touch-action: pan-y pinch-zoom;
   max-width: none;
 }
 @media (max-width: 640px) {
@@ -2896,8 +2896,8 @@ dialog button {
     grid-template-columns: 1fr;
   }
   .plan-viewer {
-    min-height: calc(100dvh - 260px);
-    height: calc(100dvh - 220px);
+    min-height: 240px;
+    height: min(42vh, 420px);
   }
 }
 

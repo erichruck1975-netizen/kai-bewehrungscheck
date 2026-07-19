@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v125";
+const APP_VERSION = "v126";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -211,6 +211,7 @@ const state = {
   },
   viewHistory: [],
   protocolTabHistory: [],
+  projectPlansReturn: null,
   db: null,
   objectUrls: new Map(),
   reportPlanImages: new Map(),
@@ -1543,6 +1544,11 @@ function showAppToast(message, { type = "success", timeout = 4200 } = {}) {
 
 async function navigateToView(id, options = {}) {
   const currentView = activeViewId();
+  if (id === "projectPlansView" && currentView === "editorView" && state.current) {
+    state.projectPlansReturn = { view: "editorView", tab: activeProtocolTabId() || "planTab" };
+  } else if (currentView === "projectPlansView" && id !== "projectPlansView" && !options.keepProjectPlansReturn) {
+    state.projectPlansReturn = null;
+  }
   if (id === "masterDataView" && currentView !== "masterDataView") state.masterDataSection = "";
   if (currentView === "masterDataView" && id !== "masterDataView") {
     const canLeave = await confirmLeaveMasterData();
@@ -1567,6 +1573,25 @@ async function navigateBackOneStep(fallbackView = "homeView") {
   }
   if (fallbackView && fallbackView !== currentView && document.getElementById(fallbackView)) {
     await navigateToView(fallbackView, { replace: true });
+    return true;
+  }
+  return false;
+}
+
+function rememberProjectPlansReturnContext() {
+  if (activeViewId() === "editorView" && state.current) {
+    state.projectPlansReturn = { view: "editorView", tab: activeProtocolTabId() || "planTab" };
+  } else {
+    state.projectPlansReturn = null;
+  }
+}
+
+async function returnFromProjectPlansView() {
+  const target = state.projectPlansReturn;
+  state.projectPlansReturn = null;
+  if (target?.view === "editorView" && state.current) {
+    await navigateToView("editorView", { replace: true });
+    activateProtocolTab(target.tab || "planTab", { replace: true });
     return true;
   }
   return false;
@@ -1603,11 +1628,6 @@ function activeProtocolTabId() {
 }
 
 function activateProtocolTab(tabId, options = {}) {
-  const currentTab = activeProtocolTabId();
-  if (tabId !== currentTab && !options.replace) {
-    state.protocolTabHistory.push(currentTab);
-    if (state.protocolTabHistory.length > 20) state.protocolTabHistory.shift();
-  }
   $$(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === tabId));
   $$(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tabId));
   if (tabId === "checkTab") renderChecklist();
@@ -10648,13 +10668,9 @@ function bindEvents() {
     if (viewId === "siteControlEditorView") saveSiteControlForm();
     if (viewId === "editorView") {
       saveFromForm();
-      const previousTab = state.protocolTabHistory.pop();
-      if (previousTab && previousTab !== activeProtocolTabId()) {
-        activateProtocolTab(previousTab, { replace: true });
-        return;
-      }
       renderList();
     }
+    if (viewId === "projectPlansView" && await returnFromProjectPlansView()) return;
     if (viewId === "masterDataView" && state.masterDataSection) {
       state.masterDataSection = "";
       renderMasterData();
@@ -11034,7 +11050,10 @@ function bindEvents() {
       if (action === "site") navigateToView("siteControlView");
       if (action === "daily") navigateToView("dailyReportView");
       if (action === "projectData") openProjectDialog(state.currentProjectId);
-      if (action === "plans") navigateToView("projectPlansView");
+      if (action === "plans") {
+        rememberProjectPlansReturnContext();
+        navigateToView("projectPlansView");
+      }
       if (action === "openPoints") showAppToast("Offene Punkte sind in den Listen der Projektzentrale sichtbar.", { type: "info" });
       if (action === "reports") showAppToast("Berichte und Protokolle findest du aktuell in den jeweiligen Modulen.", { type: "info" });
     }
@@ -12237,9 +12256,14 @@ function bindPlanGestures() {
       const points = Array.from(state.touch.pointers.values());
       state.touch.startDistance = pointerDistance(points[0], points[1]);
       state.touch.pinTapCandidate = false;
+      wrap.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+      return;
     }
-    wrap.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
+    if (state.touch.pinTapCandidate) {
+      wrap.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    }
   });
   wrap.addEventListener("pointermove", (event) => {
     if (!state.touch.active || !state.touch.pointers.has(event.pointerId)) return;
@@ -12250,20 +12274,15 @@ function bindPlanGestures() {
       const center = pointerCenter(points[0], points[1]);
       if (Math.abs(distance - state.touch.startDistance) > 8) state.touch.moved = true;
       setPlanZoom(state.touch.startZoom * (distance / Math.max(1, state.touch.startDistance)), center.x, center.y);
-    } else {
-      const dx = event.clientX - state.touch.startX;
-      const dy = event.clientY - state.touch.startY;
-      if (Math.hypot(dx, dy) > 8) state.touch.moved = true;
-      if (!state.touch.pinTapCandidate || state.touch.moved) {
-        const plan = selectedPlan();
-        if (!plan) return;
-        plan.panX = state.touch.startPanX + dx;
-        plan.panY = state.touch.startPanY + dy;
-        clampPlanPan(plan);
-        applyPlanTransform(plan);
-      }
+      event.preventDefault();
+      return;
     }
-    event.preventDefault();
+    const dx = event.clientX - state.touch.startX;
+    const dy = event.clientY - state.touch.startY;
+    if (Math.hypot(dx, dy) > 8) state.touch.moved = true;
+    if (state.touch.pinTapCandidate && state.touch.moved) {
+      event.preventDefault();
+    }
   });
   const finish = (event) => {
     const point = state.touch.pointers.get(event.pointerId) || { x: event.clientX, y: event.clientY };
@@ -12283,7 +12302,7 @@ function bindPlanGestures() {
     if (state.touch.pointers.size === 0) resetPlanTouch();
   });
   wrap.addEventListener("wheel", (event) => {
-    if (!selectedPlan()) return;
+    if (!selectedPlan() || !event.ctrlKey) return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 0.88;
     setPlanZoom((selectedPlan().zoom || 1) * factor, event.clientX, event.clientY);
