@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=131">
-  <link rel="stylesheet" href="styles.css?v=131">
+  <link rel="manifest" href="manifest.webmanifest?v=132">
+  <link rel="stylesheet" href="styles.css?v=132">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v131</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v132</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -174,13 +174,13 @@
           <div class="panel"><h3>T&auml;tigkeiten</h3><div class="grid">
             <label>Bereich / Ort<input name="dailyArea" list="areaOptions"></label>
             <label>Gewerk<input name="dailyTrade" list="tradeOptions"></label>
-            <label>Eingabesprache<select name="dailyInputLanguage"><option value="de">Deutsch</option><option value="sq">Albanisch</option></select></label>
-            <label>&Uuml;bersetzungsstatus<select name="dailyTranslationStatus"><option>nicht &uuml;bersetzt</option><option>automatisch &uuml;bersetzt</option><option>manuell bearbeitet</option><option>Fehler</option></select></label>
+            <label>Eingabesprache<select name="dailyInputLanguage"><option value="auto">automatisch erkennen</option><option value="de">Deutsch</option><option value="sq">Albanisch</option><option value="mixed">Deutsch/Albanisch gemischt</option></select></label>
+            <label>&Uuml;bersetzungsstatus<select name="dailyTranslationStatus"><option>nicht &uuml;bersetzt</option><option>deutsche Fassung erstellt</option><option>gepr&uuml;ft / &uuml;bernommen</option><option>manuell pr&uuml;fen</option><option>Fehler</option></select></label>
           </div>
-            <label class="voice-field">Originaltext / ausgef&uuml;hrte Arbeiten<textarea name="dailyWorkOriginal" rows="4"></textarea><span class="voice-actions"><button class="mic-btn" type="button" data-voice-daily-field="workOriginal" data-voice-lang="de-DE">Mikrofon Deutsch</button><button class="mic-btn" type="button" data-voice-daily-field="workOriginal" data-voice-lang="sq-AL">Mikrofon Albanisch</button></span></label>
-            <label>Deutsche Fassung<textarea name="dailyWorkGerman" rows="3"></textarea></label>
+            <h4>Sprache / &Uuml;bersetzung</h4><p class="muted">KI-&Uuml;bersetzung bitte pr&uuml;fen. Originaltext und deutsche Fassung bleiben getrennt gespeichert.</p><label class="voice-field">Originaltext<textarea name="dailyWorkOriginal" rows="4"></textarea><span class="voice-actions"><button class="mic-btn" type="button" data-voice-daily-field="workOriginal" data-voice-lang="de-DE">Mikrofon Deutsch</button><button class="mic-btn" type="button" data-voice-daily-field="workOriginal" data-voice-lang="sq-AL">Mikrofon Albanisch</button></span></label>
+            <label>Deutsche Fassung<textarea name="dailyWorkGerman" rows="3"></textarea></label><label class="inline-check"><input name="dailyTranslationChecked" type="checkbox"> Deutsche Fassung gepr&uuml;ft</label><p id="dailyTranslationHint" class="field-hint">KI-&Uuml;bersetzung bitte pr&uuml;fen.</p>
             <label>Albanische Fassung<textarea name="dailyWorkAlbanian" rows="3"></textarea></label>
-            <div class="result-actions site-photo-actions"><button class="secondary-btn" type="button" data-daily-translate="sq-de">Albanisch &rarr; Deutsch &uuml;bersetzen</button><button class="secondary-btn" type="button" data-daily-translate="de-sq">Deutsch &rarr; Albanisch &uuml;bersetzen</button><button class="secondary-btn" type="button" data-daily-translate="both">Beide Richtungen aktualisieren</button><button class="secondary-btn" type="button" data-daily-copy-prompt="auto">&Uuml;bersetzungstext kopieren</button></div>
+            <div class="result-actions site-photo-actions"><button class="primary-btn" type="button" data-daily-translate="auto">Text &uuml;bersetzen</button><button class="secondary-btn" id="dailyApplyTranslationBtn" type="button">Deutsche Fassung &uuml;bernehmen</button><button class="secondary-btn" type="button" data-daily-copy-prompt="auto">&Uuml;bersetzungsprompt kopieren</button></div>
             <label>Beschreibung / Details<textarea name="dailyWorkDescription" rows="3"></textarea></label>
             <p class="muted">API-Schl&uuml;ssel d&uuml;rfen nicht direkt in der Browser-App gespeichert werden. Automatische &Uuml;bersetzung l&auml;uft sp&auml;ter &uuml;ber einen gesch&uuml;tzten Server-Endpunkt. Originaltext bleibt gespeichert.</p>
           </div>
@@ -248,7 +248,7 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v131</p>
+              <p id="appVersionInfo" class="muted">Version: v132</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -743,8 +743,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=131"></script>
-  <script src="app.js?v=131"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=132"></script>
+  <script src="app.js?v=132"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>

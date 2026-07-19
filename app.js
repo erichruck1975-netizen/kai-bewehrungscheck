@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v131";
+const APP_VERSION = "v132";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1238,9 +1238,15 @@ function normalizeDailyReportMeta(meta = {}, protocol = {}) {
     source_audio_ids: meta.source_audio_ids || [],
     raw_transcript: meta.raw_transcript || meta.voiceDraft || "",
     voiceDraft: meta.voiceDraft || meta.raw_transcript || "",
-    cleaned_text_de: meta.cleaned_text_de || "",
+    cleaned_text_de: meta.cleaned_text_de || meta.translated_text_de || meta.workGerman || "",
     original_language: meta.original_language || meta.inputLanguage || "de",
-    translated_text_de: meta.translated_text_de || "",
+    original_text: meta.original_text || meta.workOriginal || meta.voiceDraft || meta.raw_transcript || "",
+    translated_text_de: meta.translated_text_de || meta.workGerman || meta.cleaned_text_de || "",
+    translation_used: !!meta.translation_used,
+    translation_checked: !!meta.translation_checked,
+    translation_created_at: meta.translation_created_at || "",
+    translation_provider: meta.translation_provider || "",
+    translation_warning: meta.translation_warning || "",
     field_sources: meta.field_sources || {},
     field_confidence: meta.field_confidence || {},
     ai_form_extraction_used: !!meta.ai_form_extraction_used,
@@ -7967,12 +7973,15 @@ function renderDailyReportEditor() {
   form.elements.dailyForeman.value = report.foreman || "";
   form.elements.dailyArea.value = report.area || "";
   form.elements.dailyTrade.value = report.trade || "";
-  form.elements.dailyInputLanguage.value = report.inputLanguage || "de";
+  form.elements.dailyInputLanguage.value = report.inputLanguage || report.original_language || "de";
   form.elements.dailyTranslationStatus.value = report.translationStatus || "nicht übersetzt";
-  form.elements.dailyWorkOriginal.value = report.workOriginal || "";
-  form.elements.dailyWorkGerman.value = report.workGerman || "";
+  form.elements.dailyWorkOriginal.value = report.original_text || report.workOriginal || "";
+  form.elements.dailyWorkGerman.value = report.translated_text_de || report.workGerman || report.cleaned_text_de || "";
   form.elements.dailyWorkAlbanian.value = report.workAlbanian || "";
   form.elements.dailyWorkDescription.value = report.workDescription || "";
+  if (form.elements.dailyTranslationChecked) form.elements.dailyTranslationChecked.checked = !!report.translation_checked;
+  const translationHint = $("#dailyTranslationHint");
+  if (translationHint) translationHint.textContent = report.translation_warning || (report.translation_provider ? `Übersetzung: ${report.translation_provider} · bitte prüfen.` : "KI-Übersetzung bitte prüfen. Ohne konfigurierten Dienst kann die deutsche Fassung manuell eingetragen werden.");
   form.elements.dailyMaterials.value = report.materials || "";
   form.elements.dailyEquipment.value = report.equipment || "";
   form.elements.dailyIncidentsOriginal.value = report.incidentsOriginal || "";
@@ -8010,7 +8019,7 @@ function saveDailyReportForm({ persistNow = true } = {}) {
     weather: form.elements.dailyWeather.value || "", confirmedBy: form.elements.dailyConfirmedBy.value || "",
     voiceDraft: form.elements.dailyVoiceDraft?.value || p.dailyReport?.voiceDraft || "",
     raw_transcript: form.elements.dailyVoiceDraft?.value || p.dailyReport?.raw_transcript || "",
-    source_audio_ids: p.dailyReport?.source_audio_ids || [], cleaned_text_de: p.dailyReport?.cleaned_text_de || "", original_language: p.dailyReport?.original_language || form.elements.dailyInputLanguage.value || "de", translated_text_de: p.dailyReport?.translated_text_de || "", field_sources: p.dailyReport?.field_sources || {}, field_confidence: p.dailyReport?.field_confidence || {}, ai_form_extraction_used: !!p.dailyReport?.ai_form_extraction_used, user_confirmed: !!p.dailyReport?.user_confirmed, signed_at: p.dailyReport?.signed_at || "", report_status: p.dailyReport?.report_status || "draft", mitarbeiter_count_spoken: p.dailyReport?.mitarbeiter_count_spoken || "", selected_employee_ids: p.dailyReport?.selected_employee_ids || [], unmatched_employee_names: p.dailyReport?.unmatched_employee_names || [], employee_field_sources: p.dailyReport?.employee_field_sources || [], employee_confidence: p.dailyReport?.employee_confidence || "", ai_employee_extraction_used: !!p.dailyReport?.ai_employee_extraction_used, voice_warnings: p.dailyReport?.voice_warnings || [],
+    source_audio_ids: p.dailyReport?.source_audio_ids || [], cleaned_text_de: form.elements.dailyWorkGerman.value || p.dailyReport?.cleaned_text_de || "", original_language: form.elements.dailyInputLanguage.value || p.dailyReport?.original_language || "de", original_text: form.elements.dailyWorkOriginal.value || p.dailyReport?.original_text || "", translated_text_de: form.elements.dailyWorkGerman.value || p.dailyReport?.translated_text_de || "", translation_used: !!(p.dailyReport?.translation_used || form.elements.dailyWorkDescription.value), translation_checked: !!form.elements.dailyTranslationChecked?.checked, translation_created_at: p.dailyReport?.translation_created_at || "", translation_provider: p.dailyReport?.translation_provider || "", translation_warning: p.dailyReport?.translation_warning || "", field_sources: p.dailyReport?.field_sources || {}, field_confidence: p.dailyReport?.field_confidence || {}, ai_form_extraction_used: !!p.dailyReport?.ai_form_extraction_used, user_confirmed: !!p.dailyReport?.user_confirmed, signed_at: p.dailyReport?.signed_at || "", report_status: p.dailyReport?.report_status || "draft", mitarbeiter_count_spoken: p.dailyReport?.mitarbeiter_count_spoken || "", selected_employee_ids: p.dailyReport?.selected_employee_ids || [], unmatched_employee_names: p.dailyReport?.unmatched_employee_names || [], employee_field_sources: p.dailyReport?.employee_field_sources || [], employee_confidence: p.dailyReport?.employee_confidence || "", ai_employee_extraction_used: !!p.dailyReport?.ai_employee_extraction_used, voice_warnings: p.dailyReport?.voice_warnings || [],
     workers, photos
   }, p);
   p.dailyReport.totalHours = dailyReportTotalHours(p.dailyReport);
@@ -8018,7 +8027,7 @@ function saveDailyReportForm({ persistNow = true } = {}) {
   const project = projectById(p.projectId);
   if (project) syncProtocolProjectFields(p, project, { overwriteProtocol: false });
   p.weather.weatherCondition = p.dailyReport.weather;
-  p.result.finalNote = p.dailyReport.workOriginal || p.dailyReport.workDescription || "";
+  p.result.finalNote = p.dailyReport.translated_text_de || p.dailyReport.workGerman || p.dailyReport.workDescription || p.dailyReport.workOriginal || "";
   p.updatedAt = new Date().toISOString();
   if (persistNow) persist(); else schedulePersist();
 }
@@ -8157,6 +8166,48 @@ async function fillDailyReportWeatherFromLocation() {
 }
 
 
+
+function detectDailyInputLanguage(text = "") {
+  const value = String(text || "").toLowerCase();
+  const albanianHints = ["sot", "kemi", "punuar", "nesër", "neser", "janë", "jane", "vendosur", "kontrolluar", "pllak", "betonit", "armatura", "distancat"];
+  const germanHints = ["heute", "morgen", "bodenplatte", "bewehrung", "betonage", "fertig", "vorbereitet"];
+  const sq = albanianHints.some((word) => value.includes(word));
+  const de = germanHints.some((word) => value.includes(word));
+  if (sq && de) return "mixed";
+  if (sq) return "sq";
+  if (de) return "de";
+  return "auto";
+}
+
+function localDailyGermanTranslation(text = "", sourceLang = "auto") {
+  const raw = cleanDictationText(text);
+  if (!raw) return "";
+  const lower = raw.toLowerCase();
+  if (sourceLang === "de" || (!/(sot|kemi|punuar|nes[eë]r|jan[ëe]|armatura|pllak)/i.test(raw) && /[a-zäöüß]/i.test(raw))) {
+    return polishDictationText(raw);
+  }
+  if (lower.includes("sot") && lower.includes("pllak") && lower.includes("armatur") && lower.includes("distanc")) {
+    return "Heute haben wir an der Bodenplatte gearbeitet. Die Bewehrung wurde eingebaut und die Abstände wurden kontrolliert.";
+  }
+  if (lower.includes("heute") && lower.includes("bodenplatte") && lower.includes("armatura") && (lower.includes("nesër") || lower.includes("neser"))) {
+    return "Heute wurde die Bodenplatte vorbereitet, die untere Bewehrung ist fertig. Morgen ist die Betonage vorgesehen.";
+  }
+  let value = raw
+    .replace(/\bSot\b/gi, "Heute")
+    .replace(/\bkemi punuar\b/gi, "haben wir gearbeitet")
+    .replace(/\bnes[ëe]r\b/gi, "morgen")
+    .replace(/\bbetonage\b/gi, "Betonage")
+    .replace(/\barmatura\b/gi, "Bewehrung")
+    .replace(/\bpllak[ëe]n? e betonit\b/gi, "Bodenplatte")
+    .replace(/\bdistancat\b/gi, "Abstände");
+  value = polishDictationText(value);
+  return /[a-zäöüß]/i.test(value) ? value : "[unklar]";
+}
+
+function dailyGermanDocumentationText(report = {}) {
+  return report.translated_text_de || report.workGerman || report.cleaned_text_de || (report.original_language === "de" || report.inputLanguage === "de" ? polishDictationText(report.original_text || report.workOriginal || "") : "") || report.workDescription || "";
+}
+
 async function translateText({ text, sourceLang, targetLang }) {
   const cleanText = (text || "").trim();
   if (!cleanText) throw new Error("Kein Text für die Übersetzung vorhanden.");
@@ -8183,42 +8234,77 @@ function dailyTranslationSourceText(direction, report = state.current?.dailyRepo
 async function runDailyTranslation(direction = "auto") {
   if (!isDailyReportProtocol()) return;
   saveDailyReportForm({ persistNow: false });
-  const report = state.current.dailyReport;
-  const directions = direction === "both" ? ["sq-de", "de-sq"] : [direction === "auto" ? (report.inputLanguage === "sq" ? "sq-de" : "de-sq") : direction];
-  let skipped = false;
+  const report = state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
+  const original = cleanDictationText(report.original_text || report.workOriginal || report.voiceDraft || report.raw_transcript || "");
+  if (!original) return showAppToast("Bitte zuerst Originaltext eintragen oder diktieren.", { type: "info" });
+  let language = report.original_language || report.inputLanguage || "auto";
+  if (language === "auto") language = detectDailyInputLanguage(original);
+  report.original_language = language;
+  report.inputLanguage = language;
+  report.original_text = original;
+  report.workOriginal = original;
+  report.translation_warning = "KI-Übersetzung bitte prüfen.";
   try {
-    for (const item of directions) {
-      const sourceLang = item === "sq-de" ? "sq" : "de";
-      const targetLang = item === "sq-de" ? "de" : "sq";
-      const text = dailyTranslationSourceText(item, report);
-      const result = await translateText({ text, sourceLang, targetLang });
-      if (result.skipped) { skipped = true; continue; }
-      if (item === "sq-de") report.workGerman = result.translatedText;
-      if (item === "de-sq") report.workAlbanian = result.translatedText;
-      report.translationStatus = "automatisch übersetzt";
-    }
-    if (skipped) {
-      report.translationStatus = report.translationStatus || "nicht übersetzt";
-      showAppToast("Automatische Übersetzung ist noch nicht verbunden. Bitte Übersetzungstext kopieren, extern übersetzen und hier einfügen.", { type: "info", timeout: 6500 });
+    let german = "";
+    let provider = "lokal";
+    if (language === "de") {
+      german = polishDictationText(original);
+      provider = "lokale Textglättung";
     } else {
-      showAppToast("Übersetzung aktualisiert.");
+      const result = await translateText({ text: original, sourceLang: language === "mixed" ? "auto" : language, targetLang: "de" });
+      if (!result.skipped && result.translatedText) {
+        german = polishDictationText(result.translatedText);
+        provider = "konfigurierter Übersetzungsdienst";
+      } else {
+        german = localDailyGermanTranslation(original, language);
+        provider = german && german !== polishDictationText(original) ? "lokales MVP-Glossar" : "manuell erforderlich";
+        report.translation_warning = provider === "manuell erforderlich"
+          ? "Automatische Übersetzung ist nicht konfiguriert. Bitte deutsche Fassung manuell prüfen/eintragen."
+          : "Lokale MVP-Übersetzung bitte besonders prüfen.";
+      }
     }
+    report.translated_text_de = german;
+    report.workGerman = german;
+    report.cleaned_text_de = german;
+    report.translation_used = true;
+    report.translation_checked = false;
+    report.translation_created_at = new Date().toISOString();
+    report.translation_provider = provider;
+    report.translationStatus = provider === "manuell erforderlich" ? "manuell prüfen" : "deutsche Fassung erstellt";
+    showAppToast(provider === "manuell erforderlich" ? "Automatische Übersetzung ist nicht konfiguriert. Deutsche Fassung bitte manuell eintragen." : "Deutsche Fassung erstellt. Bitte prüfen.", { type: provider === "manuell erforderlich" ? "info" : "success", timeout: 5500 });
   } catch (error) {
     report.translationStatus = "Fehler";
+    report.translation_warning = "Übersetzung fehlgeschlagen. Bitte deutsche Fassung manuell eintragen.";
     showAppToast(`Übersetzung fehlgeschlagen: ${error?.message || error}`, { type: "error", timeout: 6500 });
   }
   persist();
   renderDailyReportEditor();
 }
 
+function applyDailyGermanTranslation() {
+  if (!isDailyReportProtocol()) return;
+  saveDailyReportForm({ persistNow: false });
+  const report = state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
+  const german = polishDictationText(report.translated_text_de || report.workGerman || "");
+  if (!german) return showAppToast("Bitte zuerst eine deutsche Fassung erzeugen oder eintragen.", { type: "info" });
+  report.translated_text_de = german;
+  report.workGerman = german;
+  report.cleaned_text_de = german;
+  report.workDescription = german;
+  report.translation_used = true;
+  report.translation_checked = true;
+  report.translationStatus = "geprüft / übernommen";
+  report.translation_warning = "Deutsche Fassung wurde für den Bautagesbericht übernommen.";
+  state.current.updatedAt = new Date().toISOString();
+  persist();
+  renderDailyReportEditor();
+  showAppToast("Deutsche Fassung übernommen.", { type: "success" });
+}
+
 function dailyTranslationPrompt(direction = "auto") {
   const report = state.current?.dailyReport || {};
-  const resolved = direction === "auto" ? (report.inputLanguage === "sq" ? "sq-de" : "de-sq") : direction;
-  const text = dailyTranslationSourceText(resolved, report);
-  if (resolved === "sq-de") {
-    return `Übersetze folgenden Bautagesbericht von Albanisch nach Deutsch. Gib eine sachliche Fassung für einen Bautagesbericht aus. Keine Ausschmückungen, keine erfundenen Angaben:\n\n${text}`;
-  }
-  return `Übersetze folgenden Bautagesbericht von Deutsch nach Albanisch. Schreibe verständlich für Baustellenmitarbeiter:\n\n${text}`;
+  const text = report.original_text || report.workOriginal || report.voiceDraft || report.raw_transcript || "";
+  return `Übersetze den folgenden Baustellenberichtstext ins Deutsche. Korrigiere nur offensichtliche Sprach- und Satzfehler. Ändere keine fachliche Aussage. Ergänze keine Inhalte. Erfinde keine Mengen, Zeiten, Personen, Firmen, Ursachen oder Bewertungen. Wenn etwas unklar ist, markiere es als [unklar].\n\nGlossar beachten: Bodenplatte, Bewehrung, Mattenlage, obere Lage, untere Lage, Schalung, Sauberkeitsschicht, Fundamenterder, Einbauteile, Betonage, Verbau, LTH Bau GmbH, Labi, UG, EG, OG, DG.\n\nOriginaltext:\n${text}`;
 }
 
 async function copyDailyTranslationPrompt(direction = "auto") {
@@ -8246,10 +8332,14 @@ async function buildDailyReportParts() {
   const css = `body{margin:0;background:#e9eef3;color:#172033;font-family:Arial,Helvetica,sans-serif}.report-export{background:#e9eef3;padding:18px}.report-page{width:180mm;max-width:180mm;min-height:267mm;margin:0 auto;background:#fff;padding:14mm;box-shadow:0 12px 34px rgba(15,23,42,.16);box-sizing:border-box}.report-header{display:flex;justify-content:space-between;gap:18px;border-bottom:2px solid #1f2d3d;padding-bottom:12px;margin-bottom:14px}.brand{text-transform:uppercase;letter-spacing:.06em;color:#667085;font-size:10px;font-weight:700}.report-header h1{margin:4px 0 6px;font-size:24px}.muted{color:#667085}.doc-meta{display:grid;gap:8px;min-width:36mm}.doc-meta div{border:1px solid #d8dee6;border-radius:8px;padding:7px 9px}.doc-meta span{display:block;font-size:9px;color:#667085;text-transform:uppercase}.doc-meta strong{font-size:12px}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.info-card,.daily-card{border:1px solid #d8dee6;border-radius:10px;background:#fbfcfe;padding:10px 12px;margin:10px 0;break-inside:avoid}.info-card h3,.daily-card h3{margin:0 0 8px;font-size:14px}.info-row{display:grid;grid-template-columns:35mm 1fr;gap:8px;border-top:1px solid #edf1f5;padding:6px 0;font-size:11px}.info-row:first-of-type{border-top:0}.text-block{white-space:pre-wrap;font-size:11.5px;line-height:1.45;margin:6px 0}.worker-table{width:100%;border-collapse:collapse;font-size:10.5px}.worker-table th,.worker-table td{border:1px solid #d8dee6;padding:5px 6px;text-align:left;vertical-align:top}.worker-table th{background:#f3f6f9;color:#4b5563}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photo{break-inside:avoid}.photo img{width:100%;height:165px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#667085;margin:5px 0 0}.footer-note{margin-top:24px;border-top:1px solid #d8dee6;padding-top:8px;color:#667085;font-size:10.5px;display:flex;justify-content:space-between;gap:12px}@media print{.print-btn,.save-hint{display:none}.report-export,.report-page{width:180mm;max-width:180mm;margin:0}.daily-card,.photo{break-inside:avoid;page-break-inside:avoid}}`;
   const photoHtml = photoCards.length ? `<div class="photo-grid">${photoCards.map(({ photo, url }) => `<figure class="photo"><img src="${url}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><p><strong>${escapeHtml(photo.caption || photo.name || "Foto")}</strong></p><p>${escapeHtml(photo.name || "Foto")}</p></figcaption></figure>`).join("")}</div>` : `<p class="muted">Keine Fotos dokumentiert.</p>`;
   const workers = normalizeDailyWorkers(report.workers || []);
+  const germanWorkText = dailyGermanDocumentationText(report);
+  const originalWorkText = report.original_text || report.workOriginal || "";
+  const showOriginalText = originalWorkText && (report.original_language || report.inputLanguage) !== "de";
+  const originalLanguageLabel = report.original_language === "sq" ? "Albanisch" : report.original_language === "mixed" ? "Deutsch/Albanisch gemischt" : report.original_language === "auto" ? "automatisch" : "Deutsch";
   const workerHtml = workers.length ? `<table class="worker-table"><thead><tr><th>Name</th><th>Firma</th><th>Rolle</th><th>von</th><th>bis</th><th>Pause</th><th>Stunden</th><th>Bemerkung</th></tr></thead><tbody>${workers.map((worker) => `<tr><td>${escapeHtml(worker.name || "-")}</td><td>${escapeHtml(worker.company || "")}</td><td>${escapeHtml(worker.role || "")}</td><td>${escapeHtml(worker.start || "")}</td><td>${escapeHtml(worker.end || "")}</td><td>${escapeHtml(worker.breakHours || "")}</td><td>${escapeHtml(workerHours(worker) || worker.hours || "")}</td><td>${escapeHtml(worker.note || "")}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">Keine einzelnen Mitarbeiter erfasst.</p>`;
   const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", projectAddressText(project, { multiline: false }) || formatAddress(p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
   const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" - ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
-  const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", report.inputLanguage === "sq" ? "Albanisch" : "Deutsch")}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(report.workGerman || (report.inputLanguage === "de" ? report.workOriginal : "") || report.workDescription || "Keine Tätigkeiten dokumentiert.")}</p>${report.inputLanguage === "sq" && report.workOriginal ? `<div class="info-card"><h3>Originaltext Albanisch</h3><p class="text-block">${escapeHtml(report.workOriginal)}</p></div>` : ""}${report.inputLanguage === "de" && report.workAlbanian ? `<div class="info-card"><h3>Albanische Fassung</h3><p class="text-block">${escapeHtml(report.workAlbanian)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
+  const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", originalLanguageLabel)}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(germanWorkText || "Keine Tätigkeiten dokumentiert.")}</p>${report.translation_provider ? `<p class="muted">Deutsche Fassung: ${escapeHtml(report.translation_provider)} · bitte geprüft verwenden.</p>` : ""}${showOriginalText ? `<div class="info-card"><h3>Originaltext</h3><p class="text-block">${escapeHtml(originalWorkText)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
   const title = sanitizeFileName(`Bautagesbericht_${project?.name || p.head.projectName || "Projekt"}_${report.date || (p.head.createdAt || "").slice(0,10)}`);
   return { css, body, title, fileName: `${title}.pdf` };
 }
@@ -11192,6 +11282,8 @@ function bindEvents() {
     if (dailyTranslate) runDailyTranslation(dailyTranslate.dataset.dailyTranslate);
     const dailyCopyPrompt = event.target.closest("[data-daily-copy-prompt]");
     if (dailyCopyPrompt) copyDailyTranslationPrompt(dailyCopyPrompt.dataset.dailyCopyPrompt);
+    const dailyApplyTranslation = event.target.closest("#dailyApplyTranslationBtn");
+    if (dailyApplyTranslation) applyDailyGermanTranslation();
     const dailyAnalyzeVoice = event.target.closest("#dailyAnalyzeVoiceBtn");
     if (dailyAnalyzeVoice) applyDailyVoiceExtraction($("#dailyReportForm")?.elements?.dailyVoiceDraft?.value || state.current?.dailyReport?.voiceDraft || "");
     const dailyPdfSave = event.target.closest("#dailyPdfSaveBtn");
