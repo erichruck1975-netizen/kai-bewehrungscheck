@@ -3055,3 +3055,26 @@ dialog button {
   }
 }
 
+/* v124: keep add-area action below samples and make closed scopes truly compact */
+.check-body .check-add-sample-btn {
+  margin: 10px 0 0;
+  justify-self: stretch;
+}
+
+.check-item.collapsed .check-body {
+  display: none !important;
+}
+
+.check-item.collapsed .sample-card {
+  display: none !important;
+}
+
+.check-item.collapsed .check-add-sample-btn {
+  display: none !important;
+}
+
+.check-item.open .check-body {
+  display: grid;
+  gap: 10px;
+}
+

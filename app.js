@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v123";
+const APP_VERSION = "v124";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -4240,9 +4240,9 @@ function renderChecklist() {
   const activeCount = visibleChecks.length;
   const documentedCount = state.current.checkpoints.filter(checkHasDocumentation).length;
   const templateValue = checkTemplateLabel();
-  const preferredOpen = visibleChecks.find((item) => item.id === state.openCheckId) || visibleChecks.find((item) => item.active && !checkIsComplete(item)) || visibleChecks[0] || null;
-  state.openCheckId = preferredOpen?.id || "";
-  const visibleSamples = visibleChecks.flatMap((check) => check.samples || []);
+  if (!visibleChecks.some((item) => item.id === state.openCheckId)) state.openCheckId = "";
+  const openCheck = visibleChecks.find((item) => item.id === state.openCheckId) || null;
+  const visibleSamples = openCheck ? (openCheck.samples || []) : [];
   if (!visibleSamples.some((sample) => sample.id === state.openSampleId)) {
     const freshSample = visibleSamples.find(sampleNeedsInitialOpen);
     state.openSampleId = freshSample?.id || "";
@@ -4296,11 +4296,11 @@ function checkAccordionCard(item, isOpen) {
           <span class="check-toggle-title">${escapeHtml(item.title)}</span>
           <span class="check-toggle-summary">${checkSummary(item)}</span>
         </button>
-        ${item.active ? `<button class="secondary-btn check-add-sample-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>` : `<button class="secondary-btn" type="button" data-activate-check="${item.id}">aktivieren</button>`}
+        ${!item.active ? `<button class="secondary-btn" type="button" data-activate-check="${item.id}">aktivieren</button>` : ""}
       </div>
       <div class="check-body ${isOpen ? "" : "hidden"}">
         ${item.active
-          ? (item.samples.length ? item.samples.map((sample) => sampleCard(item, sample)).join("") : `<p class="muted">Noch keine Prüfstelle angelegt. Mit „+ Bereich“ eine Stichprobe dokumentieren.</p>`)
+          ? `${item.samples.length ? item.samples.map((sample) => sampleCard(item, sample)).join("") : `<p class="muted">Noch keine Prüfstelle angelegt. Mit „+ Bereich“ eine Stichprobe dokumentieren.</p>`}<button class="secondary-btn check-add-sample-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>`
           : `<p class="muted">Nicht im Protokoll berücksichtigt.</p>`}
       </div>
     </article>
@@ -8041,7 +8041,7 @@ async function buildReportParts() {
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
     .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}
-    .appendix-block{break-before:page;page-break-before:always;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:7px 9px}.pin-finding-body{padding:8px 9px}.pin-finding-body p{white-space:pre-wrap;margin:5px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}.pin-photo-grid.single{grid-template-columns:minmax(0,0.62fr)}.pin-photo{margin:0;break-inside:avoid;page-break-inside:avoid}.pin-photo img{width:100%;height:30mm;max-height:30mm;object-fit:contain;border:1px solid #cfd6dd;background:#fff}.pin-photo-grid.single .pin-photo img{height:42mm;max-height:42mm}.pin-photo figcaption{font-size:9.2px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}.report-section{margin:0 0 12px}.report-section.compact-keep{break-inside:avoid;page-break-inside:avoid}
+    .appendix-block{break-before:page;page-break-before:always;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:7px 9px}.pin-finding-body{padding:8px 9px}.pin-finding-body p{white-space:pre-wrap;margin:5px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}.pin-photo-grid.single{grid-template-columns:minmax(0,0.46fr)}.pin-photo{margin:0;break-inside:avoid;page-break-inside:avoid;align-self:start}.pin-photo img{width:100%;height:auto;max-height:30mm;object-fit:contain;border:1px solid #cfd6dd;background:#fff}.pin-photo-grid.single .pin-photo img{height:auto;max-height:38mm}.pin-photo figcaption{font-size:9.2px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}.report-section{margin:0 0 12px}.report-section.compact-keep{break-inside:avoid;page-break-inside:avoid}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
     .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:120px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
@@ -8168,10 +8168,10 @@ function reportPrintOverrides() {
       #printReportMount img{max-width:100%!important;height:auto!important;break-inside:avoid;page-break-inside:avoid}
       #printReportMount .pin-finding-card{break-inside:avoid!important;page-break-inside:avoid!important}
       #printReportMount .pin-photo-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important;margin-top:6px!important}
-      #printReportMount .pin-photo-grid.single{grid-template-columns:minmax(0,0.62fr)!important}
+      #printReportMount .pin-photo-grid.single{grid-template-columns:minmax(0,0.46fr)!important}
       #printReportMount .pin-photo{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important}
-      #printReportMount .pin-photo img{width:100%!important;height:30mm!important;max-height:30mm!important;object-fit:contain!important;background:#fff!important}
-      #printReportMount .pin-photo-grid.single .pin-photo img{height:42mm!important;max-height:42mm!important}
+      #printReportMount .pin-photo img{width:100%!important;height:auto!important;max-height:30mm!important;object-fit:contain!important;background:#fff!important}
+      #printReportMount .pin-photo-grid.single .pin-photo img{height:auto!important;max-height:38mm!important}
       #printReportMount .signature-print-box{width:90mm!important;height:35mm!important;max-width:100%!important}
       #printReportMount .signature-image{max-width:80mm!important;max-height:28mm!important;width:auto!important;height:auto!important;object-fit:contain!important}
       #printReportMount .signature-empty{width:90mm!important;height:35mm!important;max-width:100%!important}
@@ -9926,9 +9926,8 @@ function checklistReport(protocol) {
     return acc;
   }, { bad: 0, partial: 0, doc: 0, ok: 0, na: 0, open: 0 });
   return `<section class="compact-summary">
-    <p><strong>${checks.length} Prüfumfang(e) dokumentiert.</strong> Mängel: ${counts.bad}, Auflagen/teilweise: ${counts.partial}, Dokumentation: ${counts.doc}, OK: ${counts.ok}, nicht relevant: ${counts.na}, offen: ${counts.open}.</p>
+    <p><strong>${checks.length} Prüfumfang(e) dokumentiert.</strong> Mängel: ${counts.bad}, Auflagen/teilweise: ${counts.partial}, Dokumentation: ${counts.doc}, OK: ${counts.ok}, nicht relevant: ${counts.na}, offen: ${counts.open}. Details stehen kompakt direkt bei Planmarkierungen oder dokumentierten Punkten ohne Pin.</p>
     <ul>${checks.map((check) => `<li>${statusBadge(check.status || "offen / nicht bewertet")} ${escapeHtml(check.title)} · ${(check.samples || []).length} Prüfstelle(n)</li>`).join("")}</ul>
-    <p class="small">Ausführliche Bemerkungen, Fotos und Planbezüge werden nur einmal direkt bei der jeweiligen Planmarkierung ausgegeben.</p>
   </section>`;
 }
 
