@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v124";
+const APP_VERSION = "v125";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -205,6 +205,12 @@ const state = {
   },
   pdfDocs: new Map(),
   pdfPageCache: new Map(),
+  planRender: {
+    task: null,
+    token: 0
+  },
+  viewHistory: [],
+  protocolTabHistory: [],
   db: null,
   objectUrls: new Map(),
   reportPlanImages: new Map(),
@@ -1440,6 +1446,7 @@ function normalizeOverlapCheck(overlapCheck) {
 }
 
 function showView(id) {
+  if (state.planRender) state.planRender.token += 1;
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === id));
   updateAppHeader(id);
   renderBrowserWarnings();
@@ -1534,14 +1541,35 @@ function showAppToast(message, { type = "success", timeout = 4200 } = {}) {
   }, timeout);
 }
 
-async function navigateToView(id) {
-  if (id === "masterDataView" && activeViewId() !== "masterDataView") state.masterDataSection = "";
-  if (activeViewId() === "masterDataView" && id !== "masterDataView") {
+async function navigateToView(id, options = {}) {
+  const currentView = activeViewId();
+  if (id === "masterDataView" && currentView !== "masterDataView") state.masterDataSection = "";
+  if (currentView === "masterDataView" && id !== "masterDataView") {
     const canLeave = await confirmLeaveMasterData();
     if (!canLeave) return false;
   }
+  if (id !== currentView && !options.replace) {
+    state.viewHistory.push(currentView);
+    if (state.viewHistory.length > 30) state.viewHistory.shift();
+  }
   showView(id);
   return true;
+}
+
+async function navigateBackOneStep(fallbackView = "homeView") {
+  const currentView = activeViewId();
+  while (state.viewHistory.length) {
+    const previousView = state.viewHistory.pop();
+    if (previousView && previousView !== currentView && document.getElementById(previousView)) {
+      await navigateToView(previousView, { replace: true });
+      return true;
+    }
+  }
+  if (fallbackView && fallbackView !== currentView && document.getElementById(fallbackView)) {
+    await navigateToView(fallbackView, { replace: true });
+    return true;
+  }
+  return false;
 }
 
 async function discardMasterDataChanges() {
@@ -1570,7 +1598,16 @@ async function confirmLeaveMasterData() {
   return false;
 }
 
-function activateProtocolTab(tabId) {
+function activeProtocolTabId() {
+  return $(".tab-panel.active")?.id || "headTab";
+}
+
+function activateProtocolTab(tabId, options = {}) {
+  const currentTab = activeProtocolTabId();
+  if (tabId !== currentTab && !options.replace) {
+    state.protocolTabHistory.push(currentTab);
+    if (state.protocolTabHistory.length > 20) state.protocolTabHistory.shift();
+  }
   $$(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === tabId));
   $$(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === tabId));
   if (tabId === "checkTab") renderChecklist();
@@ -3624,7 +3661,26 @@ function planDisplayName(plan) {
   return `${number}${plan.title ? " " + plan.title : ""}`;
 }
 
+function isPdfRenderCancelled(error) {
+  return !!(error && (error.name === "RenderingCancelledException" || /cancel/i.test(error.message || "")));
+}
+
+async function cancelActivePlanRender() {
+  const task = state.planRender?.task;
+  if (!task) return;
+  state.planRender.task = null;
+  try {
+    if (typeof task.cancel === "function") task.cancel();
+    await task.promise;
+  } catch (error) {
+    if (!isPdfRenderCancelled(error)) console.warn("Vorheriger Plan-Render wurde beendet:", error);
+  }
+}
+
 async function renderPlan() {
+  const renderToken = ++state.planRender.token;
+  await cancelActivePlanRender();
+  if (renderToken !== state.planRender.token) return;
   const plan = selectedPlan();
   const image = $("#planImage");
   const canvas = $("#pdfCanvas");
@@ -3655,7 +3711,7 @@ async function renderPlan() {
   empty.textContent = "Plan wird geladen ...";
   renderPlanDebug();
   if (plan.type === "application/pdf") {
-    await renderPdfPlan(plan);
+    await renderPdfPlan(plan, renderToken);
   } else if (plan.type.startsWith("image/")) {
     try {
       const imageUrl = await getPlanObjectUrl(plan);
@@ -3687,55 +3743,71 @@ async function renderPlan() {
   renderPlanControls();
 }
 
-async function renderPdfPlan(plan) {
-  const canvas = $("#pdfCanvas");
+async function renderPdfPlan(plan, renderToken) {
+  const debugCanvas = $("#pdfCanvas");
   const image = $("#planImage");
   const empty = $("#emptyPlan");
+  const renderCanvas = document.createElement("canvas");
   try {
     if (!window.pdfjsLib) throw new Error("pdf.js nicht geladen");
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
     const planRecord = await idbGet("plans", plan.id);
+    if (renderToken !== state.planRender.token) return;
     if (!planRecord?.blob) throw new Error("Planinhalt fehlt. Bitte Plan erneut importieren.");
     if (!planRecord.blob.size) throw new Error("Planinhalt ist leer. Bitte Plan erneut importieren.");
     plan.fileSize = planRecord.blob.size || plan.fileSize || 0;
     const doc = await getPdfDocument(plan);
+    if (renderToken !== state.planRender.token) return;
     plan.pageCount = doc.numPages;
     plan.currentPage = Math.min(Math.max(1, plan.currentPage || 1), doc.numPages);
     const page = await doc.getPage(plan.currentPage);
+    if (renderToken !== state.planRender.token) return;
     const viewport = page.getViewport({ scale: 2, rotation: planRotation(plan) });
-    canvas.width = Math.max(1, Math.floor(viewport.width));
-    canvas.height = Math.max(1, Math.floor(viewport.height));
-    const ctx = canvas.getContext("2d", { alpha: false });
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    renderCanvas.width = Math.max(1, Math.floor(viewport.width));
+    renderCanvas.height = Math.max(1, Math.floor(viewport.height));
+    if (debugCanvas) {
+      debugCanvas.width = renderCanvas.width;
+      debugCanvas.height = renderCanvas.height;
+      debugCanvas.style.display = "none";
+    }
+    const ctx = renderCanvas.getContext("2d", { alpha: false });
+    ctx.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    if (!canvas.width || !canvas.height) throw new Error("PDF-Seite wurde ohne sichtbare Canvas-Größe gerendert.");
-    applyPlanElementSize(canvas, plan, canvas.width);
-    canvas.style.display = "block";
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    canvas.style.maxWidth = "none";
-    canvas.style.visibility = "visible";
-    canvas.style.opacity = "1";
-    const dataUrl = canvas.toDataURL("image/png");
+    ctx.fillRect(0, 0, renderCanvas.width, renderCanvas.height);
+    const renderTask = page.render({ canvasContext: ctx, viewport });
+    state.planRender.task = renderTask;
+    try {
+      await renderTask.promise;
+    } finally {
+      if (state.planRender.task === renderTask) state.planRender.task = null;
+    }
+    if (renderToken !== state.planRender.token) return;
+    if (!renderCanvas.width || !renderCanvas.height) throw new Error("PDF-Seite wurde ohne sichtbare Canvas-Größe gerendert.");
+    const dataUrl = renderCanvas.toDataURL("image/png");
     state.pdfPageCache.set(`${plan.id}:${plan.currentPage}`, dataUrl);
-    await showRenderedPdfImage(image, dataUrl, plan, canvas.width);
-    canvas.style.display = "none";
+    await showRenderedPdfImage(image, dataUrl, plan, renderCanvas.width, renderToken);
+    if (renderToken !== state.planRender.token) return;
+    if (debugCanvas) debugCanvas.style.display = "none";
     empty.style.display = "none";
     plan.renderStatus = "loaded";
     plan.renderError = "";
     plan.renderSurface = "image-fallback";
     persist();
   } catch (error) {
+    if (renderToken !== state.planRender.token || isPdfRenderCancelled(error)) return;
     setPlanRenderError(plan, error.message || String(error));
     persist();
   }
 }
 
-function showRenderedPdfImage(image, dataUrl, plan, naturalWidth) {
+function showRenderedPdfImage(image, dataUrl, plan, naturalWidth, renderToken = state.planRender.token) {
   return new Promise((resolve, reject) => {
+    image.dataset.renderToken = String(renderToken);
     image.onload = () => {
+      if (image.dataset.renderToken !== String(renderToken)) {
+        resolve();
+        return;
+      }
       image.classList.add("rendered-pdf-image");
       image.style.display = "block";
       image.style.visibility = "visible";
@@ -8041,7 +8113,7 @@ async function buildReportParts() {
     .calc-note{font-size:11px;background:#f7f9fb;border-top:1px solid #e2e7ed;padding:8px 10px;white-space:pre-wrap}
     .plan{position:relative;width:100%;max-width:100%;display:block;border:1px solid #cfd6dd;background:#fff;padding:4px;break-inside:avoid;page-break-inside:avoid;overflow:visible}.plan img,.report-plan-image{width:100%;max-width:100%;height:auto;object-fit:contain;display:block}
     .pin-marker{position:absolute;width:0;height:0;overflow:visible;z-index:5}.pin-point{position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50% 50% 50% 0;background:#fff;border:2px solid #1f2933;transform:translate(-50%,-100%) rotate(-45deg);box-shadow:0 1px 4px rgba(0,0,0,.28)}.pin-point:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;background:#1f2933;transform:translate(-50%,-50%)}.pin-leader{position:absolute;left:0;top:-6px;width:var(--line,10px);height:1px;background:rgba(31,41,51,.45);transform-origin:0 0;transform:rotate(var(--angle,-35deg))}.pin-chip{position:absolute;left:var(--dx,8px);top:var(--dy,-22px);transform:translateY(-50%);min-width:22px;height:18px;padding:0 6px;border-radius:5px;background:#fff;color:#1f2933;border:1.5px solid #4f6f8f;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap}.pin-chip.ok{border-color:#168451}.pin-chip.partial{border-color:#c47a00}.pin-chip.bad{border-color:#c93c37}.pin-chip.neutral{border-color:#4f6f8f}
-    .appendix-block{break-before:page;page-break-before:always;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:7px 9px}.pin-finding-body{padding:8px 9px}.pin-finding-body p{white-space:pre-wrap;margin:5px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}.pin-photo-grid.single{grid-template-columns:minmax(0,0.46fr)}.pin-photo{margin:0;break-inside:avoid;page-break-inside:avoid;align-self:start}.pin-photo img{width:100%;height:auto;max-height:30mm;object-fit:contain;border:1px solid #cfd6dd;background:#fff}.pin-photo-grid.single .pin-photo img{height:auto;max-height:38mm}.pin-photo figcaption{font-size:9.2px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:10px 12px;margin:8px 0 16px}.compact-summary ul{margin:6px 0 0;padding-left:18px}.compact-summary li{margin:4px 0}.report-section{margin:0 0 12px}.report-section.compact-keep{break-inside:avoid;page-break-inside:avoid}
+    .appendix-block{break-before:page;page-break-before:always;margin-bottom:18px}.pin-table{font-size:11px}.pin-finding-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.pin-finding-card{border:1px solid #d8dee6;border-radius:8px;background:#fff;break-inside:avoid;page-break-inside:avoid;overflow:hidden}.pin-finding-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:7px 9px}.pin-finding-body{padding:8px 9px}.pin-finding-body p{white-space:pre-wrap;margin:5px 0}.pin-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}.pin-photo-grid.single{grid-template-columns:minmax(28mm,38mm)}.pin-photo{margin:0;break-inside:avoid;page-break-inside:avoid;align-self:start;justify-self:start;display:inline-block}.pin-photo img{width:auto;max-width:100%;height:auto;max-height:30mm;object-fit:contain;border:1px solid #cfd6dd;background:#fff;display:block}.pin-photo-grid.single .pin-photo img{height:auto;max-height:36mm}.pin-photo figcaption{font-size:9.2px;color:#697586;margin-top:3px}.compact-summary{border:1px solid #d8dee6;border-radius:8px;background:#fbfcfd;padding:8px 10px;margin:7px 0 12px}.compact-summary ul{margin:5px 0 0;padding-left:16px}.compact-summary li{margin:3px 0}.compact-check-summary p{margin:3px 0 5px}.report-section{margin:0 0 12px}.report-section.compact-keep{break-inside:avoid;page-break-inside:avoid}
     .photo-group{break-inside:avoid;page-break-inside:avoid;margin:12px 0 18px;border:1px solid #d8dee6;border-radius:8px;overflow:hidden}.photo-group h3{background:#f7f9fb;border-bottom:1px solid #d8dee6;padding:9px 11px;margin:0}
     .photo-meta{padding:8px 11px;border-bottom:1px solid #edf0f3}.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:11px}.photo img{width:100%;height:180px;object-fit:cover;border:1px solid #cfd6dd;background:#fff}.photo p{font-size:10.5px;color:#697586;margin:5px 0 0}.photo-analysis{padding:6px 8px;border-left:3px solid #f4c542;background:#f7f9fb;color:#1f2933}
     .overview-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0 18px}.overview-report-photo{break-inside:avoid;page-break-inside:avoid;border:1px solid #d8dee6;border-radius:8px;overflow:hidden;background:#fff}.overview-report-photo img{width:100%;height:120px;object-fit:cover;display:block;background:#f7f9fb}.overview-report-photo figcaption{padding:8px 10px;font-size:11px;color:#52606d}.overview-report-photo strong{display:block;color:#17212b;margin-bottom:3px}
@@ -8168,10 +8240,10 @@ function reportPrintOverrides() {
       #printReportMount img{max-width:100%!important;height:auto!important;break-inside:avoid;page-break-inside:avoid}
       #printReportMount .pin-finding-card{break-inside:avoid!important;page-break-inside:avoid!important}
       #printReportMount .pin-photo-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important;margin-top:6px!important}
-      #printReportMount .pin-photo-grid.single{grid-template-columns:minmax(0,0.46fr)!important}
-      #printReportMount .pin-photo{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important}
-      #printReportMount .pin-photo img{width:100%!important;height:auto!important;max-height:30mm!important;object-fit:contain!important;background:#fff!important}
-      #printReportMount .pin-photo-grid.single .pin-photo img{height:auto!important;max-height:38mm!important}
+      #printReportMount .pin-photo-grid.single{grid-template-columns:minmax(28mm,38mm)!important}
+      #printReportMount .pin-photo{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important;justify-self:start!important;display:inline-block!important}
+      #printReportMount .pin-photo img{width:auto!important;max-width:100%!important;height:auto!important;max-height:30mm!important;object-fit:contain!important;background:#fff!important;display:block!important}
+      #printReportMount .pin-photo-grid.single .pin-photo img{height:auto!important;max-height:36mm!important}
       #printReportMount .signature-print-box{width:90mm!important;height:35mm!important;max-width:100%!important}
       #printReportMount .signature-image{max-width:80mm!important;max-height:28mm!important;width:auto!important;height:auto!important;object-fit:contain!important}
       #printReportMount .signature-empty{width:90mm!important;height:35mm!important;max-width:100%!important}
@@ -9925,9 +9997,14 @@ function checklistReport(protocol) {
     else acc.open += 1;
     return acc;
   }, { bad: 0, partial: 0, doc: 0, ok: 0, na: 0, open: 0 });
-  return `<section class="compact-summary">
-    <p><strong>${checks.length} Prüfumfang(e) dokumentiert.</strong> Mängel: ${counts.bad}, Auflagen/teilweise: ${counts.partial}, Dokumentation: ${counts.doc}, OK: ${counts.ok}, nicht relevant: ${counts.na}, offen: ${counts.open}. Details stehen kompakt direkt bei Planmarkierungen oder dokumentierten Punkten ohne Pin.</p>
-    <ul>${checks.map((check) => `<li>${statusBadge(check.status || "offen / nicht bewertet")} ${escapeHtml(check.title)} · ${(check.samples || []).length} Prüfstelle(n)</li>`).join("")}</ul>
+  const documentedSamples = checks.reduce((sum, check) => sum + (check.samples || []).length, 0);
+  const issueTitles = checks
+    .filter((check) => (check.status || "").includes("Mangel") || (check.status || "").includes("Auflage") || (check.status || "").includes("teilweise"))
+    .map((check) => check.title)
+    .slice(0, 4);
+  return `<section class="compact-summary compact-check-summary">
+    <p><strong>${checks.length} Prüfumfang(e), ${documentedSamples} Prüfstelle(n).</strong> Mängel: ${counts.bad}, Auflagen/teilweise: ${counts.partial}, Dokumentation: ${counts.doc}, OK: ${counts.ok}, nicht relevant: ${counts.na}, offen: ${counts.open}.</p>
+    ${issueTitles.length ? `<p class="small"><strong>Relevante Punkte:</strong> ${issueTitles.map(escapeHtml).join(" · ")}${checks.length > issueTitles.length ? " · weitere siehe Planmarkierungen" : ""}</p>` : `<p class="small">Details stehen kompakt direkt bei Planmarkierungen oder dokumentierten Punkten ohne Pin.</p>`}
   </section>`;
 }
 
@@ -10566,45 +10643,36 @@ function bindEvents() {
   bindOptional("#newProjectBtn", "click", createProject);
   bindOptional("#newFromListBtn", "click", createProject);
   bindOptional("#backBtn", "click", async () => {
-    if ($("#dailyReportEditorView")?.classList.contains("active")) {
-      saveDailyReportForm();
-      await navigateToView(state.currentProjectId ? "projectHubView" : "dailyReportView");
-      return;
-    }
-    if ($("#siteControlEditorView")?.classList.contains("active")) {
-      saveSiteControlForm();
-      await navigateToView(state.currentProjectId ? "projectHubView" : "siteControlView");
-      return;
-    }
-    if ($("#editorView")?.classList.contains("active")) {
+    const viewId = activeViewId();
+    if (viewId === "dailyReportEditorView") saveDailyReportForm();
+    if (viewId === "siteControlEditorView") saveSiteControlForm();
+    if (viewId === "editorView") {
       saveFromForm();
+      const previousTab = state.protocolTabHistory.pop();
+      if (previousTab && previousTab !== activeProtocolTabId()) {
+        activateProtocolTab(previousTab, { replace: true });
+        return;
+      }
       renderList();
-      await navigateToView(state.currentProjectId ? "projectHubView" : "listView");
-      return;
     }
-    if ($("#projectPlansView")?.classList.contains("active")) {
-      await navigateToView("projectHubView");
-      return;
-    }
-    if ($("#masterDataView")?.classList.contains("active") && state.masterDataSection) {
+    if (viewId === "masterDataView" && state.masterDataSection) {
       state.masterDataSection = "";
       renderMasterData();
       updateAppHeader("masterDataView");
       return;
     }
-    if ($("#projectHubView")?.classList.contains("active")) {
-      await navigateToView("projectDirectoryView");
-      return;
-    }
-    if (($("#listView")?.classList.contains("active") || $("#siteControlView")?.classList.contains("active") || $("#dailyReportView")?.classList.contains("active")) && state.currentProjectId) {
-      await navigateToView("projectHubView");
-      return;
-    }
-    if ($("#projectDirectoryView")?.classList.contains("active")) {
-      await navigateToView("homeView");
-      return;
-    }
-    await navigateToView("homeView");
+    const fallbackByView = {
+      dailyReportEditorView: state.currentProjectId ? "projectHubView" : "dailyReportView",
+      siteControlEditorView: state.currentProjectId ? "projectHubView" : "siteControlView",
+      editorView: state.currentProjectId ? "projectHubView" : "listView",
+      projectPlansView: "projectHubView",
+      projectHubView: "projectDirectoryView",
+      listView: state.currentProjectId ? "projectHubView" : "projectDirectoryView",
+      siteControlView: state.currentProjectId ? "projectHubView" : "projectDirectoryView",
+      dailyReportView: state.currentProjectId ? "projectHubView" : "projectDirectoryView",
+      projectDirectoryView: "homeView"
+    };
+    await navigateBackOneStep(fallbackByView[viewId] || "homeView");
   });
   bindOptional("#saveBtn", "click", async () => {
     if ($("#masterDataView")?.classList.contains("active")) {
