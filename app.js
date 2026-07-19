@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v130";
+const APP_VERSION = "v131";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -6956,24 +6956,79 @@ function removeIncrementalPrefixes(text = "") {
   return output.join(" ");
 }
 
+function escapeRegExp(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function capitalizeSentenceStarts(text = "") {
+  return String(text || "").replace(/(^|[.!?]\s+)([a-zäöü])/g, (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
+}
+
 function polishDictationText(text = "") {
-  let value = cleanDictationText(text)
-    .replace(/\bmatten\s+lage\b/gi, "Mattenlage")
-    .replace(/\buntergeschoss\s+grundriss\b/gi, "Untergeschoss-Grundriss")
-    .replace(/\bbeton\s+deckung\b/gi, "Betondeckung")
-    .replace(/übergreifungslänge/gi, "Übergreifungslänge")
-    .replace(/unterstützungskörbe/gi, "Unterstützungskörbe");
-  value = value
-    .replace(/\bist\s+zu\s+gering\s+ist\s+müssen\b/gi, "ist zu gering. Es müssen")
-    .replace(/\bist\s+zu\s+gering\s+es\s+müssen\b/gi, "ist zu gering. Es müssen")
-    .replace(/\s+(es müssen|sie muss|die obere betondeckung|bitte)\s+/gi, (match, phrase) => `. ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} `);
-  value = value.replace(/\s+([.,;:!?])/g, "$1").replace(/\.{2,}/g, ".").replace(/\s+/g, " ").trim();
+  let value = cleanDictationText(text);
   if (!value) return "";
-  value = value.charAt(0).toUpperCase() + value.slice(1);
+
+  const phraseReplacements = [
+    [/\bmatten\s+lage\b/gi, "Mattenlage"],
+    [/\buntergeschoss\s*[- ]\s*grundriss\b/gi, "Untergeschoss-Grundriss"],
+    [/\bbeton\s+deckung\b/gi, "Betondeckung"],
+    [/\bist\s+zu\s+gering\s+ist\s+müssen\b/gi, "ist zu gering. Es müssen"],
+    [/\bist\s+zu\s+gering\s+es\s+müssen\b/gi, "ist zu gering. Es müssen"],
+    [/\bist\s+zu\s+niedrig\s+die\s+obere\b/gi, "ist zu niedrig. Die obere"],
+    [/\bsind\s+zu\s+niedrig\s+die\s+obere\b/gi, "sind zu niedrig. Die obere"],
+    [/\bsind\s+teilweise\s+zu\s+niedrig\s+die\s+obere\b/gi, "sind teilweise zu niedrig. Die obere"],
+    [/,\s*sie\s+muss\b/gi, ". Sie muss"],
+    [/\bwerden\s+die\s+Bügel\b/gi, "werden. Die Bügel"],
+    [/\bwerden\s+die\s+Unterstützungskörbe\b/gi, "werden. Die Unterstützungskörbe"],
+    [/\bbetoniert\s+die\b/gi, "betoniert. Die"],
+    [/\bumgebaut\s+werden\s+die\b/gi, "umgebaut werden. Die"],
+    [/\bmuss\s+umgebaut\s+werden\s+die\b/gi, "muss umgebaut werden. Die"]
+  ];
+  phraseReplacements.forEach(([pattern, replacement]) => {
+    value = value.replace(pattern, replacement);
+  });
+
+  const technicalTerms = [
+    ["übergreifungslängen", "Übergreifungslängen"],
+    ["übergreifungslänge", "Übergreifungslänge"],
+    ["mattenlage", "Mattenlage"],
+    ["unterstützungskörbe", "Unterstützungskörbe"],
+    ["betondeckung", "Betondeckung"],
+    ["bodenplatte", "Bodenplatte"],
+    ["untergeschoss", "Untergeschoss"],
+    ["grundriss", "Grundriss"],
+    ["verbau", "Verbau"],
+    ["betonage", "Betonage"],
+    ["zulagen", "Zulagen"],
+    ["bewehrungslage", "Bewehrungslage"],
+    ["bewehrung", "Bewehrung"],
+    ["schalung", "Schalung"],
+    ["sauberkeit", "Sauberkeit"],
+    ["fundamenterder", "Fundamenterder"],
+    ["fugenbleche", "Fugenbleche"],
+    ["einbauteile", "Einbauteile"],
+    ["bügel", "Bügel"],
+    ["abstandhalter", "Abstandhalter"],
+    ["durchstanzbewehrung", "Durchstanzbewehrung"]
+  ];
+  technicalTerms.forEach(([raw, replacement]) => {
+    value = value.replace(new RegExp(escapeRegExp(raw), "gi"), replacement);
+  });
+
+  value = value
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .replace(/([.!?])(?=\S)/g, "$1 ")
+    .replace(/\.{2,}/g, ".")
+    .replace(/\s+/g, " ")
+    .trim();
+  value = capitalizeSentenceStarts(value);
   if (!/[.!?]$/.test(value)) value += ".";
   return value;
 }
 
+function polishedReportText(text = "") {
+  return polishDictationText(text || "");
+}
 function normalizeSpeechRecognitionTranscript(chunks = []) {
   const list = Array.isArray(chunks) ? chunks : [chunks];
   const merged = [];
@@ -7002,12 +7057,12 @@ function normalizeDictationKey(text = "") {
 function appendVoiceText(existing, addition) {
   const left = cleanDictationText(existing || "");
   const right = cleanDictationText(addition || "");
-  if (!right) return left;
-  if (!left) return right;
+  if (!right) return polishDictationText(left);
+  if (!left) return polishDictationText(right);
   const leftKey = normalizeDictationKey(left);
   const rightKey = normalizeDictationKey(right);
-  if (leftKey.endsWith(rightKey) || leftKey.includes(` ${rightKey} `)) return left;
-  return `${left}${/[.!?:;]$/.test(left) ? " " : ". "}${right}`;
+  if (leftKey.endsWith(rightKey) || leftKey.includes(` ${rightKey} `)) return polishDictationText(left);
+  return polishDictationText(`${left}${/[.!?:;]$/.test(left) ? " " : ". "}${right}`);
 }
 
 function getVoiceTargetText(btn) {
@@ -9460,7 +9515,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   y = resultStart + 42;
   addBadge(p.result.resultStatus || "offen", margin + 16, resultStart + 19, resultStyle);
   addText(resultClause(p.result.resultStatus) || "Ergebnis gemäß Auswahl dokumentiert.", { x: margin + 16, maxWidth: contentWidth - 32, size: 9.7, bold: true, blank: false });
-  if (p.result.finalNote) addText(`Schlussbemerkung: ${p.result.finalNote}`, { x: margin + 16, maxWidth: contentWidth - 32, size: 8.9, blank: false });
+  if (p.result.finalNote) addText(`Schlussbemerkung: ${polishedReportText(p.result.finalNote)}`, { x: margin + 16, maxWidth: contentWidth - 32, size: 8.9, blank: false });
   const resultEnd = Math.max(y + 14, resultStart + 84);
   addCardShell("Ergebnis", resultStart, resultEnd, { opStart: resultOpStart, accent: resultStyle.color || "#12663e", fill: resultStyle.fill, headerFill: "#f0faf4", stroke: resultStyle.stroke });
   y = resultEnd + pdfTheme.cardGap;
@@ -9496,7 +9551,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       addKeyValue("Status", status, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.2, rowFill: "#fbfcfd" });
       const pinText = pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-";
       addKeyValue("Pin / Plan", pinText, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1 });
-      addKeyValue("Bemerkung", sample.note || sample.overlapCheck?.generatedText || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.2, stack: true, rowFill: "#fbfcfd" });
+      addKeyValue("Bemerkung", polishedReportText(sample.note || sample.overlapCheck?.generatedText || "") || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.2, stack: true, rowFill: "#fbfcfd" });
       const issueEnd = Math.max(y + 12, issueY + issueHeaderHeight + 70);
       page.ops.splice(opStart, 0,
         { type: "rect", x: margin, y: issueY, width: contentWidth, height: issueEnd - issueY, fill: "#ffffff", stroke: style.stroke, lineWidth: 0.8 },
@@ -9553,7 +9608,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       addKeyValue("Bereich", sample.location || "ohne Angabe", { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1 });
       if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, rowFill: "#fbfcfd" });
       if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1 });
-      addKeyValue("Bemerkung", sample.note || "-", { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, stack: true, rowFill: "#fbfcfd" });
+      addKeyValue("Bemerkung", polishedReportText(sample.note) || "-", { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, stack: true, rowFill: "#fbfcfd" });
       if (sample.overlapCheck?.generatedText) addKeyValue("Übergreifung", sample.overlapCheck.generatedText, { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 7.9, stack: true });
       const sampleEnd = Math.max(y + 10, sampleStart + sampleHeaderHeight + 66);
       page.ops.splice(sampleOpStart, 0,
@@ -9597,7 +9652,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
         { key: "title", title: "Titel / Bereich", weight: 1.8 },
         { key: "status", title: "Status", weight: 0.9 },
         { key: "note", title: "Bemerkung", weight: 2.4 }
-      ], pinsForPage.map((pin) => ({ pin: pinLabel(pin), title: pin.title || "Pin", status: pin.status || "-", note: pin.note || "-" })), { emptyText: "Keine Pins auf dieser Seite.", size: 6.9, maxLines: 3 });
+      ], pinsForPage.map((pin) => ({ pin: pinLabel(pin), title: pin.title || "Pin", status: pin.status || "-", note: polishedReportText(pin.note) || "-" })), { emptyText: "Keine Pins auf dieser Seite.", size: 6.9, maxLines: 3 });
     }
   }
 
@@ -9615,7 +9670,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     y = groupStart + groupHeaderHeight + 8;
     if (group.status) addKeyValue("Status", group.status, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1, rowFill: "#fbfcfd" });
     if (group.meta) addKeyValue("Zuordnung", group.meta, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1 });
-    if (group.note) addKeyValue("Bemerkung", group.note, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1, stack: true, rowFill: "#fbfcfd" });
+    if (group.note) addKeyValue("Bemerkung", polishedReportText(group.note), { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1, stack: true, rowFill: "#fbfcfd" });
     const groupEnd = Math.max(y + 10, groupStart + groupHeaderHeight + 34);
     page.ops.splice(groupOpStart, 0,
       { type: "rect", x: margin, y: groupStart, width: contentWidth, height: groupEnd - groupStart, fill: "#ffffff", stroke: pdfTheme.borderStrong, lineWidth: 0.8 },
@@ -9662,7 +9717,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     addKeyValue("Firma", signature.company || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.1, rowFill: "#fbfcfd" });
     addKeyValue("Funktion", signature.role || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.1 });
     addKeyValue("Datum", formatDate(signature.signedAt) || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.1, rowFill: "#fbfcfd" });
-    if (signature.note) addKeyValue("Bemerkung", signature.note, { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.0, stack: true });
+    if (signature.note) addKeyValue("Bemerkung", polishedReportText(signature.note), { x: margin + 14, width: contentWidth - 28, keyWidth: 82, size: 8.0, stack: true });
     const boxWidth = 286;
     const boxHeight = 76;
     const boxX = margin + 14;
@@ -10220,7 +10275,7 @@ function sampleReport(sample, check = null) {
       </div>
       <div class="sample-grid">
         <div>Bereich</div><div>${escapeHtml(sample.location || "ohne Angabe")}</div>
-        <div>Bemerkung</div><div>${escapeHtml(sample.note || "keine")}</div>
+        <div>Bemerkung</div><div>${escapeHtml(polishedReportText(sample.note) || "keine")}</div>
         <div>Pin</div><div>${escapeHtml(pinName(sample.pinId) || "kein Pin")}</div>
         <div>Fotos</div><div>${sample.photos?.length ? `${sample.photos.length} Foto(s)` : "keine"}</div>
       </div>
@@ -10241,10 +10296,10 @@ function followupSampleReport(sample, check = null) {
       <div class="sample-grid">
         <div>Bereich</div><div>${escapeHtml(sample.location || "ohne Angabe")}</div>
         ${isNew ? `<div>Einordnung</div><div>Neu festgestellt in Nachbegehung</div>` : `<div>Ursprünglicher Status</div><div>${statusBadge(sample.sourceStatus || "offen")}</div>
-        <div>Ursprüngliche Bemerkung</div><div>${escapeHtml(sample.sourceNote || "keine")}</div>`}
+        <div>Ursprüngliche Bemerkung</div><div>${escapeHtml(polishedReportText(sample.sourceNote) || "keine")}</div>`}
         <div>Plan / Pin</div><div>${escapeHtml(pinName(sample.pinId) || pinName(sample.sourcePinId) || "kein Pin")}</div>
         <div>Status Nachbegehung</div><div>${statusBadge(sample.followupStatus || sample.status || "weiterhin offen")}</div>
-        <div>Bemerkung Nachbegehung</div><div>${escapeHtml(newNote)}</div>
+        <div>Bemerkung Nachbegehung</div><div>${escapeHtml(polishedReportText(newNote))}</div>
         <div>Neue Fotos</div><div>${sample.photos?.length ? `${sample.photos.length} Foto(s)` : "keine"}</div>
         <div>Referenzfotos</div><div>${sample.referencePhotos?.length ? `${sample.referencePhotos.length} Foto(s)` : "keine"}</div>
       </div>
@@ -10403,7 +10458,7 @@ async function planFindingCardHtml(entry) {
     <div class="pin-finding-head"><strong>${escapeHtml(pinText)} - ${escapeHtml(displayStatus)} - ${escapeHtml(entry.title || "Feststellung")}</strong>${statusBadge(badgeStatus || "Dokumentation")}</div>
     <div class="pin-finding-body">
       ${entry.location ? `<p><strong>Bereich:</strong> ${escapeHtml(entry.location)}</p>` : ""}
-      ${entry.note ? `<p><strong>Bemerkung:</strong> ${escapeHtml(entry.note)}</p>` : `<p class="muted">Keine Bemerkung erfasst.</p>`}
+      ${entry.note ? `<p><strong>Bemerkung:</strong> ${escapeHtml(polishedReportText(entry.note))}</p>` : `<p class="muted">Keine Bemerkung erfasst.</p>`}
       ${entry.sample?.overlapCheck ? overlapPdfRows(entry.sample) : ""}
       ${photoHtml || `<p class="small">Keine Fotos zu dieser Feststellung hinterlegt.</p>`}
     </div>
@@ -10493,7 +10548,7 @@ function barCountReportHtml(photo) {
     <p class="photo-analysis">
       Fotoanalyse: ${escapeHtml(detected)}, ${escapeHtml(confirmed)}.
       Die automatische Fotoauswertung dient als Assistenzfunktion und ersetzt keine fachliche Prüfung.
-      ${analysis.note ? `<br>${escapeHtml(analysis.note)}` : ""}
+      ${analysis.note ? `<br>${escapeHtml(polishedReportText(analysis.note))}` : ""}
     </p>
   `;
 }
@@ -10519,7 +10574,7 @@ function signatureReport(p) {
             <tr><td>Funktion</td><td>${escapeHtml(signature.role || "")}</td></tr>
             ${signature.category && signature.category !== signature.role ? `<tr><td>Unterschrift für</td><td>${escapeHtml(signature.category || "")}</td></tr>` : ""}
             <tr><td>Datum / Uhrzeit</td><td>${escapeHtml(formatDate(signature.signedAt))}</td></tr>
-            ${signature.note ? `<tr><td>Bemerkung</td><td>${escapeHtml(signature.note)}</td></tr>` : ""}
+            ${signature.note ? `<tr><td>Bemerkung</td><td>${escapeHtml(polishedReportText(signature.note))}</td></tr>` : ""}
           </tbody>
         </table>
         ${signature.signatureData ? `<div class="signature-print-box"><img class="signature-image" src="${signature.signatureData}" alt="Unterschrift ${escapeAttr(signature.name || "")}"></div>` : `<div class="signature-empty">Keine Unterschriftsgrafik erfasst.</div>`}
