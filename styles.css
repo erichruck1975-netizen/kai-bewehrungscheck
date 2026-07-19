@@ -3078,3 +3078,63 @@ dialog button {
   gap: 10px;
 }
 
+
+/* v128: kompakte Projektplan-Accordion-Karten */
+.project-plan-accordion {
+  padding: 0;
+  overflow: hidden;
+}
+.project-plan-summary-row {
+  cursor: pointer;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 12px 14px;
+}
+.project-plan-summary-row::-webkit-details-marker {
+  display: none;
+}
+.project-plan-summary-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.project-plan-summary-main strong {
+  font-size: 15px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.project-plan-summary-main small,
+.project-plan-summary-main em {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.project-plan-card[open] .project-plan-summary-row {
+  border-bottom: 1px solid var(--line);
+  background: #f6f9fc;
+}
+.project-plan-card-open {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px 14px;
+}
+.project-plan-card-open > label {
+  display: grid;
+  gap: 6px;
+}
+.project-plan-card-open .project-plan-card-head {
+  align-items: flex-start;
+}
+@media (max-width: 640px) {
+  .project-plan-summary-row {
+    grid-template-columns: 1fr;
+  }
+  .project-plan-card-open .project-plan-card-head {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

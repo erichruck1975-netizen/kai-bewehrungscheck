@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v127";
+const APP_VERSION = "v128";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1919,9 +1919,99 @@ function shouldHideProtocolInModuleLists(protocol = {}) {
   return isProjectPlanLibraryProtocol(protocol);
 }
 
+
+const PLAN_CATEGORIES = ["Bewehrungsplan", "Arbeitsplan", "Schalplan", "Baugesuch", "Sonstiges"];
+const PLAN_FLOOR_OPTIONS = ["UG", "EG", "OG", "DG", "Dach", "Sonstiges"];
+const PLAN_COMPONENT_OPTIONS = ["Bodenplatte", "Decke", "Wand", "Fundament", "Stütze", "Unterzug", "Treppe", "Gesamt", "Sonstiges"];
+const APP_PLAN_NAME_SUGGESTIONS = [
+  "Bewehrung Bodenplatte untere Lage",
+  "Bewehrung Bodenplatte obere Lage",
+  "Bewehrung Decke über UG",
+  "Bewehrung Wand",
+  "Schalplan Bodenplatte UG",
+  "Schalplan Decke über UG",
+  "Arbeitsplan UG",
+  "Arbeitsplan EG",
+  "Baugesuch Grundriss",
+  "Baugesuch Schnitt",
+  "Sonstiges"
+];
+
+function cleanPlanTitleFromFileName(fileName = "") {
+  return String(fileName || "")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_]+/g, " ")
+    .replace(/[-–—]+/g, " ")
+    .replace(/\b(plan|bewehrungsplan|schalplan)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferPlanCategory(plan = {}) {
+  const source = [plan.category, plan.planCategory, plan.fileName, plan.dropboxFileName, plan.title, plan.appPlanName, plan.planNumber].join(" ").toLowerCase();
+  if (/arbeitsplan/.test(source)) return "Arbeitsplan";
+  if (/schalplan|\bs[-\s]?\d{2,4}/i.test(source)) return "Schalplan";
+  if (/baugesuch/.test(source)) return "Baugesuch";
+  if (/bewehr|\bb[-\s]?\d{2,4}/i.test(source)) return "Bewehrungsplan";
+  return "Sonstiges";
+}
+
+function inferPlanFloor(plan = {}) {
+  const source = [plan.floor, plan.fileName, plan.title, plan.appPlanName].join(" ").toLowerCase();
+  if (/\bug\b|untergeschoss|tiefgarage/.test(source)) return "UG";
+  if (/\beg\b|erdgeschoss/.test(source)) return "EG";
+  if (/\bdg\b|dachgeschoss|dach/.test(source)) return "DG";
+  if (/\bog\b|obergeschoss/.test(source)) return "OG";
+  return plan.floor || "";
+}
+
+function inferPlanComponent(plan = {}) {
+  const source = [plan.component, plan.fileName, plan.title, plan.appPlanName].join(" ").toLowerCase();
+  if (/bodenplatte/.test(source)) return "Bodenplatte";
+  if (/decke/.test(source)) return "Decke";
+  if (/wand/.test(source)) return "Wand";
+  if (/fundament/.test(source)) return "Fundament";
+  if (/stütze|stuetze/.test(source)) return "Stütze";
+  if (/unterzug/.test(source)) return "Unterzug";
+  if (/treppe/.test(source)) return "Treppe";
+  if (/gesamt/.test(source)) return "Gesamt";
+  return plan.component || "";
+}
+
+function planPrimaryNumber(plan = {}) {
+  return safePlanNumberCandidate(plan.planNumber || plan.planNo || plan.plan_number || "") || plan.planNumber || plan.planNo || "";
+}
+
+function planAppName(plan = {}) {
+  return plan.appPlanName || plan.displayName || plan.plan_title_app || plan.title || cleanPlanTitleFromFileName(plan.fileName || plan.dropboxFileName || "") || "Plan";
+}
+
+function planCompactTitle(plan = {}) {
+  const number = planPrimaryNumber(plan) || `Plan ${plan.number || ""}`.trim() || "ohne Plan-Nr.";
+  const name = planAppName(plan);
+  return `${number} · ${name}`;
+}
+
+function planMetaLine(plan = {}) {
+  return [
+    plan.category || "Sonstiges",
+    plan.floor || "ohne Geschoss",
+    plan.component || "ohne Bauteil",
+    plan.planDate ? `Stand ${plan.planDate}` : "ohne Stand",
+    plan.planIndex ? `Index ${plan.planIndex}` : "ohne Index"
+  ].filter(Boolean).join(" · ");
+}
+
 function normalizePlanMeta(plan = {}) {
   plan.source = plan.source || (plan.dropboxPath || plan.dropboxSharedLink ? "dropbox_path" : "uploaded");
   plan.documentStatus = normalizeDocumentStatus(plan.documentStatus || "verwendet");
+  plan.planNumber = planPrimaryNumber(plan);
+  plan.planNo = plan.planNo || plan.planNumber || "";
+  plan.appPlanName = planAppName(plan);
+  plan.title = plan.title || plan.appPlanName || "";
+  plan.category = plan.category || plan.plan_category || inferPlanCategory(plan);
+  plan.floor = plan.floor || inferPlanFloor(plan);
+  plan.component = plan.component || inferPlanComponent(plan);
   plan.dropboxPath = plan.dropboxPath || "";
   plan.dropboxSharedLink = plan.dropboxSharedLink || plan.dropboxLink || "";
   plan.dropboxFileName = plan.dropboxFileName || "";
@@ -1944,7 +2034,7 @@ function projectPlanDedupeKey(plan = {}, projectId = "") {
   const normalized = normalizePlanMeta(plan);
   const parts = [
     normalized.planNumber,
-    normalized.title || normalized.name,
+    normalized.appPlanName || normalized.title || normalized.name,
     normalized.fileName || normalized.dropboxFileName,
     normalized.pageCount,
     projectId
@@ -1985,15 +2075,16 @@ function validDropboxLink(plan = {}) {
 }
 
 function projectPlanPreview(plan = {}) {
-  const number = plan.planNumber || "Plan";
+  const number = planPrimaryNumber(plan) || "Plan";
   const file = plan.fileName || plan.dropboxFileName || "Datei";
+  const type = plan.type === "application/pdf" ? `${plan.pageCount || "?"} PDF-Seite(n)` : "Bildplan";
   return `
     <div class="project-plan-preview" aria-label="Planvorschau Platzhalter">
       <span>${escapeHtml(number)}</span>
+      <small>${escapeHtml(plan.category || type)}</small>
       <small>${escapeHtml(file)}</small>
     </div>`;
 }
-
 
 function markPlansForCurrentContext() {
   if (!state.current) return [];
@@ -3290,7 +3381,7 @@ function renderProjectPlansView() {
   const entries = projectPlanEntries(project.id);
   const normalizedSearch = searchValue.trim().toLowerCase();
   const visibleEntries = normalizedSearch
-    ? entries.filter(({ protocol, plan }) => [plan.planNumber, plan.title, plan.fileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase().includes(normalizedSearch))
+    ? entries.filter(({ protocol, plan }) => [plan.planNumber, plan.appPlanName, plan.title, plan.category, plan.floor, plan.component, plan.fileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase().includes(normalizedSearch))
     : entries;
   const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
   container.innerHTML = `
@@ -3315,6 +3406,9 @@ function renderProjectPlansView() {
         <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Bezeichnung, Datei, Stand">
       </label>
       <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Gerät gespeichert.</p>
+      <datalist id="appPlanNameSuggestions">${APP_PLAN_NAME_SUGGESTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
+      <datalist id="projectPlanFloorOptions">${PLAN_FLOOR_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
+      <datalist id="projectPlanComponentOptions">${PLAN_COMPONENT_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
     </section>
     <section class="panel">
       <div class="section-head">
@@ -3326,57 +3420,100 @@ function renderProjectPlansView() {
 }
 
 function projectPlanCard(protocol, plan) {
-  const display = `${plan.planNumber || plan.fileName || "Plan"}${plan.title ? ` · ${plan.title}` : ""}`;
+  normalizePlanMeta(plan);
+  const display = planCompactTitle(plan);
+  const file = plan.fileName || plan.dropboxFileName || "Datei offen";
   const link = validDropboxLink(plan);
+  const pins = allPinsForPlan(plan).length;
+  const summary = [
+    plan.category || "Sonstiges",
+    plan.floor || "ohne Geschoss",
+    plan.component || "ohne Bauteil",
+    plan.planDate ? `Stand ${plan.planDate}` : "ohne Stand",
+    plan.planIndex ? `Index ${plan.planIndex}` : "ohne Index",
+    pins ? `${pins} Pin(s)` : "ohne Pins"
+  ].join(" · ");
   return `
-    <article class="project-plan-card" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
-      <div class="project-plan-card-head">
-        ${projectPlanPreview(plan)}
-        <div class="project-plan-card-main">
-          <h4>${escapeHtml(display)}</h4>
-          <p class="muted">Quelle: ${escapeHtml(planSourceLabel(plan))}${plan.dropboxPath ? ` · Pfad gespeichert` : ""}</p>
-          <p class="muted">Aus: ${escapeHtml(isProjectPlanLibraryProtocol(protocol) ? "Projektplanablage" : acceptanceLabel(protocol))} · ${escapeHtml(plan.fileName || "Datei offen")}</p>
-          <div class="card-actions compact-actions">
-            <button class="secondary-btn" data-open-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan öffnen / Vorschau</button>
-            ${link ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox öffnen</button>` : ""}
-            <button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan löschen</button>
+    <details class="project-plan-card project-plan-accordion" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
+      <summary class="project-plan-summary-row">
+        <span class="project-plan-summary-main">
+          <strong>${escapeHtml(display)}</strong>
+          <small>${escapeHtml(summary)}</small>
+          <em>Datei: ${escapeHtml(file)}</em>
+        </span>
+        <span class="badge neutral">${escapeHtml(plan.documentStatus || "verwendet")}</span>
+      </summary>
+      <div class="project-plan-card-open">
+        <div class="project-plan-card-head">
+          ${projectPlanPreview(plan)}
+          <div class="project-plan-card-main">
+            <h4>${escapeHtml(display)}</h4>
+            <p class="muted">${escapeHtml(planMetaLine(plan))}</p>
+            <p class="muted">Aus: ${escapeHtml(isProjectPlanLibraryProtocol(protocol) ? "Projektplanablage" : acceptanceLabel(protocol))}</p>
+            <p class="muted">Original-Datei: ${escapeHtml(file)}</p>
+            <div class="card-actions compact-actions">
+              <button class="secondary-btn" data-open-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan öffnen / Vorschau</button>
+              ${state.current ? `<button class="secondary-btn" data-use-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan für Abnahme verwenden</button>` : ""}
+              ${link ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox öffnen</button>` : ""}
+              <button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan löschen</button>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="grid compact-grid project-plan-fields">
-        <label>Plan-Nr.<input data-project-plan-field="planNumber" value="${escapeAttr(plan.planNumber || "")}"></label>
-        <label>Planbezeichnung<input data-project-plan-field="title" value="${escapeAttr(plan.title || "")}"></label>
-        <label>Planstand<input data-project-plan-field="planDate" value="${escapeAttr(plan.planDate || "")}"></label>
-        <label>Index<input data-project-plan-field="planIndex" value="${escapeAttr(plan.planIndex || "")}"></label>
-        <label>Status
-          <select data-project-plan-field="documentStatus">
-            ${["maßgebend", "verwendet", "nur Orientierung", "ersetzt / veraltet"].map((status) => `<option value="${escapeAttr(status)}" ${status === (plan.documentStatus || "verwendet") ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
-          </select>
-        </label>
-        <label>Quelle
-          <select data-project-plan-field="source">
-            ${[["uploaded", "Hochgeladene Datei"], ["dropbox_path", "Dropbox-Pfad"], ["dropbox_link", "Dropbox-Link"]].map(([value, label]) => `<option value="${value}" ${value === (plan.source || "uploaded") ? "selected" : ""}>${label}</option>`).join("")}
-          </select>
-        </label>
-        <label>Seiten<input data-project-plan-field="pageCount" value="${escapeAttr(plan.pageCount || "")}" disabled></label>
-      </div>
-      <details class="project-plan-dropbox">
-        <summary>Dropbox / spätere Synchronisierung</summary>
-        <p class="muted">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Dropbox-Anbindung aktiviert. Aktuell können Pfade und Links gespeichert werden. Noch keine automatische Synchronisierung.</p>
         <div class="grid compact-grid project-plan-fields">
-          <label>Dropbox-Pfad<input data-project-plan-field="dropboxPath" value="${escapeAttr(plan.dropboxPath || "")}" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
-          <label>Dropbox-Link<input data-project-plan-field="dropboxSharedLink" value="${escapeAttr(plan.dropboxSharedLink || "")}" placeholder="https://www.dropbox.com/..."></label>
-          <label>Dropbox-Dateiname<input data-project-plan-field="dropboxFileName" value="${escapeAttr(plan.dropboxFileName || "")}" placeholder="B-003.pdf"></label>
-          <label>Letzter manueller Abgleich / Stand<input data-project-plan-field="lastManualSync" value="${escapeAttr(plan.lastManualSync || "")}" placeholder="z. B. 15.07.2026"></label>
-          <label>Synchronisationsstatus
-            <select data-project-plan-field="syncStatus">
-              ${["not_configured", "linked", "needs_sync", "synced", "error"].map((status) => `<option value="${status}" ${status === (plan.syncStatus || "not_configured") ? "selected" : ""}>${escapeHtml(syncStatusLabel(status))}</option>`).join("")}
+          <label>Plannummer<input data-project-plan-field="planNumber" value="${escapeAttr(plan.planNumber || "")}" placeholder="z. B. B-002"></label>
+          <label>App-Planbezeichnung<input data-project-plan-field="appPlanName" list="appPlanNameSuggestions" value="${escapeAttr(plan.appPlanName || "")}" placeholder="z. B. Bewehrung Bodenplatte untere Lage"></label>
+          <label>Kategorie
+            <select data-project-plan-field="category">
+              ${PLAN_CATEGORIES.map((category) => `<option value="${escapeAttr(category)}" ${category === (plan.category || "Sonstiges") ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
             </select>
           </label>
+          <label>Geschoss<input data-project-plan-field="floor" list="projectPlanFloorOptions" value="${escapeAttr(plan.floor || "")}" placeholder="z. B. UG"></label>
+          <label>Bauteil<input data-project-plan-field="component" list="projectPlanComponentOptions" value="${escapeAttr(plan.component || "")}" placeholder="z. B. Bodenplatte"></label>
+          <label>Planstand<input data-project-plan-field="planDate" value="${escapeAttr(plan.planDate || "")}"></label>
+          <label>Index<input data-project-plan-field="planIndex" value="${escapeAttr(plan.planIndex || "")}"></label>
+          <label>Status
+            <select data-project-plan-field="documentStatus">
+              ${["maßgebend", "verwendet", "nur Orientierung", "ersetzt / veraltet"].map((status) => `<option value="${escapeAttr(status)}" ${status === (plan.documentStatus || "verwendet") ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Quelle
+            <select data-project-plan-field="source">
+              ${[["uploaded", "Hochgeladene Datei"], ["dropbox_path", "Dropbox-Pfad"], ["dropbox_link", "Dropbox-Link"]].map(([value, label]) => `<option value="${value}" ${value === (plan.source || "uploaded") ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </label>
+          <label>Seiten<input data-project-plan-field="pageCount" value="${escapeAttr(plan.pageCount || "")}" disabled></label>
         </div>
-      </details>
-      <label>Bemerkung<textarea data-project-plan-field="remark" rows="2">${escapeHtml(plan.remark || "")}</textarea></label>
-    </article>`;
+        <details class="project-plan-dropbox">
+          <summary>Dropbox / spätere Synchronisierung</summary>
+          <p class="muted">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Dropbox-Anbindung aktiviert. Aktuell können Pfade und Links gespeichert werden. Noch keine automatische Synchronisierung.</p>
+          <div class="grid compact-grid project-plan-fields">
+            <label>Dropbox-Pfad<input data-project-plan-field="dropboxPath" value="${escapeAttr(plan.dropboxPath || "")}" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
+            <label>Dropbox-Link<input data-project-plan-field="dropboxSharedLink" value="${escapeAttr(plan.dropboxSharedLink || "")}" placeholder="https://www.dropbox.com/..."></label>
+            <label>Dropbox-Dateiname<input data-project-plan-field="dropboxFileName" value="${escapeAttr(plan.dropboxFileName || "")}" placeholder="B-003.pdf"></label>
+            <label>Letzter manueller Abgleich / Stand<input data-project-plan-field="lastManualSync" value="${escapeAttr(plan.lastManualSync || "")}" placeholder="z. B. 15.07.2026"></label>
+            <label>Synchronisationsstatus
+              <select data-project-plan-field="syncStatus">
+                ${["not_configured", "linked", "needs_sync", "synced", "error"].map((status) => `<option value="${status}" ${status === (plan.syncStatus || "not_configured") ? "selected" : ""}>${escapeHtml(syncStatusLabel(status))}</option>`).join("")}
+              </select>
+            </label>
+          </div>
+        </details>
+        <label>Bemerkung<textarea data-project-plan-field="remark" rows="2">${escapeHtml(plan.remark || "")}</textarea></label>
+      </div>
+    </details>`;
+}
+
+function useProjectPlanForCurrentAcceptance(protocolId, planId) {
+  const entry = findProjectPlanEntry(protocolId, planId);
+  if (!entry || !state.current) return showAppToast("Plan oder aktuelle Abnahme nicht gefunden.", { type: "error" });
+  state.selectedPlanId = entry.plan.id;
+  state.current.activePlanId = entry.plan.id;
+  persist();
+  showAppToast("Plan für diese Abnahme ausgewählt.", { type: "success" });
+  navigateToView("editorView", { replace: true, keepProjectPlansReturn: true });
+  activateProtocolTab("planTab", { replace: true });
+  renderPlanControls();
+  renderPlan();
 }
 
 function openProjectPlanPreview(protocolId, planId) {
@@ -3570,7 +3707,7 @@ function renderPlanListStatus() {
     <div class="plan-row ${item.id === state.selectedPlanId ? "active" : ""} ${projectPlan ? "project-plan-row" : ""}">
       <button data-select-plan="${escapeAttr(item.id)}" type="button">
         <strong>${escapeHtml(planDisplayName(item))}</strong>
-        <span class="muted">${escapeHtml(item.documentStatus || "verwendet")} · ${escapeHtml(selectedPlanSourceText(item))} · Quelle: ${escapeHtml(planSourceLabel(item))} · ${escapeHtml(item.fileName || item.dropboxFileName || "Datei")} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
+        <span class="muted">${escapeHtml(planMetaLine(item))} · ${escapeHtml(selectedPlanSourceText(item))} · Datei: ${escapeHtml(item.fileName || item.dropboxFileName || "Datei")} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
       </button>
       ${projectPlan ? `<span class="plan-source-chip">Projektplan</span>` : `<button class="project-delete-link" data-delete-plan="${escapeAttr(item.id)}" type="button">Plan löschen</button>`}
     </div>`;
@@ -3680,8 +3817,8 @@ function appendPlanSelectionDebug() {
 }
 
 function planDisplayName(plan) {
-  const number = plan.planNumber || `Plan ${plan.number}`;
-  return `${number}${plan.title ? " " + plan.title : ""}`;
+  normalizePlanMeta(plan);
+  return planCompactTitle(plan);
 }
 
 function isPdfRenderCancelled(error) {
@@ -5268,7 +5405,12 @@ async function handlePlanFiles(files) {
       number: state.current.plans.length + 1,
       fileName: file.name,
       title: meta.title,
+      appPlanName: meta.appPlanName,
+      category: meta.category,
+      floor: meta.floor,
+      component: meta.component,
       planNumber: meta.planNumber,
+      planNo: meta.planNumber,
       planDate: meta.planDate,
       planIndex: "",
       documentStatus: "verwendet",
@@ -5301,6 +5443,11 @@ async function handlePlanFiles(files) {
       fileType: plan.type,
       fileSize: plan.fileSize,
       planName: plan.title,
+      appPlanName: plan.appPlanName || plan.title || "",
+      category: plan.category || "Sonstiges",
+      floor: plan.floor || "",
+      component: plan.component || "",
+      planNo: plan.planNo || plan.planNumber || "",
       planNumber: plan.planNumber,
       planDate: plan.planDate,
       planIndex: plan.planIndex,
@@ -5365,7 +5512,12 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
       number: protocol.plans.length + 1,
       fileName: file.name,
       title: meta.title,
+      appPlanName: meta.appPlanName,
+      category: meta.category,
+      floor: meta.floor,
+      component: meta.component,
       planNumber: meta.planNumber,
+      planNo: meta.planNumber,
       planDate: meta.planDate,
       planIndex: "",
       documentStatus: "verwendet",
@@ -5398,6 +5550,11 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
       fileType: plan.type,
       fileSize: plan.fileSize,
       planName: plan.title,
+      appPlanName: plan.appPlanName || plan.title || "",
+      category: plan.category || "Sonstiges",
+      floor: plan.floor || "",
+      component: plan.component || "",
+      planNo: plan.planNo || plan.planNumber || "",
       planNumber: plan.planNumber,
       planDate: plan.planDate,
       planIndex: plan.planIndex,
@@ -5567,34 +5724,19 @@ function derivePlanMeta(fileName, defaultPlanDate = "") {
     .replace(/\b(plan|bewehrungsplan|schalplan)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
+  const draft = { fileName, title: title || normalized || fileName, planNumber };
+  const category = inferPlanCategory(draft);
+  const floor = inferPlanFloor(draft);
+  const component = inferPlanComponent(draft);
   return {
     planNumber,
-    title: title || normalized || fileName,
+    title: draft.title,
+    appPlanName: draft.title,
+    category,
+    floor,
+    component,
     planDate: defaultPlanDate || ""
   };
-}
-
-async function preloadPdf(plan) {
-  try {
-    if (!window.pdfjsLib) throw new Error("pdf.js nicht geladen");
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
-    const doc = await getPdfDocument(plan);
-    plan.pageCount = doc.numPages;
-    syncPlanRecord(plan);
-    await renderPdfPageToDataUrl(plan, 1);
-    plan.renderStatus = "idle";
-    plan.renderError = "";
-  } catch (error) {
-    plan.renderStatus = "error";
-    plan.renderError = [
-      "Plan konnte nicht angezeigt werden.",
-      `Datei: ${plan.fileName || "unbekannt"}`,
-      `Dateityp: ${plan.type || "unbekannt"}`,
-      `Dateigröße: ${formatBytes(plan.fileSize || 0)}`,
-      `Fehler: ${error.message || error}`,
-      "PDF konnte nicht gerendert werden. Bitte Planseite als JPG/PNG hochladen."
-    ].join("\n");
-  }
 }
 
 function guessFileType(name) {
@@ -10162,7 +10304,7 @@ function planOverviewReport(p) {
     <tbody>
       ${p.plans.map((plan) => `<tr>
         <td><strong>${escapeHtml(displayPlanNumber(plan) || "ohne Angabe")}</strong></td>
-        <td>${escapeHtml(plan.title || plan.fileName)}${plan.remark ? `<br><span class="small">${escapeHtml(plan.remark)}</span>` : ""}</td>
+        <td>${escapeHtml(plan.appPlanName || plan.title || plan.fileName)}${plan.remark ? `<br><span class="small">${escapeHtml(plan.remark)}</span>` : ""}</td>
         <td>${escapeHtml(plan.documentStatus || "verwendet")}</td>
         <td>${escapeHtml(plan.planDate || "ohne Angabe")}</td>
         <td>${escapeHtml(plan.planIndex || "ohne Angabe")}</td>
@@ -10908,6 +11050,13 @@ function bindEvents() {
       persist();
     }
   });
+  bindOptional("#projectPlansContent", "toggle", (event) => {
+    const details = event.target?.closest?.(".project-plan-accordion");
+    if (!details || !details.open) return;
+    $$(".project-plan-accordion", $("#projectPlansContent")).forEach((item) => {
+      if (item !== details) item.open = false;
+    });
+  }, true);
   bindOptional("#markPinSheet", "input", (event) => {
     if (!event.target.matches("[data-mark-pin-field]")) return;
     const pin = state.current?.pins.find((item) => item.id === state.selectedPinId);
@@ -11040,6 +11189,8 @@ function bindEvents() {
     if (openProjectPlanButton) openProjectPlanPreview(openProjectPlanButton.dataset.protocolId, openProjectPlanButton.dataset.openProjectPlan);
     const openDropboxLink = event.target.closest("[data-open-dropbox-link]");
     if (openDropboxLink) openProjectPlanDropboxLink(openDropboxLink.dataset.protocolId, openDropboxLink.dataset.openDropboxLink);
+    const useProjectPlanButton = event.target.closest("[data-use-project-plan]");
+    if (useProjectPlanButton) useProjectPlanForCurrentAcceptance(useProjectPlanButton.dataset.protocolId, useProjectPlanButton.dataset.useProjectPlan);
     const projectPlanUpload = event.target.closest("#projectPlanUploadBtn");
     if (projectPlanUpload) $("#projectPlanUploadInput")?.click();
     const deleteProjectPlanButton = event.target.closest("[data-delete-project-plan]");
@@ -12079,6 +12230,11 @@ async function syncPlanRecord(plan) {
     fileType: plan.type,
     fileSize: plan.fileSize || record.fileSize || 0,
     planName: plan.title,
+    appPlanName: plan.appPlanName || plan.title || "",
+    category: plan.category || "Sonstiges",
+    floor: plan.floor || "",
+    component: plan.component || "",
+    planNo: plan.planNo || plan.planNumber || "",
     planNumber: plan.planNumber,
     planDate: plan.planDate,
     planIndex: plan.planIndex || "",
@@ -12532,6 +12688,8 @@ async function boot() {
 }
 
 boot();
+
+
 
 
 
