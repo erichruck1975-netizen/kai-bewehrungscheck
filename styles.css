@@ -571,7 +571,7 @@ input:focus, textarea:focus, select:focus, button:focus {
   overflow: hidden;
   position: relative;
   margin-top: 12px;
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y;
 }
 
 .plan-wrap.pin-mode-active {
@@ -2880,12 +2880,12 @@ dialog button {
   min-height: 280px;
   height: min(48vh, 520px);
   overflow: hidden;
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y;
 }
 .plan-stage,
 #planImage,
 #pdfCanvas {
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y;
   max-width: none;
 }
 @media (max-width: 640px) {

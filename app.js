@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v126";
+const APP_VERSION = "v127";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -253,7 +253,10 @@ const state = {
     startX: 0,
     startY: 0,
     moved: false,
-    pinTapCandidate: false
+    pinTapCandidate: false,
+    pinchActive: false,
+    pinchStartDistance: 0,
+    pinchStartZoom: 1
   }
 };
 
@@ -1590,7 +1593,7 @@ async function returnFromProjectPlansView() {
   const target = state.projectPlansReturn;
   state.projectPlansReturn = null;
   if (target?.view === "editorView" && state.current) {
-    await navigateToView("editorView", { replace: true });
+    await navigateToView("editorView", { replace: true, keepProjectPlansReturn: true });
     activateProtocolTab(target.tab || "planTab", { replace: true });
     return true;
   }
@@ -12270,6 +12273,7 @@ function bindPlanGestures() {
     state.touch.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     const points = Array.from(state.touch.pointers.values());
     if (points.length >= 2) {
+      if (event.pointerType === "touch" && state.touch.pinchActive) return;
       const distance = pointerDistance(points[0], points[1]);
       const center = pointerCenter(points[0], points[1]);
       if (Math.abs(distance - state.touch.startDistance) > 8) state.touch.moved = true;
@@ -12301,6 +12305,38 @@ function bindPlanGestures() {
     state.touch.pointers.delete(event.pointerId);
     if (state.touch.pointers.size === 0) resetPlanTouch();
   });
+  wrap.addEventListener("touchstart", (event) => {
+    const plan = selectedPlan();
+    if (!plan || !isPlanRenderable(plan)) return;
+    if (event.touches.length >= 2) {
+      const first = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      const second = { x: event.touches[1].clientX, y: event.touches[1].clientY };
+      state.touch.pinchActive = true;
+      state.touch.moved = false;
+      state.touch.pinTapCandidate = false;
+      state.touch.pinchStartDistance = pointerDistance(first, second);
+      state.touch.pinchStartZoom = plan.zoom || 1;
+      event.preventDefault();
+    }
+  }, { passive: false });
+  wrap.addEventListener("touchmove", (event) => {
+    if (!state.touch.pinchActive || event.touches.length < 2) return;
+    const first = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    const second = { x: event.touches[1].clientX, y: event.touches[1].clientY };
+    const distance = pointerDistance(first, second);
+    const center = pointerCenter(first, second);
+    if (Math.abs(distance - state.touch.pinchStartDistance) > 6) state.touch.moved = true;
+    setPlanZoom(state.touch.pinchStartZoom * (distance / Math.max(1, state.touch.pinchStartDistance)), center.x, center.y);
+    event.preventDefault();
+  }, { passive: false });
+  const finishTouchPinch = (event) => {
+    if (event.touches?.length >= 2) return;
+    state.touch.pinchActive = false;
+    state.touch.pinchStartDistance = 0;
+    state.touch.pinchStartZoom = selectedPlan()?.zoom || 1;
+  };
+  wrap.addEventListener("touchend", finishTouchPinch, { passive: true });
+  wrap.addEventListener("touchcancel", finishTouchPinch, { passive: true });
   wrap.addEventListener("wheel", (event) => {
     if (!selectedPlan() || !event.ctrlKey) return;
     event.preventDefault();
@@ -12316,7 +12352,9 @@ function resetPlanTouch() {
   state.touch.startDistance = 0;
   state.touch.startPanX = 0;
   state.touch.startPanY = 0;
+  state.touch.pinchActive = false;
 }
+
 
 function bindMarkGestures() {
   const viewer = $(".mark-viewer");
