@@ -3138,3 +3138,81 @@ dialog button {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* v130: Projektplan-Accordion sauber schließen und mobil ohne Überlappung layouten */
+.project-plan-accordion:not([open]) > .project-plan-card-open {
+  display: none !important;
+}
+.project-plan-accordion > .project-plan-summary-row {
+  position: relative;
+  min-height: auto;
+  background: #ffffff;
+}
+.project-plan-accordion[open] > .project-plan-summary-row {
+  margin-bottom: 0;
+}
+.project-plan-card-open {
+  clear: both;
+  position: relative;
+  z-index: 0;
+}
+.project-plan-card-open .project-plan-card-head {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  justify-content: stretch;
+}
+.project-plan-card-open .project-plan-preview {
+  position: static;
+  width: 132px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 104px;
+  aspect-ratio: 1 / 1.28;
+  align-self: start;
+}
+.project-plan-card-open .project-plan-card-main {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.project-plan-card-open .project-plan-card-main h4,
+.project-plan-card-open .project-plan-card-main p {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.project-plan-card-open .card-actions.compact-actions {
+  margin-top: 6px;
+}
+.project-plan-fields label,
+.project-plan-dropbox label {
+  min-width: 0;
+}
+.project-plan-fields input,
+.project-plan-fields textarea,
+.project-plan-fields select,
+.project-plan-dropbox input,
+.project-plan-dropbox select {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .project-plan-card-open {
+    padding: 10px 12px 12px;
+  }
+  .project-plan-card-open .project-plan-card-head {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .project-plan-card-open .project-plan-preview {
+    width: 100%;
+    min-height: 86px;
+    aspect-ratio: 16 / 6;
+  }
+  .project-plan-card-open .project-plan-card-main h4 {
+    font-size: 15px;
+    line-height: 1.25;
+  }
+}
