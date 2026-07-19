@@ -1,9 +1,9 @@
-﻿const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
+const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
 const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v128";
+const APP_VERSION = "v129";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -3415,8 +3415,17 @@ function renderProjectPlansView() {
         <h3>Importierte Planunterlagen</h3>
         <span class="badge neutral">${visibleEntries.length} von ${entries.length}</span>
       </div>
-      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => projectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">Noch keine passenden Pläne vorhanden. Über „Plan hochladen“ können PDF- und Bildpläne direkt im Projekt gespeichert werden.</div>`}
+      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. Über „Plan hochladen“ können PDF- und Bildpläne direkt im Projekt gespeichert werden."}</div>`}
     </section>`;
+}
+
+function safeProjectPlanCard(protocol, plan) {
+  try {
+    return projectPlanCard(protocol, plan);
+  } catch (error) {
+    console.error("Planliste konnte nicht geladen werden", { error, planId: plan?.id, protocolId: protocol?.id });
+    return `<div class="empty-card warning"><strong>Planliste konnte nicht geladen werden</strong><br><span class="muted">Plan: ${escapeHtml(plan?.fileName || plan?.title || plan?.id || "unbekannt")}</span></div>`;
+  }
 }
 
 function projectPlanCard(protocol, plan) {
@@ -3576,7 +3585,9 @@ function currentPins() {
 }
 
 function allPinsForPlan(plan) {
-  return state.current.pins.filter((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id));
+  if (!plan?.id) return [];
+  const pins = state.current?.pins || [];
+  return pins.filter((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id));
 }
 
 function confirmProjectDeletion(projectId) {
