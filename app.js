@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v132";
+const APP_VERSION = "v133";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -2145,6 +2145,103 @@ function plansForCurrentProtocol() {
       scope: protocol?.id === state.current.id ? "protocol" : "project",
       protocolId: protocol?.id || "",
       protocolTitle: acceptanceLabel(protocol)
+    });
+  });
+  return plans;
+}
+
+function normalizeReportPlanValue(value = "") {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return [];
+  const ascii = raw.normalize ? raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : raw;
+  const compact = ascii.replace(/[^a-z0-9]/g, "");
+  return [...new Set([raw, ascii, compact].filter(Boolean))];
+}
+
+function reportPlanIdentityValues(plan = {}) {
+  const fields = [plan.id, plan.planId, plan.plan_id, plan.planNumber, plan.planNo, plan.plan_number, plan.appPlanName, plan.displayName, plan.planName, plan.plan_title_app, plan.title, plan.name, plan.fileName, plan.filename, plan.dropboxFileName];
+  return [...new Set(fields.flatMap(normalizeReportPlanValue))];
+}
+
+function reportPlanMatches(plan = {}, reference = {}) {
+  const planValues = new Set(reportPlanIdentityValues(plan));
+  if (!planValues.size) return false;
+  return reportPlanIdentityValues(reference).some((value) => planValues.has(value));
+}
+
+function reportPinPlacementReference(pin = {}, placement = {}) {
+  return {
+    id: placement.planId || pin.planId || "",
+    planId: placement.planId || pin.planId || "",
+    plan_id: placement.plan_id || pin.plan_id || "",
+    planNumber: placement.planNumber || pin.planNumber || pin.planNo || "",
+    planNo: placement.planNo || pin.planNo || "",
+    plan_number: placement.plan_number || pin.plan_number || "",
+    appPlanName: placement.appPlanName || placement.planName || pin.planName || "",
+    title: placement.title || placement.planTitle || pin.planTitle || "",
+    name: placement.name || "",
+    fileName: placement.fileName || placement.filename || ""
+  };
+}
+
+function findReportPlan(plans = [], reference = {}) {
+  return (plans || []).find((plan) => reportPlanMatches(plan, reference)) || null;
+}
+
+function reportPlacementForPlan(pin = {}, planOrId = {}, pageNumber = null) {
+  const exactId = typeof planOrId === "string" ? planOrId : "";
+  const planRef = exactId ? { id: exactId, planId: exactId } : (planOrId || {});
+  return pinPlacements(pin).find((placement) => {
+    if (pageNumber && placement.pageNumber !== pageNumber) return false;
+    if (exactId) return placement.planId === exactId;
+    return reportPlanMatches(planRef, reportPinPlacementReference(pin, placement));
+  }) || null;
+}
+
+function pinHasReportPlacement(pin = {}, planOrId = {}, pageNumber = null) {
+  return !!reportPlacementForPlan(pin, planOrId, pageNumber);
+}
+
+function reportPlanPagesForProtocol(protocol = state.current, plan = {}) {
+  const pages = [...new Set((protocol?.pins || []).flatMap((pin) =>
+    pinPlacements(pin)
+      .filter((placement) => reportPlanMatches(plan, reportPinPlacementReference(pin, placement)))
+      .map((placement) => placement.pageNumber || 1)
+  ))];
+  return pages.length ? pages : [plan.currentPage || 1];
+}
+
+function reportPlansForProtocol(protocol = state.current) {
+  if (!protocol) return [];
+  const projectId = protocol.projectId || state.currentProjectId || state.current?.projectId || "";
+  const seen = new Set();
+  const plans = [];
+  const add = (sourcePlan, context = {}) => {
+    if (!sourcePlan) return null;
+    const plan = annotatePlanContext(normalizePlanMeta(sourcePlan), context);
+    const key = plan.id || projectPlanDedupeKey(plan, projectId);
+    const existing = plans.find((item) => (plan.id && item.id === plan.id) || projectPlanDedupeKey(item, projectId) === key);
+    if (seen.has(key) && existing) return existing;
+    seen.add(key);
+    plans.push(plan);
+    return plan;
+  };
+  (protocol.plans || []).forEach((plan) => add(plan, { scope: "protocol", protocolId: protocol.id || "" }));
+  projectPlanEntries(projectId).forEach(({ protocol: sourceProtocol, plan }) => {
+    add(plan, { scope: sourceProtocol?.id === protocol.id ? "protocol" : "project", protocolId: sourceProtocol?.id || "", protocolTitle: acceptanceLabel(sourceProtocol) });
+  });
+  (protocol.pins || []).forEach((pin) => {
+    pinPlacements(pin).forEach((placement) => {
+      if (!placement.planId) return;
+      const reference = reportPinPlacementReference(pin, placement);
+      if (findReportPlan(plans, reference)) return;
+      const resolved = protocol === state.current ? planById(placement.planId) : null;
+      if (resolved) {
+        add(resolved, { scope: "resolved", protocolId: protocol.id || "" });
+        return;
+      }
+      const warning = `Plan zu ${pinLabel(pin)} konnte nicht aufgelöst werden. plan_id: ${placement.planId}, pin_id: ${pin.id}.`;
+      add({ id: String(placement.planId), planId: String(placement.planId), planNumber: placement.planNumber || pin.planNumber || "", appPlanName: placement.planName || pin.planName || "Plan nicht aufgelöst", title: placement.planName || pin.planName || "Plan nicht aufgelöst", fileName: String(placement.planId), pageCount: placement.pageNumber || 1, currentPage: placement.pageNumber || 1, type: "missing", documentStatus: "verwendet", reportOnly: true, renderError: warning }, { scope: "missing", protocolId: protocol.id || "" });
     });
   });
   return plans;
@@ -6970,11 +7067,37 @@ function capitalizeSentenceStarts(text = "") {
   return String(text || "").replace(/(^|[.!?]\s+)([a-zäöü])/g, (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
 }
 
+function dedupeDictationConstructionFragments(text = "") {
+  let value = cleanDictationText(text);
+  const patterns = [
+    [/\b(Die Anschlussbewehrung für die Doppelwände im Bereich des rechten Kranfundaments)\s+\1\s+fehlt noch\b/gi, "$1 fehlt noch"],
+    [/\b(Die Anschlussbewehrung für die Doppelwände ist teilweise nicht vertikal)\s+\1\s+eingebaut\b/gi, "$1 eingebaut"],
+    [/\b(Die Zulagen im Bereich der Vertiefung der Bodenplatte für die später einzubauende Rinne sind zu tief eingebaut)\s+\1\b/gi, "$1"]
+  ];
+  patterns.forEach(([pattern, replacement]) => {
+    value = value.replace(pattern, replacement);
+  });
+  return value;
+}
+
 function polishDictationText(text = "") {
   let value = cleanDictationText(text);
   if (!value) return "";
 
   const phraseReplacements = [
+    [/\banschlussbewertung\b/gi, "Anschlussbewehrung"],
+    [/\banschluss\s*bewehrung\b/gi, "Anschlussbewehrung"],
+    [/\banschlussBewehrung\b/g, "Anschlussbewehrung"],
+    [/\bkranfundaments\b/gi, "Kranfundaments"],
+    [/\bkranfundament\b/gi, "Kranfundament"],
+    [/\bdoppelwände\b/gi, "Doppelwände"],
+    [/\bwu\s*-?\s*bodenplatte\b/gi, "WU-Bodenplatte"],
+    [/\bmindestdicke\b/gi, "Mindestdicke"],
+    [/\bquerbewehrung\b/gi, "Querbewehrung"],
+    [/\bvertiefung\b/gi, "Vertiefung"],
+    [/\brinne\b/gi, "Rinne"],
+    [/\bfugenbleche\b/gi, "Fugenbleche"],
+    [/\bspäter einzubauen der Rinne\b/gi, "später einzubauende Rinne"],
     [/\bmatten\s+lage\b/gi, "Mattenlage"],
     [/\buntergeschoss\s*[- ]\s*grundriss\b/gi, "Untergeschoss-Grundriss"],
     [/\bbeton\s+deckung\b/gi, "Betondeckung"],
@@ -6997,6 +7120,7 @@ function polishDictationText(text = "") {
   const technicalTerms = [
     ["übergreifungslängen", "Übergreifungslängen"],
     ["übergreifungslänge", "Übergreifungslänge"],
+    ["anschlussbewehrung", "Anschlussbewehrung"],
     ["mattenlage", "Mattenlage"],
     ["unterstützungskörbe", "Unterstützungskörbe"],
     ["betondeckung", "Betondeckung"],
@@ -7015,12 +7139,22 @@ function polishDictationText(text = "") {
     ["einbauteile", "Einbauteile"],
     ["bügel", "Bügel"],
     ["abstandhalter", "Abstandhalter"],
-    ["durchstanzbewehrung", "Durchstanzbewehrung"]
+    ["durchstanzbewehrung", "Durchstanzbewehrung"],
+    ["doppelwände", "Doppelwände"],
+    ["kranfundament", "Kranfundament"],
+    ["kranfundaments", "Kranfundaments"],
+    ["wu-bodenplatte", "WU-Bodenplatte"],
+    ["mindestdicke", "Mindestdicke"],
+    ["querbewehrung", "Querbewehrung"],
+    ["vertiefung", "Vertiefung"],
+    ["rinne", "Rinne"]
   ];
   technicalTerms.forEach(([raw, replacement]) => {
     value = value.replace(new RegExp(escapeRegExp(raw), "gi"), replacement);
   });
 
+  value = value.replace(/\bAnschlussBewehrung\b/g, "Anschlussbewehrung");
+  value = dedupeDictationConstructionFragments(value);
   value = value
     .replace(/\s+([.,;:!?])/g, "$1")
     .replace(/([.!?])(?=\S)/g, "$1 ")
@@ -8385,6 +8519,7 @@ async function buildReportParts() {
   const projectInspector = projectInspectorRecord(project);
   const defaultInspectorPerson = projectDefaultInspectorRecord(project, p);
   p.checkpoints.forEach(updateCheckStatus);
+  const reportPlans = reportPlansForProtocol(p);
   const issues = sampleIssues(p);
   const overviewPhotosHtml = await overviewPhotoReport(p);
   const planAppendixHtml = await planAppendixReport(p);
@@ -9122,12 +9257,12 @@ async function pdfImageInfo(dataUrl, context = "Bild") {
 function collectReportPhotoGroups(p) {
   const groups = [];
   const usedPhotoIds = new Set();
-  p.plans.forEach((plan) => {
+  reportPlansForProtocol(p).forEach((plan) => {
     p.pins
-      .filter((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id))
+      .filter((pin) => pinHasReportPlacement(pin, plan))
       .sort((a, b) => (a.number || 0) - (b.number || 0))
       .forEach((pin) => pin.photos.forEach((photo, index) => {
-        const placement = pinPlacements(pin).find((item) => item.planId === plan.id);
+        const placement = reportPlacementForPlan(pin, plan);
         let group = groups.find((item) => item.key === `pin:${pin.id}`);
         if (!group) {
           group = { key: `pin:${pin.id}`, title: `${pinLabel(pin)} - ${pin.title || "Pin"}`, status: pin.status, note: pin.note, meta: `Plan ${displayPlanNumber(plan) || plan.fileName} / Seite ${placement?.pageNumber || pin.pageNumber || 1}`, photos: [] };
@@ -9176,6 +9311,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const projectInspector = projectInspectorRecord(project);
   const defaultInspectorPerson = projectDefaultInspectorRecord(project, p);
   p.checkpoints.forEach(updateCheckStatus);
+  const reportPlans = reportPlansForProtocol(p);
   const issues = sampleIssues(p);
   const pageWidth = 595.28;
   const pageHeight = 841.89;
@@ -9511,10 +9647,10 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     }
     return Math.max(...heights, 42) + 10;
   };
-  const addPinClusters = (box, pins, planId, pageNumber) => {
+  const addPinClusters = (box, pins, planRef, pageNumber) => {
     if (!box || !pins.length) return;
     const items = pins
-      .map((pin) => ({ pin, placement: pinPlacements(pin).find((item) => item.planId === planId && item.pageNumber === pageNumber) }))
+      .map((pin) => ({ pin, placement: reportPlacementForPlan(pin, planRef, pageNumber) }))
       .filter((item) => item.placement)
       .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y }))
       .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
@@ -9618,7 +9754,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "index", title: "Index", weight: 0.7 },
     { key: "pages", title: "Seite(n)", weight: 0.7 },
     { key: "file", title: "Datei", weight: 1.5 }
-  ], p.plans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.planName || plan.fileName || "Plan", status: plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.3, minHeight: 86 });
+  ], reportPlans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.appPlanName || plan.planName || plan.fileName || "Plan", status: plan.documentStatus || plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || plan.dropboxFileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.3, minHeight: 86 });
 
   addHeading("Auflagen / Mängel", { keepWith: issues.length ? 150 : 95 });
   if (!issues.length) {
@@ -9628,7 +9764,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       const sample = issue.sample || {};
       const pin = sample.pinId ? p.pins.find((item) => item.id === sample.pinId) : null;
       const placement = pin ? pinPlacements(pin)[0] : null;
-      const plan = placement?.planId ? p.plans.find((item) => item.id === placement.planId) : null;
+      const plan = placement?.planId ? findReportPlan(reportPlans, reportPinPlacementReference(pin, placement)) : null;
       const status = sample.overlapCheck?.resultStatus || sample.status || "-";
       const style = statusStyle(status);
       ensure(98);
@@ -9711,12 +9847,12 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   });
 
   addHeading("Plananlagen / Planmarkierungen", { pageBreak: true, keepWith: 120 });
-  if (!p.plans.length) addText("Keine Pläne hinterlegt.");
+  const appendixPlans = reportPlans.filter((plan) => (p.pins || []).some((pin) => pinHasReportPlacement(pin, plan)));
+  if (!appendixPlans.length) addText("Keine Planmarkierungen mit Pins dokumentiert.");
   let firstPlanAppendix = true;
-  for (let planIndex = 0; planIndex < p.plans.length; planIndex += 1) {
-    const plan = p.plans[planIndex];
-    const pagesForPlan = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
-    if (!pagesForPlan.length) pagesForPlan.push(plan.currentPage || 1);
+  for (let planIndex = 0; planIndex < appendixPlans.length; planIndex += 1) {
+    const plan = appendixPlans[planIndex];
+    const pagesForPlan = reportPlanPagesForProtocol(p, plan);
     for (const pageNumber of pagesForPlan) {
       if (!firstPlanAppendix || y > pageHeight - bottom - 625) newPage();
       firstPlanAppendix = false;
@@ -9731,12 +9867,14 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       addText(plan.planName || plan.fileName || "Plan", { size: 8.5, color: "#52606d", blank: false });
       y += 2;
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
-      const pinsForPage = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber));
+      const imageError = state.reportPlanErrors?.get(`${plan.id}:${pageNumber}`) || plan.renderError || "Planbild konnte nicht geladen werden.";
+      const pinsForPage = p.pins.filter((pin) => pinHasReportPlacement(pin, plan, pageNumber));
       const tableReserve = pinsForPage.length ? 46 : 18;
       const availablePlanHeight = Math.max(540, pageHeight - bottom - y - tableReserve);
-      const box = await addImage(image, "", { maxHeight: Math.min(720, availablePlanHeight), maxWidth: contentWidth, x: margin, allowPageBreak: false });
+      const box = image ? await addImage(image, "", { maxHeight: Math.min(720, availablePlanHeight), maxWidth: contentWidth, x: margin, allowPageBreak: false }) : null;
+      if (!image) addText(imageError, { size: 8.4, color: "#9f2a25" });
       if (box) addRect(box.x - 4, box.y - 4, box.width + 8, box.height + 8, { fill: "", stroke: pdfTheme.borderStrong, lineWidth: 0.8 });
-      addPinClusters(box, pinsForPage, plan.id, pageNumber);
+      addPinClusters(box, pinsForPage, plan, pageNumber);
       addTable([
         { key: "pin", title: "Pin", weight: 0.5, bold: true },
         { key: "title", title: "Titel / Bereich", weight: 1.8 },
@@ -10422,17 +10560,22 @@ function overlapPdfRows(sample) {
 
 async function ensureReportPlanImages() {
   state.reportPlanImages = new Map();
+  state.reportPlanErrors = new Map();
   state.reportImageCache ||= new Map();
-  for (const plan of state.current.plans) {
-    const pages = [...new Set(state.current.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
-    if (!pages.length) pages.push(plan.currentPage || 1);
+  for (const plan of reportPlansForProtocol(state.current)) {
+    const pages = reportPlanPagesForProtocol(state.current, plan);
+    if (plan.type === "missing" || plan.reportOnly) {
+      pages.forEach((pageNumber) => state.reportPlanErrors.set(`${plan.id}:${pageNumber}`, plan.renderError || "Plan zum Pin konnte nicht aufgelöst werden."));
+      continue;
+    }
     if (plan.type === "application/pdf") {
       for (const pageNumber of pages) {
         try {
           const dataUrl = await renderPdfPageToDataUrl(plan, pageNumber);
           state.reportPlanImages.set(`${plan.id}:${pageNumber}`, await prepareImageForReport(dataUrl, { maxWidth: 2200, maxHeight: 2200, quality: 0.82, mimeType: "image/jpeg" }));
-        } catch {
-          plan.renderError = "PDF konnte nicht gerendert werden. Bitte Planseite als JPG/PNG hochladen.";
+        } catch (error) {
+          const message = `PDF konnte nicht gerendert werden. Plan: ${displayPlanNumber(plan) || plan.fileName || plan.id}, Seite ${pageNumber}. ${error?.message || ""}`.trim();
+          state.reportPlanErrors.set(`${plan.id}:${pageNumber}`, message);
         }
       }
     } else {
@@ -10441,39 +10584,40 @@ async function ensureReportPlanImages() {
         if (record?.blob) {
           const dataUrl = await prepareImageForReport(record.blob, { maxWidth: 2200, maxHeight: 2200, quality: 0.82, mimeType: "image/jpeg" });
           pages.forEach((pageNumber) => state.reportPlanImages.set(`${plan.id}:${pageNumber}`, dataUrl));
+        } else {
+          pages.forEach((pageNumber) => state.reportPlanErrors.set(`${plan.id}:${pageNumber}`, `Planbild konnte nicht geladen werden. plan_id: ${plan.id}`));
         }
-      } catch {
-        plan.renderError = "Planbild konnte nicht geladen werden.";
+      } catch (error) {
+        pages.forEach((pageNumber) => state.reportPlanErrors.set(`${plan.id}:${pageNumber}`, `Planbild konnte nicht geladen werden. ${error?.message || ""}`.trim()));
       }
     }
   }
-  persist();
 }
 
 function displayPlanNumber(plan) {
-  return safePlanNumberCandidate(plan?.planNumber || "");
+  return planPrimaryNumber(plan || {}) || safePlanNumberCandidate(plan?.planNumber || plan?.planNo || plan?.plan_number || "");
 }
 function planOverviewReport(p) {
-  if (!p.plans.length) return "<p>Es wurden keine Planunterlagen hochgeladen.</p>";
+  const plans = reportPlansForProtocol(p);
+  if (!plans.length) return "<p>Es wurden keine Planunterlagen hochgeladen.</p>";
   return `<table>
     <thead><tr><th>Plan-Nr.</th><th>Planbezeichnung</th><th>Status</th><th>Planstand</th><th>Index</th><th>Seite(n)</th><th>Datei</th></tr></thead>
     <tbody>
-      ${p.plans.map((plan) => `<tr>
+      ${plans.map((plan) => `<tr>
         <td><strong>${escapeHtml(displayPlanNumber(plan) || "ohne Angabe")}</strong></td>
-        <td>${escapeHtml(plan.appPlanName || plan.title || plan.fileName)}${plan.remark ? `<br><span class="small">${escapeHtml(plan.remark)}</span>` : ""}</td>
+        <td>${escapeHtml(plan.appPlanName || plan.title || plan.fileName || "Plan")}${plan.remark ? `<br><span class="small">${escapeHtml(plan.remark)}</span>` : ""}${plan.renderError ? `<br><span class="report-warning small">${escapeHtml(plan.renderError)}</span>` : ""}</td>
         <td>${escapeHtml(plan.documentStatus || "verwendet")}</td>
         <td>${escapeHtml(plan.planDate || "ohne Angabe")}</td>
         <td>${escapeHtml(plan.planIndex || "ohne Angabe")}</td>
         <td>${escapeHtml(plan.pageCount || 1)}</td>
-        <td><span class="small">${escapeHtml(plan.fileName)}</span></td>
+        <td><span class="small">${escapeHtml(plan.fileName || plan.dropboxFileName || "")}</span></td>
       </tr>`).join("")}
     </tbody>
   </table>`;
 }
-
-function reportPinCallouts(pins, planId, pageNumber) {
+function reportPinCallouts(pins, planRef, pageNumber) {
   const items = pins
-    .map((pin) => ({ pin, placement: pinPlacements(pin).find((item) => item.planId === planId && item.pageNumber === pageNumber) }))
+    .map((pin) => ({ pin, placement: reportPlacementForPlan(pin, planRef, pageNumber) }))
     .filter((item) => item.placement)
     .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y }))
     .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
@@ -10557,13 +10701,21 @@ async function planFindingCardHtml(entry) {
 
 async function planAppendixReport(p) {
   const planSections = [];
-  const plansWithPins = (p.plans || []).filter((plan) => p.pins.some((pin) => pinPlacements(pin).some((placement) => placement.planId === plan.id)));
-  if (!plansWithPins.length) return `<section class="report-section"><h2>Planmarkierungen und Feststellungen</h2><p>Keine Planmarkierungen mit Pins dokumentiert.</p></section>`;
+  const plansWithPins = reportPlansForProtocol(p).filter((plan) => (p.pins || []).some((pin) => pinHasReportPlacement(pin, plan)));
+  if (!plansWithPins.length) {
+    const pinsWithPlanReference = (p.pins || []).filter((pin) => pinPlacements(pin).some((placement) => placement.planId));
+    if (pinsWithPlanReference.length) {
+      return `<section class="report-section"><h2>Planmarkierungen und Feststellungen</h2><p class="report-warning">Planmarkierungen sind vorhanden, aber die zugehörigen Planunterlagen konnten nicht aufgelöst werden.</p></section>`;
+    }
+    return `<section class="report-section"><h2>Planmarkierungen und Feststellungen</h2><p>Keine Planmarkierungen mit Pins dokumentiert.</p></section>`;
+  }
   for (const [planIndex, plan] of plansWithPins.entries()) {
-    const pages = [...new Set(p.pins.flatMap((pin) => pinPlacements(pin).filter((placement) => placement.planId === plan.id).map((placement) => placement.pageNumber)))];
+    const pages = reportPlanPagesForProtocol(p, plan);
     for (const pageNumber of pages) {
-      const pins = p.pins.filter((pin) => pinHasPlacement(pin, plan.id, pageNumber)).sort((a, b) => (a.number || 0) - (b.number || 0));
+      const pins = (p.pins || []).filter((pin) => pinHasReportPlacement(pin, plan, pageNumber)).sort((a, b) => (a.number || 0) - (b.number || 0));
+      if (!pins.length) continue;
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
+      const imageError = state.reportPlanErrors?.get(`${plan.id}:${pageNumber}`) || plan.renderError || "Planbild nicht verfügbar.";
       const findingCards = [];
       for (const pin of pins) {
         const entries = reportFindingEntriesForPin(p, pin);
@@ -10571,8 +10723,8 @@ async function planAppendixReport(p) {
       }
       planSections.push(`
         <section class="appendix-block page-break">
-          <h2>Anlage ${planIndex + 1} - Plan ${escapeHtml(displayPlanNumber(plan) || plan.fileName)} - ${escapeHtml(plan.title || "Plananlage")} - Seite ${pageNumber}</h2>
-          ${image ? `<div class="plan"><img class="report-plan-image" src="${image}" alt="Plan">${reportPinCallouts(pins, plan.id, pageNumber)}</div>` : `<p>${escapeHtml(plan.renderError || "Planbild nicht verfügbar.")}</p>`}
+          <h2>Anlage ${planIndex + 1} - Plan ${escapeHtml(displayPlanNumber(plan) || plan.fileName || plan.id)} - ${escapeHtml(plan.title || plan.appPlanName || "Plananlage")} - Seite ${pageNumber}</h2>
+          ${image ? `<div class="plan"><img class="report-plan-image" src="${image}" alt="Plan">${reportPinCallouts(pins, plan, pageNumber)}</div>` : `<p class="report-warning">${escapeHtml(imageError)}</p>`}
           <div class="pin-finding-list">${findingCards.join("") || `<p class="muted">Pins vorhanden, aber keine zugeordneten Feststellungen mit Text/Fotos.</p>`}</div>
         </section>
       `);
@@ -10580,7 +10732,6 @@ async function planAppendixReport(p) {
   }
   return planSections.join("");
 }
-
 async function unplacedFindingsReport(p) {
   const entries = [];
   (p.checkpoints || []).forEach((check) => (check.samples || []).forEach((sample) => {
