@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v134";
+const APP_VERSION = "v135";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -171,6 +171,8 @@ const state = {
   selectedPlanId: "",
   selectedPinId: "",
   lastPdfFileShareDebug: null,
+  pinSearchQuery: "",
+  reassignSampleId: "",
   checkScopeOnlyActive: false,
   openCheckId: "",
   openSampleId: "",
@@ -4652,6 +4654,7 @@ function renderChecklist() {
         </div>
       </details>
     </section>
+    ${pinFindingSearchPanel()}
     ${visibleChecks.map((item) => checkAccordionCard(item, item.id === state.openCheckId)).join("")}
   `;
   state.current.checkpoints.forEach((check) => {
@@ -4731,6 +4734,301 @@ function checkScopeRow(item) {
   `;
 }
 
+function pinFindingSearchPanel() {
+  const query = state.pinSearchQuery || "";
+  const results = query.trim() ? pinFindingSearchResults(query) : [];
+  return `
+    <section class="panel pin-search-panel">
+      <div class="section-head">
+        <div>
+          <h3>Pins / Feststellungen suchen</h3>
+          <p class="muted">Pin-Nr., Prüfbereich, Plan, Status oder Bemerkung suchen.</p>
+        </div>
+      </div>
+      <label>Pin, Bereich oder Text suchen
+        <input id="pinFindingSearchInput" value="${escapeAttr(query)}" placeholder="z. B. P3, Randbewehrung, B-002, Mangel">
+      </label>
+      <div class="pin-search-results">
+        ${query.trim()
+          ? (results.length ? results.map(pinFindingResultCard).join("") : `<p class="muted">Keine Treffer für „${escapeHtml(query)}“.</p>`)
+          : `<p class="muted">Suchbegriff eingeben, um Pins und Feststellungen in dieser Abnahme zu finden.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function collectPinFindings() {
+  if (!state.current) return [];
+  const findings = [];
+  (state.current.checkpoints || []).forEach((check) => {
+    (check.samples || []).forEach((sample) => {
+      const pin = sample.pinId ? state.current.pins.find((item) => item.id === sample.pinId) : null;
+      if (!pin && !sampleHasDocumentation(sample)) return;
+      const plan = pin ? planById(pin.planId) : null;
+      findings.push({ check, sample, pin, plan });
+    });
+  });
+  return findings;
+}
+
+function pinFindingSearchResults(query = "") {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  return collectPinFindings().filter(({ check, sample, pin, plan }) => {
+    const pinText = pin ? `${pinLabel(pin)} ${pin.id || ""}` : "";
+    const haystack = [
+      pinText,
+      check.title,
+      sample.location,
+      sample.status,
+      sample.followupStatus,
+      sample.note,
+      sample.followupNote,
+      pin?.title,
+      pin?.note,
+      pin?.status,
+      plan?.planNumber,
+      plan?.appPlanName,
+      plan?.title,
+      plan?.fileName,
+      plan?.planName
+    ].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+
+function pinFindingResultCard({ check, sample, pin, plan }) {
+  const note = (sample.note || sample.followupNote || pin?.note || "").trim();
+  const shortNote = note.length > 140 ? `${note.slice(0, 137)}...` : note;
+  const status = sample.followupStatus || sample.status || pin?.status || "offen / nicht bewertet";
+  const photos = (sample.photos || []).length + (pin?.photos || []).length;
+  const pinName = pin ? pinLabel(pin) : "ohne Pin";
+  const planText = pin && plan ? `${plan.planNumber || plan.appPlanName || plan.fileName || "Plan"} / Seite ${pin.pageNumber || 1}` : "kein Planbezug";
+  return `
+    <article class="pin-search-card">
+      <div class="pin-search-main">
+        <strong>${escapeHtml(pinName)} · ${escapeHtml(check.title)}</strong>
+        <span class="status-badge ${statusClassName(status)}">${escapeHtml(statusLabel(status))}</span>
+      </div>
+      <p class="muted">Prüfstelle ${escapeHtml(String(sample.number || ""))}${sample.location ? ` · ${escapeHtml(sample.location)}` : ""} · ${escapeHtml(planText)} · ${photos} Foto${photos === 1 ? "" : "s"}</p>
+      ${shortNote ? `<p>${escapeHtml(shortNote)}</p>` : `<p class="muted">Keine Bemerkung vorhanden.</p>`}
+      <div class="card-actions compact-actions">
+        <button class="secondary-btn" type="button" data-open-pin-finding="${escapeAttr(sample.id)}">Öffnen</button>
+        ${pin ? `<button class="secondary-btn" type="button" data-show-pin-finding="${escapeAttr(sample.id)}">Auf Plan anzeigen</button>` : ""}
+        ${pin ? `<button class="secondary-btn" type="button" data-reassign-sample="${escapeAttr(sample.id)}">Verschieben / neu zuordnen</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function openPinFinding(sampleId) {
+  const sample = findSample(sampleId);
+  const check = findCheckBySample(sampleId);
+  if (!sample || !check) return;
+  activateCheck(check, true);
+  state.openCheckId = check.id;
+  state.openSampleId = sample.id;
+  renderChecklist();
+  requestAnimationFrame(() => document.querySelector(`[data-sample="${CSS.escape(sample.id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+}
+
+function showPinFindingOnPlan(sampleId) {
+  const sample = findSample(sampleId);
+  if (!sample?.pinId) return;
+  state.selectedPinId = sample.pinId;
+  openPlanMarkDialog(sample.id);
+  requestAnimationFrame(() => {
+    state.selectedPinId = sample.pinId;
+    renderMarkPins();
+    renderMarkPinSheet(sample.pinId);
+  });
+}
+
+function openReassignSampleDialog(sampleId) {
+  const sample = findSample(sampleId);
+  const sourceCheck = findCheckBySample(sampleId);
+  const pin = sample?.pinId ? state.current?.pins?.find((item) => item.id === sample.pinId) : null;
+  if (!sample || !sourceCheck || !pin) return alert("Diese Feststellung hat keinen zugeordneten Pin.");
+  state.reassignSampleId = sample.id;
+  const dialog = ensureReassignDialog();
+  const currentPlan = planById(pin.planId);
+  dialog.innerHTML = `
+    <form method="dialog" class="reassign-dialog-card">
+      <div class="dialog-head">
+        <h3>Feststellung ${escapeHtml(pinLabel(pin))} neu zuordnen</h3>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="Schließen">×</button>
+      </div>
+      <div class="reassign-current">
+        <p><strong>Aktueller Bereich:</strong> ${escapeHtml(sourceCheck.title)}</p>
+        <p><strong>Aktueller Status:</strong> ${escapeHtml(sample.followupStatus || sample.status || pin.status || "offen")}</p>
+        <p><strong>Plan:</strong> ${escapeHtml(currentPlan?.planNumber || currentPlan?.appPlanName || currentPlan?.fileName || "ohne Plan")} / Seite ${escapeHtml(String(pin.pageNumber || 1))}</p>
+        <p class="muted">Pinposition, Fotos und Bemerkung bleiben erhalten.</p>
+      </div>
+      <label>Neuer Prüfbereich / Prüfumfang
+        <select id="reassignCheckSelect">
+          ${(state.current.checkpoints || []).map((check) => `<option value="${escapeAttr(check.id)}" ${check.id === sourceCheck.id ? "selected" : ""}>${escapeHtml(check.title)}</option>`).join("")}
+        </select>
+      </label>
+      <label>Ziel-Prüfstelle
+        <select id="reassignSampleSelect"></select>
+      </label>
+      <label>Titel / Bereich / Achse optional anpassen
+        <input id="reassignLocationInput" value="${escapeAttr(sample.location || pin.title || "")}" placeholder="z. B. Achse B/3">
+      </label>
+      <label>Notiz zur Neuzuordnung optional
+        <textarea id="reassignNoteInput" rows="2" placeholder="z. B. versehentlich falschem Prüfbereich zugeordnet"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button class="secondary-btn" value="cancel" type="submit">Abbrechen</button>
+        <button class="primary-btn" id="confirmReassignSampleBtn" value="default" type="button">Verschieben</button>
+      </div>
+    </form>
+  `;
+  const checkSelect = dialog.querySelector("#reassignCheckSelect");
+  checkSelect.addEventListener("change", renderReassignTargetSamples);
+  dialog.querySelector("#confirmReassignSampleBtn").addEventListener("click", confirmSampleReassignment);
+  renderReassignTargetSamples();
+  dialog.showModal();
+}
+
+function ensureReassignDialog() {
+  let dialog = document.getElementById("reassignSampleDialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "reassignSampleDialog";
+    dialog.className = "app-dialog reassign-dialog";
+    document.body.appendChild(dialog);
+  }
+  return dialog;
+}
+
+function renderReassignTargetSamples() {
+  const dialog = document.getElementById("reassignSampleDialog");
+  const target = dialog?.querySelector("#reassignSampleSelect");
+  const checkId = dialog?.querySelector("#reassignCheckSelect")?.value || "";
+  const currentSampleId = state.reassignSampleId;
+  const check = state.current?.checkpoints?.find((item) => item.id === checkId);
+  if (!target || !check) return;
+  const options = [`<option value="__new__">neue Prüfstelle im Zielbereich anlegen</option>`].concat((check.samples || [])
+    .filter((sample) => sample.id !== currentSampleId)
+    .map((sample) => `<option value="${escapeAttr(sample.id)}">Prüfstelle ${escapeHtml(String(sample.number || ""))}${sample.location ? ` · ${escapeHtml(sample.location)}` : ""}${sample.pinId ? " · Pin vorhanden" : ""}</option>`));
+  target.innerHTML = options.join("");
+}
+
+function confirmSampleReassignment() {
+  const dialog = document.getElementById("reassignSampleDialog");
+  const sample = findSample(state.reassignSampleId);
+  const sourceCheck = findCheckBySample(state.reassignSampleId);
+  const targetCheckId = dialog?.querySelector("#reassignCheckSelect")?.value || "";
+  const targetChoice = dialog?.querySelector("#reassignSampleSelect")?.value || "__new__";
+  const location = dialog?.querySelector("#reassignLocationInput")?.value.trim() || "";
+  const note = dialog?.querySelector("#reassignNoteInput")?.value.trim() || "";
+  const targetCheck = state.current?.checkpoints?.find((check) => check.id === targetCheckId);
+  const pin = sample?.pinId ? state.current?.pins?.find((item) => item.id === sample.pinId) : null;
+  if (!sample || !sourceCheck || !targetCheck || !pin) return;
+  const targetTitle = targetCheck.title;
+  if (!confirm(`${pinLabel(pin)} von ${sourceCheck.title} nach ${targetTitle} verschieben? Pinposition, Fotos und Bemerkung bleiben erhalten.`)) return;
+  const moved = reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice, { location, note });
+  if (!moved) return;
+  dialog?.close();
+  showAppToast(`${pinLabel(pin)} wurde verschoben. Fotos, Pin und Bemerkung wurden übernommen.`, { type: "success" });
+}
+
+function reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice = "__new__", options = {}) {
+  const pin = state.current.pins.find((item) => item.id === sample.pinId);
+  const timestamp = new Date().toISOString();
+  const historyEntry = {
+    moved_from_check_id: sourceCheck.id,
+    moved_from_check_title: sourceCheck.title,
+    moved_from_sample_id: sample.id,
+    moved_from_sample_title: `Prüfstelle ${sample.number || ""}`.trim(),
+    moved_to_check_id: targetCheck.id,
+    moved_to_check_title: targetCheck.title,
+    moved_at: timestamp,
+    moved_by: "user",
+    reassignment_note: options.note || ""
+  };
+  let targetSample = null;
+  if (targetChoice && targetChoice !== "__new__") {
+    targetSample = targetCheck.samples.find((item) => item.id === targetChoice) || null;
+    if (targetSample?.pinId && targetSample.pinId !== sample.pinId) {
+      alert("Die gewählte Ziel-Prüfstelle hat bereits einen anderen Pin. Bitte eine neue Ziel-Prüfstelle anlegen oder eine andere Prüfstelle wählen.");
+      return false;
+    }
+  }
+  sourceCheck.samples = (sourceCheck.samples || []).filter((item) => item.id !== sample.id);
+  if (targetSample) {
+    targetSample.status = sample.status || targetSample.status;
+    targetSample.followupStatus = sample.followupStatus || targetSample.followupStatus;
+    targetSample.note = mergeTextBlocks(targetSample.note || targetSample.followupNote || "", sample.note || sample.followupNote || "");
+    targetSample.followupNote = isFollowupProtocol() ? targetSample.note : targetSample.followupNote;
+    targetSample.location = options.location || sample.location || targetSample.location || "";
+    targetSample.pinId = sample.pinId;
+    targetSample.photos = mergePhotoRefs(targetSample.photos || [], sample.photos || []);
+    targetSample.reassign_history = [...(targetSample.reassign_history || []), ...(sample.reassign_history || []), { ...historyEntry, moved_to_sample_id: targetSample.id, moved_to_sample_title: `Prüfstelle ${targetSample.number || ""}`.trim() }];
+    targetSample.moved_from_check_id = sourceCheck.id;
+    targetSample.moved_from_check_title = sourceCheck.title;
+    targetSample.moved_to_check_id = targetCheck.id;
+    targetSample.moved_to_check_title = targetCheck.title;
+    targetSample.moved_at = timestamp;
+    targetSample.moved_by = "user";
+    targetSample.updatedAt = timestamp;
+    sample = targetSample;
+  } else {
+    sample.checkItemId = targetCheck.id;
+    sample.number = nextSampleNumber(targetCheck);
+    sample.location = options.location || sample.location || "";
+    sample.reassign_history = [...(sample.reassign_history || []), { ...historyEntry, moved_to_sample_id: sample.id, moved_to_sample_title: `Prüfstelle ${sample.number || ""}`.trim() }];
+    sample.moved_from_check_id = sourceCheck.id;
+    sample.moved_from_check_title = sourceCheck.title;
+    sample.moved_to_check_id = targetCheck.id;
+    sample.moved_to_check_title = targetCheck.title;
+    sample.moved_at = timestamp;
+    sample.moved_by = "user";
+    sample.updatedAt = timestamp;
+    targetCheck.samples.push(sample);
+  }
+  if (pin) {
+    pin.checkItemId = targetCheck.id;
+    pin.sampleId = sample.id;
+    pin.title = options.location || sample.location || pin.title || targetCheck.title;
+    pin.reassign_history = [...(pin.reassign_history || []), { ...historyEntry, moved_to_sample_id: sample.id, moved_to_sample_title: `Prüfstelle ${sample.number || ""}`.trim() }];
+    pin.moved_from_check_id = sourceCheck.id;
+    pin.moved_from_check_title = sourceCheck.title;
+    pin.moved_from_sample_id = historyEntry.moved_from_sample_id;
+    pin.moved_to_check_id = targetCheck.id;
+    pin.moved_to_check_title = targetCheck.title;
+    pin.moved_to_sample_id = sample.id;
+    pin.moved_to_sample_title = `Prüfstelle ${sample.number || ""}`.trim();
+    pin.moved_at = timestamp;
+    pin.moved_by = "user";
+    pin.updatedAt = timestamp;
+  }
+  activateCheck(targetCheck, true);
+  updateCheckStatus(sourceCheck);
+  updateCheckStatus(targetCheck);
+  state.openCheckId = targetCheck.id;
+  state.openSampleId = sample.id;
+  state.selectedPinId = pin?.id || state.selectedPinId;
+  state.current.updatedAt = timestamp;
+  persist();
+  renderChecklist();
+  return true;
+}
+
+function mergeTextBlocks(existing = "", incoming = "") {
+  const left = String(existing || "").trim();
+  const right = String(incoming || "").trim();
+  if (!left) return right;
+  if (!right || left.includes(right)) return left;
+  return `${left}\n\n${right}`;
+}
+
+function mergePhotoRefs(existing = [], incoming = []) {
+  const map = new Map();
+  [...existing, ...incoming].forEach((photo) => { if (photo?.id && !map.has(photo.id)) map.set(photo.id, photo); });
+  return [...map.values()];
+}
 function sampleCard(check, sample) {
   if (isFollowupProtocol()) return followupSampleCard(check, sample);
   const isOpen = state.openSampleId === sample.id;
@@ -11407,7 +11705,16 @@ function bindEvents() {
       schedulePersist();
       return;
     }
-    if (event.target.matches("[data-sample-field]")) {
+    if (event.target.id === "pinFindingSearchInput") {
+      state.pinSearchQuery = event.target.value || "";
+      renderChecklist();
+      const input = document.getElementById("pinFindingSearchInput");
+      if (input) {
+        input.focus({ preventScroll: true });
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+      return;
+    }    if (event.target.matches("[data-sample-field]")) {
       const sample = findSample(event.target.closest("[data-sample]").dataset.sample);
       if (!sample) return;
       const check = findCheckBySample(sample.id);
@@ -11849,6 +12156,12 @@ function bindEvents() {
         renderChecklist();
       }
     }
+    const openPinFindingButton = event.target.closest("[data-open-pin-finding]");
+    if (openPinFindingButton) return openPinFinding(openPinFindingButton.dataset.openPinFinding);
+    const showPinFindingButton = event.target.closest("[data-show-pin-finding]");
+    if (showPinFindingButton) return showPinFindingOnPlan(showPinFindingButton.dataset.showPinFinding);
+    const reassignSampleButton = event.target.closest("[data-reassign-sample]");
+    if (reassignSampleButton) return openReassignSampleDialog(reassignSampleButton.dataset.reassignSample);
     const activateCheckButton = event.target.closest("[data-activate-check]");
     if (activateCheckButton) {
       const check = state.current.checkpoints.find((item) => item.id === activateCheckButton.dataset.activateCheck);
