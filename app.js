@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v139";
+const APP_VERSION = "v140";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -11083,7 +11083,16 @@ function followupSourceLabel(protocol) {
 
 function issuesReport(issues) {
   if (!issues.length) return `<p>Keine Auflagen / Mängel dokumentiert.</p>`;
-  return `<section class="compact-summary"><p class="muted">Kurzübersicht. Die ausführliche Feststellung mit Bemerkung und Fotos steht direkt bei der Planmarkierung.</p><ol class="issues-list">
+  const issueCounts = issues.reduce((acc, issue) => {
+    const followup = !!(issue.sample.sourceStatus || issue.sample.followupStatus);
+    const status = String(followup ? (issue.sample.followupStatus || issue.sample.status) : (issue.sample.overlapCheck?.resultStatus || issue.sample.status) || "").toLowerCase();
+    if (status.includes("mangel")) acc.bad += 1;
+    else if (status.includes("auflage") || status.includes("teilweise")) acc.partial += 1;
+    else acc.other += 1;
+    return acc;
+  }, { bad: 0, partial: 0, other: 0 });
+  const countText = `${issues.length} relevante Feststellung${issues.length === 1 ? "" : "en"}, davon ${issueCounts.bad} Mängel und ${issueCounts.partial} Auflagen${issueCounts.other ? `, ${issueCounts.other} weitere offene Punkte` : ""}.`;
+  return `<section class="compact-summary"><p class="muted"><strong>Kurzübersicht der relevanten Feststellungen:</strong><br>${escapeHtml(countText)}</p><ol class="issues-list">
     ${issues.map((issue) => {
       const followup = !!(issue.sample.sourceStatus || issue.sample.followupStatus);
       const status = followup ? (issue.sample.followupStatus || issue.sample.status) : (issue.sample.overlapCheck?.resultStatus || issue.sample.status);
@@ -11101,24 +11110,9 @@ function checklistReport(protocol) {
       ? `<p>Keine übernommenen offenen Punkte dokumentiert.</p>`
       : `<p>Keine Checkbereiche aktiviert oder dokumentiert.</p><p class="small">Nicht aufgeführte Prüfpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
   }
-  const counts = checks.reduce((acc, check) => {
-    const status = check.status || "offen / nicht bewertet";
-    if (status.includes("Mangel")) acc.bad += 1;
-    else if (status.includes("Auflage") || status.includes("teilweise")) acc.partial += 1;
-    else if (status.includes("Dokumentation")) acc.doc += 1;
-    else if (status.includes("OK")) acc.ok += 1;
-    else if (status.includes("nicht relevant")) acc.na += 1;
-    else acc.open += 1;
-    return acc;
-  }, { bad: 0, partial: 0, doc: 0, ok: 0, na: 0, open: 0 });
   const documentedSamples = checks.reduce((sum, check) => sum + (check.samples || []).length, 0);
-  const issueTitles = checks
-    .filter((check) => (check.status || "").includes("Mangel") || (check.status || "").includes("Auflage") || (check.status || "").includes("teilweise"))
-    .map((check) => check.title)
-    .slice(0, 4);
   return `<section class="compact-summary compact-check-summary">
-    <p><strong>${checks.length} Prüfumfang(e), ${documentedSamples} Prüfstelle(n).</strong> Mängel: ${counts.bad}, Auflagen/teilweise: ${counts.partial}, Dokumentation: ${counts.doc}, OK: ${counts.ok}, nicht relevant: ${counts.na}, offen: ${counts.open}.</p>
-    ${issueTitles.length ? `<p class="small"><strong>Relevante Punkte:</strong> ${issueTitles.map(escapeHtml).join(" · ")}${checks.length > issueTitles.length ? " · weitere siehe Planmarkierungen" : ""}</p>` : `<p class="small">Details stehen kompakt direkt bei Planmarkierungen oder dokumentierten Punkten ohne Pin.</p>`}
+    <p><strong>${checks.length} Prüfumfänge, ${documentedSamples} Prüfstellen.</strong><br>Die für die Betonage relevanten Feststellungen sind oben als Mängel und Auflagen zusammengefasst.</p>
   </section>`;
 }
 
