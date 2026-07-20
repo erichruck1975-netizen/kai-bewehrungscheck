@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v135";
+const APP_VERSION = "v136";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -5345,15 +5345,28 @@ function samplePinMeta(sample) {
   return pin && plan ? `${pinLabel(pin)} · ${plan.planNumber || plan.fileName} · Seite ${pin.pageNumber}` : "Zugeordneter Pin nicht gefunden.";
 }
 
+function photosForSampleOrPin(sample = {}) {
+  const pin = sample.pinId ? state.current?.pins?.find((item) => item.id === sample.pinId) : null;
+  const direct = sample.photos || [];
+  const viaPin = pin?.photos || [];
+  return uniquePhotoRefs([...direct, ...viaPin]).map((photo) => ({
+    ...photo,
+    _source: direct.some((item) => item.id === photo.id) ? "sample" : "pin"
+  }));
+}
+
 function samplePhotoGrid(sample) {
-  if (!sample.photos?.length) return `<p class="muted">Noch keine Fotos in dieser Prüfstelle.</p>`;
-  return `<div class="thumb-row">${sample.photos.map((photo) => `
+  const photos = photosForSampleOrPin(sample);
+  if (!photos.length) return `<p class="muted">Noch keine Fotos in dieser Prüfstelle.</p>`;
+  const hasPinPhotos = photos.some((photo) => photo._source === "pin");
+  return `${hasPinPhotos ? `<p class="muted">Fotos aus Pin-Zuordnung übernommen.</p>` : ""}<div class="thumb-row">${photos.map((photo) => `
     <figure class="sample-photo">
       <img class="thumb" data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
+      ${photo._source === "pin" ? `<small class="muted">Pin-Foto</small>` : ""}
       ${barCountSummary(photo)}
       ${photoBackupActions(photo)}
       <button class="small-btn" type="button" data-bar-count-photo="${photo.id}">Stäbe zählen (Beta)</button>
-      <button class="danger-btn" type="button" data-delete-sample-photo="${sample.id}" data-photo-id="${photo.id}">Foto löschen</button>
+      ${photo._source === "sample" ? `<button class="danger-btn" type="button" data-delete-sample-photo="${sample.id}" data-photo-id="${photo.id}">Foto löschen</button>` : ""}
     </figure>
   `).join("")}</div>`;
 }
@@ -6586,6 +6599,7 @@ function openPlanMarkDialog(sampleId) {
     alert(androidFirefoxWarningText());
   }
   const pin = sample.pinId ? state.current.pins.find((item) => item.id === sample.pinId) : null;
+  if (pin) state.selectedPinId = pin.id;
   const preferredPlanId = pin?.planId || sample.planId || state.selectedPlanId || state.current.activePlanId || plans[0].id;
   const selectedMarkPlan = planById(preferredPlanId) || plans[0];
   if (!selectedMarkPlan) {
@@ -6613,6 +6627,7 @@ function openPlanMarkDialog(sampleId) {
   renderMarkSelectors();
   $("#planMarkDialog").showModal();
   renderMarkPlan();
+  if (pin) requestAnimationFrame(() => { state.selectedPinId = pin.id; renderMarkPins(); renderMarkPinSheet(pin.id); });
 }
 
 function openSiteControlPlanMarkDialog(itemId, { reset = false } = {}) {
