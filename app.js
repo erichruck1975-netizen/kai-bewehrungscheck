@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v133";
+const APP_VERSION = "v134";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1381,15 +1381,43 @@ function normalizeSample(sample, checkItemId, number) {
 }
 
 function normalizePhotoRef(photo = {}) {
+  const backupStatus = normalizePhotoBackupStatus(photo.external_backup_status || photo.externalBackupStatus || photo.backupStatus || "unknown");
   return {
     id: photo.id || uid("photo"),
     name: photo.name || photo.fileName || "Foto",
     type: photo.type || photo.fileType || "image/jpeg",
     createdAt: photo.createdAt || new Date().toISOString(),
-    barCountAnalysis: normalizeBarCountAnalysis(photo.barCountAnalysis)
+    barCountAnalysis: normalizeBarCountAnalysis(photo.barCountAnalysis),
+    external_backup_status: backupStatus,
+    external_backup_at: photo.external_backup_at || photo.externalBackupAt || "",
+    external_backup_method: photo.external_backup_method || photo.externalBackupMethod || "",
+    original_capture_source: photo.original_capture_source || photo.originalCaptureSource || ""
   };
 }
 
+function normalizePhotoBackupStatus(status = "") {
+  const value = String(status || "").trim();
+  return ["unknown", "app_only", "share_started", "download_started", "user_confirmed_external"].includes(value) ? value : "unknown";
+}
+
+function photoBackupStatus(photo = {}) {
+  return normalizePhotoBackupStatus(photo.external_backup_status || photo.externalBackupStatus || photo.backupStatus || (photo.original_capture_source === "gallery" ? "user_confirmed_external" : "app_only"));
+}
+
+function photoBackupStatusLabel(photo = {}) {
+  const status = photoBackupStatus(photo);
+  if (status === "user_confirmed_external") return "Extern gesichert";
+  if (status === "share_started") return "Share gestartet";
+  if (status === "download_started") return "Download gestartet";
+  if (photo.original_capture_source === "gallery" || photo.external_backup_method === "gallery_input") return "Aus Galerie übernommen";
+  return "Extern offen";
+}
+
+function photoBackupBadge(photo = {}) {
+  const status = photoBackupStatus(photo);
+  const cls = status === "user_confirmed_external" ? "ok" : (status === "share_started" || status === "download_started" ? "started" : "open");
+  return `<span class="photo-backup-badge ${cls}">${escapeHtml(photoBackupStatusLabel(photo))}</span>`;
+}
 function normalizeBarCountAnalysis(analysis = null) {
   if (!analysis) return null;
   return {
@@ -2586,6 +2614,8 @@ function renderFollowupContextBanner() {
 }
 
 function renderOverviewPhotos() {
+  const summary = $("#photoBackupSummary");
+  if (summary) summary.innerHTML = photoBackupSummaryHtml();
   const list = $("#overviewPhotoList");
   if (!list || !state.current) return;
   state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
@@ -2604,6 +2634,7 @@ function renderOverviewPhotos() {
         <label>Bildbeschreibung / Kommentar
           <textarea data-overview-caption="${item.id}" rows="2" placeholder="z. B. Bodenplatte Übersicht">${escapeHtml(item.caption)}</textarea>
         </label>
+        ${photoBackupActions({ ...item, id: item.photoId, name: item.caption || "Übersichtsfoto" })}
         <div class="overview-photo-tools">
           <button class="small-btn" type="button" data-overview-up="${item.id}" ${index === 0 ? "disabled" : ""}>Nach oben</button>
           <button class="small-btn" type="button" data-overview-down="${item.id}" ${index === photos.length - 1 ? "disabled" : ""}>Nach unten</button>
@@ -5022,12 +5053,12 @@ function samplePhotoGrid(sample) {
     <figure class="sample-photo">
       <img class="thumb" data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
       ${barCountSummary(photo)}
+      ${photoBackupActions(photo)}
       <button class="small-btn" type="button" data-bar-count-photo="${photo.id}">Stäbe zählen (Beta)</button>
       <button class="danger-btn" type="button" data-delete-sample-photo="${sample.id}" data-photo-id="${photo.id}">Foto löschen</button>
     </figure>
   `).join("")}</div>`;
 }
-
 function defaultOverlapCheck(sample = {}) {
   return {
     mode: OVERLAP_PLAN_MODE,
@@ -5502,7 +5533,7 @@ function statusLabel(status) {
 
 function thumbs(photos) {
   if (!photos?.length) return "";
-  return `<div class="thumb-row">${photos.map((photo) => `<img class="thumb" data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">`).join("")}</div>`;
+  return `<div class="thumb-row">${photos.map((photo) => `<figure class="sample-photo compact"><img class="thumb" data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">${photoBackupActions(photo)}</figure>`).join("")}</div>`;
 }
 
 async function handlePlanFiles(files) {
@@ -5860,6 +5891,177 @@ function guessFileType(name) {
   return "image/jpeg";
 }
 
+function sanitizePhotoBackupFileName(value = "") {
+  return String(value || "Foto")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120) || "Foto";
+}
+
+function photoBackupFileName(photo = {}) {
+  const project = projectById(state.current?.projectId || state.currentProjectId || "");
+  const parts = [project?.name || state.current?.head?.projectName || "Projekt", state.current?.head?.acceptanceTitle || state.current?.head?.component || state.current?.kind || "Abnahme"];
+  const refs = findCurrentPhotoRefs(photo.id || "");
+  const pinRef = refs.find((ref) => ref.kind === "pin");
+  const sampleRef = refs.find((ref) => ref.kind === "sample");
+  const siteRef = refs.find((ref) => ref.kind === "siteItem");
+  if (pinRef?.pin) parts.push(pinLabel(pinRef.pin), pinRef.pin.title || "Pin");
+  else if (sampleRef?.sample) parts.push(`Pruefstelle_${sampleRef.sample.number || ""}`, sampleRef.sample.location || "");
+  else if (siteRef?.item) parts.push(siteRef.item.type || "Feststellung", siteRef.item.location || "");
+  else parts.push(photo.name || "Foto");
+  const stamp = (photo.createdAt || new Date().toISOString()).replace(/[-:]/g, "").replace("T", "_").slice(0, 13);
+  const ext = (photo.type || photo.fileType || "image/jpeg").includes("png") ? "png" : "jpg";
+  return `${sanitizePhotoBackupFileName(parts.filter(Boolean).join("_"))}_${stamp}.${ext}`;
+}
+
+function findCurrentPhotoRefs(photoId = "") {
+  if (!state.current || !photoId) return [];
+  const refs = [];
+  (state.current.overviewPhotos || []).forEach((item) => { if (item.photoId === photoId) refs.push({ kind: "overview", item }); });
+  (state.current.pins || []).forEach((pin) => (pin.photos || []).forEach((photo) => { if (photo.id === photoId) refs.push({ kind: "pin", pin, photo }); }));
+  (state.current.checkpoints || []).forEach((check) => {
+    (check.photos || []).forEach((photo) => { if (photo.id === photoId) refs.push({ kind: "check", check, photo }); });
+    (check.samples || []).forEach((sample) => (sample.photos || []).forEach((photo) => { if (photo.id === photoId) refs.push({ kind: "sample", check, sample, photo }); }));
+  });
+  (state.current.siteItems || []).forEach((item) => (item.photos || []).forEach((photo) => { if (photo.id === photoId) refs.push({ kind: "siteItem", item, photo }); }));
+  (state.current.dailyReport?.photos || []).forEach((photo) => { if (photo.id === photoId) refs.push({ kind: "dailyReport", photo }); });
+  return refs;
+}
+
+function updatePhotoBackupRefs(photoId, fields = {}) {
+  findCurrentPhotoRefs(photoId).forEach((ref) => {
+    if (ref.photo) Object.assign(ref.photo, fields);
+    if (ref.kind === "overview" && ref.item) Object.assign(ref.item, fields, { updatedAt: new Date().toISOString() });
+  });
+}
+
+async function updateStoredPhotoBackup(photoId, fields = {}) {
+  const record = await idbGet("photos", photoId);
+  if (record) await idbPut("photos", { ...record, ...fields });
+  updatePhotoBackupRefs(photoId, fields);
+  await persist();
+}
+
+function photoBackupActions(photo = {}) {
+  const status = photoBackupStatus(photo);
+  return `<div class="photo-backup-box ${status === "user_confirmed_external" ? "done" : "open"}">
+    <div><strong>Foto in App gespeichert</strong><br><span>${status === "user_confirmed_external" ? "Extern gesichert" : "Externe Sicherung noch offen"}</span></div>
+    ${photoBackupBadge(photo)}
+    <div class="photo-backup-actions">
+      <button class="small-btn" type="button" data-photo-backup-share="${escapeAttr(photo.id)}">Foto extern sichern</button>
+      <button class="small-btn" type="button" data-photo-backup-download="${escapeAttr(photo.id)}">Download</button>
+      ${status !== "user_confirmed_external" ? `<button class="small-btn" type="button" data-photo-backup-confirm="${escapeAttr(photo.id)}">Ich habe das Foto extern gesichert</button>` : ""}
+    </div>
+  </div>`;
+}
+
+function photoBackupSummaryHtml() {
+  const photos = collectCurrentPhotoRefs();
+  if (!photos.length) return `<section class="photo-backup-summary"><h3>Fotos dieser Abnahme</h3><p class="muted">Noch keine Fotos vorhanden.</p></section>`;
+  const unique = new Map();
+  photos.forEach((photo) => { if (photo?.id && !unique.has(photo.id)) unique.set(photo.id, photo); });
+  const list = [...unique.values()];
+  const secured = list.filter((photo) => photoBackupStatus(photo) === "user_confirmed_external").length;
+  const open = list.length - secured;
+  return `<section class="photo-backup-summary"><h3>Fotos dieser Abnahme</h3><p>${list.length} Foto(s) gesamt · ${open} externe Sicherung offen · ${secured} extern gesichert</p>${open ? `<p class="report-warning">Web-Apps speichern Kamerafotos nicht immer automatisch in der Galerie. Bitte offene Fotos zusätzlich sichern.</p>` : `<p class="muted">Alle bekannten Fotos sind als extern gesichert markiert.</p>`}</section>`;
+}
+
+function collectCurrentPhotoRefs() {
+  if (!state.current) return [];
+  const photos = [];
+  (state.current.overviewPhotos || []).forEach((item) => photos.push({ id: item.photoId, name: item.caption || "Übersichtsfoto", type: "image/jpeg", external_backup_status: item.external_backup_status || "unknown", external_backup_method: item.external_backup_method || "", original_capture_source: item.original_capture_source || "" }));
+  (state.current.pins || []).forEach((pin) => photos.push(...(pin.photos || [])));
+  (state.current.checkpoints || []).forEach((check) => {
+    photos.push(...(check.photos || []));
+    (check.samples || []).forEach((sample) => photos.push(...(sample.photos || [])));
+  });
+  (state.current.siteItems || []).forEach((item) => photos.push(...(item.photos || [])));
+  photos.push(...(state.current.dailyReport?.photos || []));
+  return photos.filter((photo) => photo?.id);
+}
+
+function hasUnsecuredCurrentPhotos() {
+  const seen = new Set();
+  return collectCurrentPhotoRefs().some((photo) => {
+    if (!photo?.id || seen.has(photo.id)) return false;
+    seen.add(photo.id);
+    return photoBackupStatus(photo) !== "user_confirmed_external";
+  });
+}
+
+async function shareOrDownloadPhoto(photoId, mode = "share") {
+  const refs = findCurrentPhotoRefs(photoId);
+  const storedPhoto = refs.find((ref) => ref.photo)?.photo;
+  const overviewItem = refs.find((ref) => ref.item)?.item;
+  const photo = storedPhoto || (overviewItem ? { ...overviewItem, id: photoId, name: overviewItem.caption || overviewItem.name || "Übersichtsfoto", type: overviewItem.type || "image/jpeg" } : { id: photoId, name: "Foto", type: "image/jpeg" });
+  const record = await idbGet("photos", photoId);
+  if (!record?.blob) return showAppToast("Foto konnte nicht geladen werden.", { type: "error" });
+  const type = record.fileType || photo.type || "image/jpeg";
+  const fileName = photoBackupFileName({ ...photo, type, createdAt: record.createdAt || photo.createdAt });
+  const file = typeof File === "function" ? new File([record.blob], fileName, { type }) : null;
+  const markStarted = async (status, method) => {
+    await updateStoredPhotoBackup(photoId, { external_backup_status: status, external_backup_at: new Date().toISOString(), external_backup_method: method });
+    renderAfterPhotoBackupChange();
+  };
+  if (mode === "share" && navigator.share && file) {
+    try {
+      await navigator.share({ title: "Foto sichern", text: "Baustellenfoto zusätzlich sichern/teilen.", files: [file] });
+      await markStarted("share_started", "share");
+      showAppToast("Share-Dialog geöffnet. Bitte anschließend bestätigen, wenn das Foto extern gesichert ist.", { type: "success" });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      console.warn("Foto-Teilen nicht möglich", error);
+    }
+  }
+  const url = URL.createObjectURL(record.blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  await markStarted("download_started", "download");
+  showAppToast("Download gestartet. Bitte anschließend bestätigen, wenn das Foto extern gesichert ist.", { type: "success" });
+}
+
+async function confirmPhotoExternalBackup(photoId) {
+  await updateStoredPhotoBackup(photoId, { external_backup_status: "user_confirmed_external", external_backup_at: new Date().toISOString(), external_backup_method: "manual_confirm" });
+  renderAfterPhotoBackupChange();
+  showAppToast("Foto als extern gesichert markiert.", { type: "success" });
+}
+
+function renderAfterPhotoBackupChange() {
+  if ($("#selectedPinPanel")) renderPinEditor();
+  if ($("#checkList")) renderChecklist();
+  renderOverviewPhotos();
+  if ($("#photoGrid")) renderPhotoDialog();
+  if ($("#markPinSheet")) renderMarkPinSheet(state.selectedPinId);
+  if (isSiteControlProtocol()) renderSiteControlEditor();
+  if (isDailyReportProtocol()) renderDailyReportEditor();
+}
+
+function confirmReportWithUnsecuredPhotos() {
+  if (!hasUnsecuredCurrentPhotos()) return true;
+  return confirm("Es gibt Fotos, die noch nicht extern gesichert wurden. Bericht trotzdem erzeugen?");
+}
+
+async function savePdfFromA4ReportWithPhotoWarning() {
+  if (!confirmReportWithUnsecuredPhotos()) return false;
+  await savePdfFromA4Report();
+  return true;
+}
+
+async function openReportDialogWithPhotoWarning(options = {}) {
+  if (!confirmReportWithUnsecuredPhotos()) return false;
+  await openReportDialog(options);
+  return true;
+}
+
 async function addPhotos(files, explicitTarget = null) {
   const target = explicitTarget || state.photoTarget;
   if (!target || !files.length || !state.current) return;
@@ -5867,9 +6069,12 @@ async function addPhotos(files, explicitTarget = null) {
   const overviewEntries = [];
   const projectId = state.current.projectId || state.currentProjectId || "";
   const protocolId = state.current.id || "";
+  const source = target.source || "file";
+  const initialBackupStatus = source === "gallery" ? "user_confirmed_external" : "app_only";
+  const initialBackupMethod = source === "gallery" ? "gallery_input" : "";
   for (const file of files) {
     if (!file || !file.size) continue;
-    const photo = { id: uid("photo"), name: file.name || "Foto", type: file.type || "image/jpeg", createdAt: new Date().toISOString(), barCountAnalysis: null };
+    const photo = normalizePhotoRef({ id: uid("photo"), name: file.name || "Foto", type: file.type || "image/jpeg", createdAt: new Date().toISOString(), barCountAnalysis: null, external_backup_status: initialBackupStatus, external_backup_at: source === "gallery" ? new Date().toISOString() : "", external_backup_method: initialBackupMethod, original_capture_source: source });
     const sample = target.kind === "sample" ? findSample(target.id) : null;
     const check = target.kind === "check" ? state.current.checkpoints.find((item) => item.id === target.id) : (sample ? findCheckBySample(sample.id) : null);
     await idbPut("photos", {
@@ -5885,6 +6090,10 @@ async function addPhotos(files, explicitTarget = null) {
       blob: file,
       note: "",
       barCountAnalysis: null,
+      external_backup_status: photo.external_backup_status,
+      external_backup_at: photo.external_backup_at,
+      external_backup_method: photo.external_backup_method,
+      original_capture_source: photo.original_capture_source,
       createdAt: photo.createdAt
     });
     photos.push(photo);
@@ -5897,7 +6106,11 @@ async function addPhotos(files, explicitTarget = null) {
         order: (state.current.overviewPhotos || []).length + overviewEntries.length + 1,
         isCover: !(state.current.overviewPhotos || []).some((item) => item.isCover) && overviewEntries.length === 0,
         createdAt: photo.createdAt,
-        updatedAt: photo.createdAt
+        updatedAt: photo.createdAt,
+        external_backup_status: photo.external_backup_status,
+        external_backup_at: photo.external_backup_at,
+        external_backup_method: photo.external_backup_method,
+        original_capture_source: photo.original_capture_source
       });
     }
   }
@@ -5978,7 +6191,7 @@ async function addPhotos(files, explicitTarget = null) {
 }
 
 function triggerPhotoPicker(kind, id, source) {
-  state.photoTarget = { kind, id };
+  state.photoTarget = { kind, id, source };
   renderPhotoDialog();
   const input = source === "gallery" ? $("#photoGalleryInput") : $("#photoCameraInput");
   if (!input) return;
@@ -5991,7 +6204,7 @@ function triggerOverviewPhotoPicker(source) {
     alert("Bitte zuerst eine Abnahme öffnen.");
     return;
   }
-  state.photoTarget = { kind: "overview", id: state.current.id };
+  state.photoTarget = { kind: "overview", id: state.current.id, source };
   const input = source === "gallery" ? $("#overviewGalleryInput") : $("#overviewCameraInput");
   if (!input) {
     alert("Foto konnte nicht geöffnet oder gespeichert werden.");
@@ -6002,7 +6215,7 @@ function triggerOverviewPhotoPicker(source) {
 }
 
 function triggerInlinePhotoPicker(kind, id, source) {
-  const target = { kind, id };
+  const target = { kind, id, source };
   state.photoTarget = target;
   const input = document.createElement("input");
   input.type = "file";
@@ -6051,6 +6264,7 @@ function renderPhotoDialog() {
       <figcaption>
         <span>${escapeHtml(photo.name || "Foto")}</span>
         ${barCountSummary(photo)}
+        ${photoBackupActions(photo)}
         <button class="small-btn" type="button" data-bar-count-photo="${photo.id}">Stäbe zählen (Beta)</button>
       </figcaption>
     </figure>
@@ -6462,7 +6676,7 @@ function renderMarkPinSheet(pinId = state.selectedPinId) {
       <button class="secondary-btn" type="button" data-mark-pin-photo="gallery">Foto aus Galerie ausw\u00e4hlen</button>
     </div>
     <div class="pin-sheet-photos">
-      ${(pin.photos || []).length ? (pin.photos || []).map((photo) => `<img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">`).join("") : `<span class="muted">Noch keine Fotos.</span>`}
+      ${(pin.photos || []).length ? (pin.photos || []).map((photo) => `<figure class="sample-photo compact"><img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">${photoBackupActions(photo)}</figure>`).join("") : `<span class="muted">Noch keine Fotos.</span>`}
     </div>
     <div class="sheet-actions">
       <button class="secondary-btn" type="button" data-move-mark-pin="${pin.id}">Pin verschieben</button>
@@ -7617,7 +7831,7 @@ function siteControlItemCard(item) {
         ${photos.map((photo) => `
           <figure class="photo-tool-card">
             <img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
-            <figcaption><span>${escapeHtml(photo.name || "Foto")}</span><button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto l\u00f6schen</button></figcaption>
+            <figcaption><span>${escapeHtml(photo.name || "Foto")}</span>${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto l\u00f6schen</button></figcaption>
           </figure>`).join("")}
       </div>
     </article>`;
@@ -7633,7 +7847,7 @@ function updateSiteControlItemField(element) {
 }
 
 function triggerSiteControlPhotoPicker(itemId, source) {
-  const target = { kind: "siteItem", id: itemId };
+  const target = { kind: "siteItem", id: itemId, source };
   state.photoTarget = target;
   const input = document.createElement("input");
   input.type = "file";
@@ -8237,7 +8451,7 @@ function renderDailyReportPhotos() {
   const target = $("#dailyPhotoList");
   if (!target || !isDailyReportProtocol()) return;
   const photos = state.current.dailyReport?.photos || [];
-  target.innerHTML = photos.length ? photos.map((photo) => `<figure class="photo-tool-card"><img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><span>${escapeHtml(photo.name || "Foto")}</span><input data-daily-photo-caption="${photo.id}" value="${escapeAttr(photo.caption || "")}" placeholder="Bildbeschreibung"><button class="small-btn" type="button" data-delete-daily-photo="${photo.id}">Foto löschen</button></figcaption></figure>`).join("") : `<div class="empty-card muted">Noch keine Fotos im Bautagesbericht.</div>`;
+  target.innerHTML = photos.length ? photos.map((photo) => `<figure class="photo-tool-card"><img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><span>${escapeHtml(photo.name || "Foto")}</span><input data-daily-photo-caption="${photo.id}" value="${escapeAttr(photo.caption || "")}" placeholder="Bildbeschreibung">${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-daily-photo="${photo.id}">Foto löschen</button></figcaption></figure>`).join("") : `<div class="empty-card muted">Noch keine Fotos im Bautagesbericht.</div>`;
   hydratePhotoThumbs(target);
 }
 
@@ -8251,7 +8465,7 @@ function updateDailyPhotoCaption(element) {
 
 function triggerDailyPhotoPicker(source) {
   if (!isDailyReportProtocol()) return;
-  state.photoTarget = { kind: "dailyReport", id: state.current.id };
+  state.photoTarget = { kind: "dailyReport", id: state.current.id, source };
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -8601,7 +8815,6 @@ async function buildReportParts() {
             ${infoRow("Abnahme", p.head.acceptanceTitle)}
             ${infoRow("Art der Abnahme", p.head.acceptanceType)}
             ${followup ? infoRow("Bezug Erstabnahme", followupSourceLabel(p)) : ""}
-            ${infoRow("Abnahme-ID / Protokoll-ID", p.id)}
             ${infoRow("Baustellenadresse", formatAddress(project?.address || p.head.siteAddress))}
             ${infoRow("Auftraggeber", companyReportText(clientCompany, project?.client || ""))}
             ${infoRow("Prüfingenieur", inspectorReportText(projectInspector, project?.inspector || ""))}
@@ -9689,7 +9902,6 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     ["Projekt / Bauvorhaben", p.head.projectName],
     ["Abnahme", p.head.acceptanceTitle],
     ["Art der Abnahme", p.head.acceptanceType],
-    ["Abnahme-ID", p.id],
     ["Baustellenadresse", formatAddress(project?.address || p.head.siteAddress)],
     ["Auftraggeber", companyReportText(clientCompany, project?.client || "")],
     ["Prüfingenieur", inspectorReportText(projectInspector, project?.inspector || "")],
@@ -11438,9 +11650,9 @@ function bindEvents() {
     const dailyAnalyzeVoice = event.target.closest("#dailyAnalyzeVoiceBtn");
     if (dailyAnalyzeVoice) applyDailyVoiceExtraction($("#dailyReportForm")?.elements?.dailyVoiceDraft?.value || state.current?.dailyReport?.voiceDraft || "");
     const dailyPdfSave = event.target.closest("#dailyPdfSaveBtn");
-    if (dailyPdfSave) savePdfFromA4Report();
+    if (dailyPdfSave) savePdfFromA4ReportWithPhotoWarning();
     const dailyPdfPreview = event.target.closest("#dailyPdfPreviewBtn");
-    if (dailyPdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
+    if (dailyPdfPreview) openReportDialogWithPhotoWarning({ printHint: false }).then((opened) => { if (opened !== false) setReportPreviewMode("a4"); });
     const newSiteControl = event.target.closest("[data-new-site-control]");
     if (newSiteControl) createBlankSiteControl(newSiteControl.dataset.newSiteControl);
     const openSiteControl = event.target.closest("[data-open-site-control]");
@@ -11491,9 +11703,9 @@ function bindEvents() {
     const siteWeatherAuto = event.target.closest("#siteWeatherAutoBtn");
     if (siteWeatherAuto) fillSiteControlWeatherFromLocation();
     const sitePdfSave = event.target.closest("#sitePdfSaveBtn");
-    if (sitePdfSave) savePdfFromA4Report();
+    if (sitePdfSave) savePdfFromA4ReportWithPhotoWarning();
     const sitePdfPreview = event.target.closest("#sitePdfPreviewBtn");
-    if (sitePdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
+    if (sitePdfPreview) openReportDialogWithPhotoWarning({ printHint: false }).then((opened) => { if (opened !== false) setReportPreviewMode("a4"); });
     const openProjectPlanButton = event.target.closest("[data-open-project-plan]");
     if (openProjectPlanButton) openProjectPlanPreview(openProjectPlanButton.dataset.protocolId, openProjectPlanButton.dataset.openProjectPlan);
     const openDropboxLink = event.target.closest("[data-open-dropbox-link]");
@@ -11760,6 +11972,12 @@ function bindEvents() {
     if (photoSampleGallery) triggerPhotoPicker("sample", photoSampleGallery.dataset.photoSampleGallery, "gallery");
     const photoSample = event.target.closest("[data-photo-sample]");
     if (photoSample) openPhotoDialog("sample", photoSample.dataset.photoSample);
+    const backupShare = event.target.closest("[data-photo-backup-share]");
+    if (backupShare) return shareOrDownloadPhoto(backupShare.dataset.photoBackupShare, "share");
+    const backupDownload = event.target.closest("[data-photo-backup-download]");
+    if (backupDownload) return shareOrDownloadPhoto(backupDownload.dataset.photoBackupDownload, "download");
+    const backupConfirm = event.target.closest("[data-photo-backup-confirm]");
+    if (backupConfirm) return confirmPhotoExternalBackup(backupConfirm.dataset.photoBackupConfirm);
     const barCountPhoto = event.target.closest("[data-bar-count-photo]");
     if (barCountPhoto) openBarCountDialog(barCountPhoto.dataset.barCountPhoto);
     const overviewPhotoButton = event.target.closest("[data-overview-photo]");
@@ -11825,13 +12043,13 @@ function bindEvents() {
     const deleteSig = event.target.closest("[data-delete-signature]");
     if (deleteSig && confirm("Diese Unterschrift wirklich löschen?")) deleteSignature(deleteSig.dataset.deleteSignature);
     const pdfSave = event.target.closest("#pdfSaveBtn");
-    if (pdfSave) savePdfFromA4Report();
+    if (pdfSave) savePdfFromA4ReportWithPhotoWarning();
     const pdfShare = event.target.closest("#pdfShareBtn");
     if (pdfShare) triggerSavedPdfSharePicker();
     const copyReportTextMain = event.target.closest("#copyReportTextMainBtn");
     if (copyReportTextMain) shareReportText();
     const pdfPreview = event.target.closest("#pdfPreviewBtn");
-    if (pdfPreview) openReportDialog({ printHint: false }).then(() => setReportPreviewMode("a4"));
+    if (pdfPreview) openReportDialogWithPhotoWarning({ printHint: false }).then((opened) => { if (opened !== false) setReportPreviewMode("a4"); });
     const deletePlanButton = event.target.closest("[data-delete-plan]");
     if (deletePlanButton && confirm("Plan wirklich löschen? Zugeordnete Pins auf diesem Plan werden ebenfalls entfernt.")) deletePlanById(deletePlanButton.dataset.deletePlan);
   });
@@ -11953,7 +12171,7 @@ function bindEvents() {
   bindOptional("#reportDialog", "close", () => document.body.classList.remove("report-open"));
   bindOptional("#reportReadModeBtn", "click", () => setReportPreviewMode("read"));
   bindOptional("#reportA4ModeBtn", "click", () => setReportPreviewMode("a4"));
-  bindOptional("#downloadReportPdfBtn", "click", savePdfFromA4Report);
+  bindOptional("#downloadReportPdfBtn", "click", savePdfFromA4ReportWithPhotoWarning);
   bindOptional("#shareReportBtn", "click", triggerSavedPdfSharePicker);
   bindOptional("#copyWhatsappTextBtn", "click", shareReportText);
   bindOptional("#saveReportHtmlBtn", "click", saveReportHtml);
@@ -11991,16 +12209,18 @@ function bindEvents() {
     input.click();
   });
   bindOptional("#photoCameraInput", "change", async (event) => {
+    state.photoTarget = { ...(state.photoTarget || {}), source: "camera" };
     await addPhotos(Array.from(event.target.files));
     event.target.value = "";
   });
   bindOptional("#photoGalleryInput", "change", async (event) => {
+    state.photoTarget = { ...(state.photoTarget || {}), source: "gallery" };
     await addPhotos(Array.from(event.target.files));
     event.target.value = "";
   });
   bindOptional("#overviewCameraInput", "change", async (event) => {
     try {
-      state.photoTarget = { kind: "overview", id: state.current?.id || "" };
+      state.photoTarget = { kind: "overview", id: state.current?.id || "", source: "camera" };
       await addPhotos(Array.from(event.target.files || []));
     } catch (error) {
       console.error(error);
@@ -12011,7 +12231,7 @@ function bindEvents() {
   });
   bindOptional("#overviewGalleryInput", "change", async (event) => {
     try {
-      state.photoTarget = { kind: "overview", id: state.current?.id || "" };
+      state.photoTarget = { kind: "overview", id: state.current?.id || "", source: "gallery" };
       await addPhotos(Array.from(event.target.files || []));
     } catch (error) {
       console.error(error);

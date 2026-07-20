@@ -3216,3 +3216,78 @@ dialog button {
     line-height: 1.25;
   }
 }
+
+.photo-backup-box,
+.photo-backup-summary {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.photo-backup-box.open {
+  border-color: #f0b65a;
+  background: #fff8e8;
+}
+
+.photo-backup-box.done {
+  border-color: #9fd4b4;
+  background: #eefaf3;
+}
+
+.photo-backup-badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-weight: 800;
+  font-size: 12px;
+  color: #5f3b00;
+  background: #ffe6ad;
+  border: 1px solid #f0c56c;
+}
+
+.photo-backup-badge.ok {
+  color: #12663e;
+  background: #e7f6ee;
+  border-color: #adddc2;
+}
+
+.photo-backup-badge.started {
+  color: #1f4e79;
+  background: #e7f0fb;
+  border-color: #a9c7e8;
+}
+
+.photo-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.photo-backup-actions .small-btn {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.photo-backup-summary {
+  margin-top: 12px;
+}
+
+.photo-backup-summary h3 {
+  margin: 0;
+}
+
+.sample-photo.compact {
+  padding: 6px;
+}
+
+@media (max-width: 720px) {
+  .photo-backup-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
