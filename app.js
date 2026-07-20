@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v137";
+const APP_VERSION = "v139";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -4466,6 +4466,94 @@ function pinLabel(pin) {
   return `P${pin.number || state.current.pins.findIndex((p) => p.id === pin.id) + 1}`;
 }
 
+
+function rectsOverlap(a, b, gap = 0) {
+  return !(a.right + gap <= b.left || a.left >= b.right + gap || a.bottom + gap <= b.top || a.top >= b.bottom + gap);
+}
+
+function reportLabelOverlapScore(rect, placed, gap = 0) {
+  return placed.reduce((score, other) => {
+    const overlapX = Math.max(0, Math.min(rect.right + gap, other.right) - Math.max(rect.left - gap, other.left));
+    const overlapY = Math.max(0, Math.min(rect.bottom + gap, other.bottom) - Math.max(rect.top - gap, other.top));
+    return score + overlapX * overlapY;
+  }, 0);
+}
+
+function layoutReportPinLabels(items, bounds, options = {}) {
+  const width = Math.max(1, bounds?.width || 1);
+  const height = Math.max(1, bounds?.height || 1);
+  const labelHeight = options.labelHeight || 18;
+  const minWidth = options.minWidth || 24;
+  const maxWidth = options.maxWidth || 46;
+  const charWidth = options.charWidth || 6;
+  const margin = options.margin ?? 4;
+  const gap = options.gap ?? 5;
+  const placed = [];
+  return (items || []).map((item) => {
+    const label = item.label || pinLabel(item.pin);
+    const labelWidth = Math.max(minWidth, Math.min(maxWidth, label.length * charWidth + 12));
+    const anchorX = Math.min(width - margin, Math.max(margin, (item.x || 0) * width));
+    const anchorY = Math.min(height - margin, Math.max(margin, (item.y || 0) * height));
+    let candidates = [
+      { dx: 10, dy: -24 },
+      { dx: 18, dy: -8 },
+      { dx: 10, dy: 18 },
+      { dx: -labelWidth / 2, dy: 28 },
+      { dx: -labelWidth / 2, dy: -32 },
+      { dx: -labelWidth - 12, dy: -8 },
+      { dx: -labelWidth - 12, dy: -24 },
+      { dx: 24, dy: -38 },
+      { dx: -labelWidth - 24, dy: 18 },
+      { dx: 10, dy: -48 },
+      { dx: -labelWidth - 12, dy: 36 },
+      { dx: 32, dy: 16 },
+      { dx: -labelWidth - 30, dy: -38 }
+    ];
+    if (item.x > 0.72) {
+      candidates = [candidates[5], candidates[6], candidates[8], candidates[4], candidates[3], candidates[0], candidates[2], candidates[10], candidates[12]];
+    } else if (item.x < 0.28) {
+      candidates = [candidates[0], candidates[1], candidates[2], candidates[7], candidates[11], candidates[3], candidates[4], candidates[5], candidates[10]];
+    }
+    const sideDx = item.x > 0.72 ? -labelWidth - 18 : 18;
+    [-64, -48, -32, -16, 0, 16, 32, 48, 64].forEach((dy) => {
+      candidates.push({ dx: sideDx, dy });
+      candidates.push({ dx: -labelWidth / 2, dy });
+    });
+    let best = null;
+    for (const candidate of candidates) {
+      const left = Math.min(width - labelWidth - margin, Math.max(margin, anchorX + candidate.dx));
+      const top = Math.min(height - labelHeight - margin, Math.max(margin, anchorY + candidate.dy - labelHeight / 2));
+      const rect = { left, top, right: left + labelWidth, bottom: top + labelHeight };
+      const overlapScore = reportLabelOverlapScore(rect, placed, gap);
+      const distance = Math.hypot(left - anchorX, top + labelHeight / 2 - anchorY);
+      const option = { rect, score: overlapScore * 1000 + distance };
+      if (!best || option.score < best.score) best = option;
+      if (!placed.some((other) => rectsOverlap(rect, other, gap))) {
+        best = option;
+        break;
+      }
+    }
+    placed.push(best.rect);
+    const labelX = best.rect.left;
+    const labelY = best.rect.top + labelHeight / 2;
+    const lineDx = labelX + labelWidth / 2 - anchorX;
+    const lineDy = labelY - anchorY;
+    return {
+      ...item,
+      label,
+      anchorX,
+      anchorY,
+      labelX,
+      labelY,
+      labelWidth,
+      labelHeight,
+      dx: labelX - anchorX,
+      dy: labelY - anchorY,
+      line: Math.max(8, Math.hypot(lineDx, lineDy)),
+      angle: Math.atan2(lineDy, lineDx) * 180 / Math.PI
+    };
+  });
+}
 function checkHasDocumentation(check) {
   return !!(
     check.note ||
@@ -4771,10 +4859,46 @@ function collectPinFindings() {
   return findings;
 }
 
+function normalizePinSearchQuery(query = "") {
+  const compact = String(query || "").toUpperCase().replace(/\s+/g, "");
+  const match = compact.match(/^P0*(\d+)$/);
+  return match ? `P${Number(match[1])}` : "";
+}
+
+function exactPinSearchLabels(pin, sample = {}) {
+  const labels = new Set();
+  const add = (value) => {
+    if (value === undefined || value === null || value === "") return;
+    const text = String(value).trim();
+    if (!text) return;
+    labels.add(text.toUpperCase().replace(/\s+/g, ""));
+    const numeric = text.match(/^0*(\d+)$/);
+    if (numeric) labels.add(`P${Number(numeric[1])}`);
+  };
+  if (pin) {
+    add(pinLabel(pin));
+    add(pin.label);
+    add(pin.nr);
+    add(pin.no);
+    add(pin.pinNo);
+    add(pin.pinNumber);
+    add(pin.number);
+  }
+  add(sample.pinLabel);
+  add(sample.pinNo);
+  add(sample.pinNr);
+  add(sample.pinNumber);
+  return labels;
+}
 function pinFindingSearchResults(query = "") {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
-  return collectPinFindings().filter(({ check, sample, pin, plan }) => {
+  const exactPinNeedle = normalizePinSearchQuery(query);
+  const findings = collectPinFindings();
+  if (exactPinNeedle) {
+    return findings.filter(({ sample, pin }) => exactPinSearchLabels(pin, sample).has(exactPinNeedle));
+  }
+  return findings.filter(({ check, sample, pin, plan }) => {
     const pinText = pin ? `${pinLabel(pin)} ${pin.id || ""}` : "";
     const haystack = [
       pinText,
@@ -4789,8 +4913,8 @@ function pinFindingSearchResults(query = "") {
       pin?.status,
       plan?.planNumber,
       plan?.appPlanName,
-      plan?.title,
       plan?.fileName,
+      plan?.title,
       plan?.planName
     ].filter(Boolean).join(" ").toLowerCase();
     return haystack.includes(needle);
@@ -7695,7 +7819,14 @@ function polishDictationText(text = "") {
 }
 
 function polishedReportText(text = "") {
-  return polishDictationText(text || "");
+  const value = String(text || "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s+([,;:!?])/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!value) return "";
+  const capitalized = value.replace(/^(\p{Ll})/u, (match) => match.toUpperCase());
+  return /[.!?:;)]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 function normalizeSpeechRecognitionTranscript(chunks = []) {
   const list = Array.isArray(chunks) ? chunks : [chunks];
@@ -10179,25 +10310,23 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const items = pins
       .map((pin) => ({ pin, placement: reportPlacementForPlan(pin, planRef, pageNumber) }))
       .filter((item) => item.placement)
-      .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y }))
+      .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y, label: pinLabel(item.pin) }))
       .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
       .sort((a, b) => (a.pin.number || 0) - (b.pin.number || 0));
-    const placed = [];
-    items.forEach((item) => {
-      const nearCount = placed.filter((other) => Math.hypot((other.x - item.x) * 100, (other.y - item.y) * 100) < 3.2).length;
-      placed.push({ x: item.x, y: item.y });
-      const label = pinLabel(item.pin);
-      const anchorX = box.x + item.x * box.width;
-      const anchorY = box.y + item.y * box.height;
-      const dx = item.x > 0.82 ? -38 : 10 + Math.min(nearCount, 3) * 12;
-      const dy = -18 + (nearCount % 4) * 12;
-      const labelX = Math.min(box.x + box.width - 34, Math.max(box.x + 3, anchorX + dx));
-      const labelY = Math.min(box.y + box.height - 12, Math.max(box.y + 12, anchorY + dy));
-      const labelWidth = Math.max(22, Math.min(34, label.length * 5 + 12));
-      addOp({ type: "pin", text: label, anchorX, anchorY, labelX, labelY, labelWidth, cluster: false });
+    layoutReportPinLabels(items, { width: box.width, height: box.height }, { labelHeight: 15, minWidth: 22, maxWidth: 38, charWidth: 5, gap: 4, margin: 3 }).forEach((item) => {
+      addOp({
+        type: "pin",
+        text: item.label,
+        anchorX: box.x + item.anchorX,
+        anchorY: box.y + item.anchorY,
+        labelX: box.x + item.labelX,
+        labelY: box.y + item.labelY,
+        labelWidth: item.labelWidth,
+        labelHeight: item.labelHeight,
+        cluster: false
+      });
     });
   };
-
   newPage();
   const headerTop = y;
   const metaX = pageWidth - margin - 148;
@@ -10558,7 +10687,7 @@ function buildPdfBlobFromModel(model) {
     if (op.type === "pin") {
       const yAnchor = pageHeight - op.anchorY;
       const yLabel = pageHeight - op.labelY;
-      const labelHeight = 15;
+      const labelHeight = op.labelHeight || 15;
       const labelY = yLabel - labelHeight / 2;
       return `q\n0.12 0.16 0.20 RG\n0.7 w\n${op.anchorX.toFixed(2)} ${yAnchor.toFixed(2)} m ${op.labelX.toFixed(2)} ${yLabel.toFixed(2)} l S\n1 1 1 rg\n0.31 0.44 0.56 RG\n1 w\n${op.labelX.toFixed(2)} ${labelY.toFixed(2)} ${op.labelWidth.toFixed(2)} ${labelHeight} re B\nBT\n/F2 7.5 Tf\n0.12 0.16 0.20 rg\n1 0 0 1 ${(op.labelX + 4).toFixed(2)} ${(labelY + 5).toFixed(2)} Tm\n${pdfHexText(op.text)} Tj\nET\nQ\n`;
     }
@@ -11145,21 +11274,14 @@ function reportPinCallouts(pins, planRef, pageNumber) {
   const items = pins
     .map((pin) => ({ pin, placement: reportPlacementForPlan(pin, planRef, pageNumber) }))
     .filter((item) => item.placement)
-    .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y }))
+    .map((item) => ({ ...item, x: item.placement.x ?? item.pin.x, y: item.placement.y ?? item.pin.y, label: pinLabel(item.pin) }))
     .filter((item) => Number.isFinite(item.x) && Number.isFinite(item.y))
     .sort((a, b) => (a.pin.number || 0) - (b.pin.number || 0));
-  const placed = [];
-  return items.map((item) => {
-    const nearCount = placed.filter((other) => Math.hypot((other.x - item.x) * 100, (other.y - item.y) * 100) < 3.2).length;
-    placed.push({ x: item.x, y: item.y });
+  return layoutReportPinLabels(items, { width: 760, height: 520 }, { labelHeight: 17, minWidth: 22, maxWidth: 44, charWidth: 6, gap: 6, margin: 5 }).map((item) => {
     const statusClass = statusClassName(item.pin.status || "");
     const x = Math.min(0.985, Math.max(0.015, item.x));
     const y = Math.min(0.985, Math.max(0.015, item.y));
-    const dx = x > 0.82 ? -34 : 8 + Math.min(nearCount, 3) * 11;
-    const dy = -22 + (nearCount % 4) * 12;
-    const line = Math.max(8, Math.hypot(dx, dy + 6));
-    const angle = Math.atan2(dy + 6, dx) * 180 / Math.PI;
-    return `<span class="pin-marker" style="left:${x * 100}%;top:${y * 100}%;--dx:${dx}px;--dy:${dy}px;--line:${line}px;--angle:${angle}deg"><span class="pin-point"></span><span class="pin-leader"></span><span class="pin-chip ${statusClass}">${escapeHtml(pinLabel(item.pin))}</span></span>`;
+    return `<span class="pin-marker" style="left:${x * 100}%;top:${y * 100}%;--dx:${item.dx}px;--dy:${item.dy}px;--line:${item.line}px;--angle:${item.angle}deg"><span class="pin-point"></span><span class="pin-leader"></span><span class="pin-chip ${statusClass}">${escapeHtml(item.label)}</span></span>`;
   }).join("");
 }
 function sampleShouldAppearInPlanFindings(sample = {}) {
