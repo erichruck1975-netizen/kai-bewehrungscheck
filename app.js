@@ -11112,7 +11112,7 @@ function checklistReport(protocol) {
   }
   const documentedSamples = checks.reduce((sum, check) => sum + (check.samples || []).length, 0);
   return `<section class="compact-summary compact-check-summary">
-    <p><strong>${checks.length} Prüfumfänge, ${documentedSamples} Prüfstellen.</strong><br>Die für die Betonage relevanten Feststellungen sind oben als Mängel und Auflagen zusammengefasst.</p>
+    <p><strong>${documentedSamples} Prüfstellen wurden im Rahmen der Bewehrungskontrolle erfasst.</strong><br>Die für die Betonage relevanten Feststellungen sind oben als Mängel und Auflagen zusammengefasst.<br>Weitere Dokumentationspunkte dienen der Fotodokumentation und werden nicht als Mangel oder Auflage gezählt.</p>
   </section>`;
 }
 
