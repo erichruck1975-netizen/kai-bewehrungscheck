@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v136";
+const APP_VERSION = "v137";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -5331,6 +5331,7 @@ function samplePlanMarkControls(check, sample) {
       <span class="muted">Markiert auf Plan ${escapeHtml(plan?.planNumber || plan?.fileName || "Plan")}, Seite ${pin.pageNumber || sample.pageNumber || 1}, ${escapeHtml(pinLabel(pin))}</span></p>
       <div class="sample-actions">
         <button class="secondary-btn" type="button" data-show-sample-pin="${sample.id}">Anzeigen</button>
+        <button class="secondary-btn" type="button" data-reassign-sample="${sample.id}">Verschieben / neu zuordnen</button>
         <button class="secondary-btn" type="button" data-mark-sample="${sample.id}">Neu setzen</button>
         <button class="danger-btn" type="button" data-remove-sample-pin="${sample.id}">Entfernen</button>
       </div>
