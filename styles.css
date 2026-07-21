@@ -3462,3 +3462,68 @@ dialog button {
     grid-template-columns: 1fr;
   }
 }
+/* v145 Share preparation and fallback notices */
+.share-pdf-status {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eef2f7;
+  color: #334155;
+  font-size: 13px;
+}
+
+.share-pdf-status[data-type="success"] {
+  background: #e7f6ec;
+  color: #166534;
+}
+
+.share-pdf-status[data-type="loading"] {
+  background: #fff7dd;
+  color: #8a5a00;
+}
+
+.share-pdf-status[data-type="error"] {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.share-pdf-notice {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1f2937;
+}
+
+.share-pdf-notice[data-type="warning"] {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.share-pdf-notice[data-type="error"] {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.share-pdf-notice p {
+  margin: 0;
+}
+
+.share-pdf-notice-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.share-pdf-notice-actions .secondary-btn {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .share-pdf-notice-actions {
+    grid-template-columns: 1fr;
+  }
+}

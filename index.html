@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=144">
-  <link rel="stylesheet" href="styles.css?v=144">
+  <link rel="manifest" href="manifest.webmanifest?v=145">
+  <link rel="stylesheet" href="styles.css?v=145">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v144</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v145</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -248,8 +248,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v144</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v144 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v145</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v145 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -516,8 +516,18 @@
                 <label>Textvorschau
                   <textarea id="shareMessagePreview" rows="9" readonly></textarea>
                 </label>
-                <p class="muted share-message-hint">Hinweis: Manche Apps übernehmen beim Teilen nur die PDF. Falls der Text fehlt, bitte Begleittext kopieren und einfügen.</p>
+                <p class="muted share-message-hint">Hinweis: Das Android-Teilen-Menü zeigt häufig nur die PDF-Datei an. Der Begleittext wird trotzdem an die Ziel-App übergeben, kann aber je nach App fehlen. Falls der Text fehlt, bitte Begleittext kopieren und einfügen.</p>
+                <p id="sharePdfStatus" class="muted share-pdf-status" data-type="info">PDF noch nicht vorbereitet.</p>
+                <div id="sharePdfNotice" class="share-pdf-notice" data-type="info" hidden>
+                  <p id="sharePdfNoticeText"></p>
+                  <div class="share-pdf-notice-actions">
+                    <button class="secondary-btn" id="retrySharePdfBtn" type="button">Noch einmal teilen</button>
+                    <button class="secondary-btn" id="noticeDownloadSharePdfBtn" data-share-notice-fallback type="button">PDF herunterladen</button>
+                    <button class="secondary-btn" id="noticeCopyShareMessageBtn" data-share-notice-fallback type="button">Begleittext kopieren</button>
+                  </div>
+                </div>
                 <div class="result-actions share-message-actions">
+                  <button class="primary-btn" id="prepareSharePdfBtn" type="button">PDF vorbereiten</button>
                   <button class="primary-btn" id="sharePdfWithMessageBtn" type="button">PDF + Begleittext teilen</button>
                   <button class="secondary-btn" id="downloadSharePdfBtn" type="button">PDF herunterladen</button>
                   <button class="secondary-btn" id="copyShareMessageBtn" type="button">Begleittext kopieren</button>
@@ -774,7 +784,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=132"></script>
-  <script src="app.js?v=144"></script>
+  <script src="app.js?v=145"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
