@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v146";
+const APP_VERSION = "v147";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -9907,7 +9907,8 @@ async function prepareSharePdfForCurrentProtocol({ force = false } = {}) {
   updatePreparedSharePdfStatus();
   try {
     const created = await createSharePdfFile();
-    preparedSharePdfCache = { ...created, key, preparedAt: Date.now() };
+    const preparedKey = currentSharePdfCacheKey();
+    preparedSharePdfCache = { ...created, key: preparedKey, preparedAt: Date.now() };
     setSharePdfStatus("PDF vorbereitet. Teilen ist jetzt möglich.", "success");
     showAppToast("PDF vorbereitet. Teilen ist jetzt möglich.", { type: "success" });
     return preparedSharePdfCache;
