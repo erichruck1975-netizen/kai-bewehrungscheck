@@ -3396,3 +3396,48 @@ dialog button {
     width: 100%;
   }
 }
+/* v143 Core: ShareMessage preview */
+.share-message-card {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.share-message-card .section-head.compact {
+  align-items: start;
+  gap: 10px;
+}
+
+.share-message-card h3 {
+  margin: 0 0 3px;
+  font-size: 17px;
+}
+
+.share-message-card textarea {
+  min-height: 180px;
+  white-space: pre-wrap;
+}
+
+.share-message-card .inline-control {
+  min-width: 160px;
+}
+
+.share-message-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  .share-message-card .section-head.compact {
+    display: grid;
+  }
+
+  .share-message-card .inline-control,
+  .share-message-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+}

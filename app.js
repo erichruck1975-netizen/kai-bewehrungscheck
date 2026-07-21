@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v142";
+const APP_VERSION = "v143";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1674,6 +1674,7 @@ function activateProtocolTab(tabId, options = {}) {
   if (tabId === "resultTab") {
     renderOverviewPhotos();
     renderSignatures();
+    updateShareMessagePreview();
   }
 }
 
@@ -9676,39 +9677,129 @@ async function shareReportText() {
 }
 
 function reportShareTitle() {
-  const p = state.current;
-  return `Bewehrungsbericht ${p?.head?.projectName || "Kai BewehrungsCheck"}`.trim();
+  const message = buildShareMessage(state.current, { channel: "email" });
+  return message.subject || `Bewehrungsbericht ${state.current?.head?.projectName || "Kai BewehrungsCheck"}`.trim();
 }
 
-function buildReportShareText({ compact = false } = {}) {
-  const p = state.current;
-  if (!p) return "Bewehrungsbericht Kai BewehrungsCheck";
-  p.checkpoints?.forEach(updateCheckStatus);
-  const issues = sampleIssues(p).length;
-  const title = p.head.acceptanceTitle || p.head.acceptanceType || "Bewehrungsabnahme";
-  const project = p.head.projectName || "ohne Projektangabe";
-  const component = [p.head.component, p.head.floor].filter(Boolean).join(" / ") || "ohne Angabe";
-  const area = p.head.areaAxes || "ohne Angabe";
-  const date = formatDate(protocolInspectionDateTime(p));
-  const result = p.result?.resultStatus || "ohne Ergebnis";
-  const lines = compact ? [
-    `Bewehrungsabnahme – ${project}`,
-    `Abnahme: ${title}`,
-    `Bauteil: ${component}`,
-    `Bereich: ${area}`,
-    `Ergebnis: ${result}`,
-    `Offene Punkte: ${issues}`,
-    "Bitte Bericht beachten."
-  ] : [
-    `Bewehrungsbericht – ${project}`,
-    `Abnahme: ${title}`,
-    `Datum: ${date}`,
-    `Bauteil / Bereich: ${component} · ${area}`,
-    `Ergebnis: ${result}`,
-    `Offene Auflagen/Mängel: ${issues}`,
-    "Bericht/PDF siehe Anlage bzw. separat."
-  ];
-  return lines.join("\n");
+function shareMessageDate(protocol) {
+  const value = protocolInspectionDateTime(protocol);
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("de-DE");
+}
+
+function shareMessagePinLabel(protocol, sample = {}) {
+  const explicit = sample.pinLabel || sample.pinNo || sample.pinNumber || "";
+  if (explicit) return String(explicit).replace(/\s+/g, "").toUpperCase();
+  const pinId = sample.pinId || sample.pin_id || "";
+  const pins = protocol?.pins || [];
+  const pin = pins.find((item) => item.id === pinId);
+  if (!pin) return "";
+  return `P${pin.number || pins.findIndex((item) => item.id === pin.id) + 1}`;
+}
+
+function shareMessagePinExamples(protocol, max = 5) {
+  if (!Array.isArray(protocol?.checkpoints)) return "";
+  const labels = uniqueValues(sampleIssues(protocol).map(({ sample }) => shareMessagePinLabel(protocol, sample)).filter(Boolean));
+  const examples = labels.slice(0, max);
+  if (!examples.length) return "";
+  if (examples.length === 1) return examples[0];
+  return `${examples.slice(0, -1).join(", ")} oder ${examples[examples.length - 1]}`;
+}
+
+function shareMessageSender(protocol) {
+  const person = protocol?.head?.inspectorPersonSnapshot || ownPersonSelection(protocol?.result?.inspectorName || protocol?.head?.inspectorName || "").snapshot;
+  const name = person?.name || protocol?.result?.inspectorName || protocol?.head?.inspectorName || "";
+  const company = person?.company || "";
+  return { name, company };
+}
+
+// Core ShareMessage Generator – später modulübergreifend nutzbar
+function buildShareMessage(protocol = state.current, options = {}) {
+  const channel = options.channel || "whatsapp";
+  const includeCompletionRequest = options.includeCompletionRequest !== false;
+  const includeFindingNumbers = options.includeFindingNumbers !== false;
+  if (!protocol) {
+    const fallback = "Bewehrungsbericht Kai BewehrungsCheck";
+    return { channel, subject: fallback, body: fallback, text: fallback, pins: [] };
+  }
+  protocol.checkpoints?.forEach(updateCheckStatus);
+  const head = protocol.head || {};
+  const project = head.projectName || projectById(protocol.projectId)?.name || "das Bauvorhaben";
+  const title = head.acceptanceTitle || head.acceptanceType || "Bewehrungskontrolle";
+  const component = [head.component, head.floor].filter(Boolean).join(" ").trim();
+  const area = head.areaAxes || "";
+  const date = shareMessageDate(protocol) || formatDate(protocolInspectionDateTime(protocol)) || "";
+  const result = protocol.result?.resultStatus || "Ergebnis siehe Protokoll";
+  const issueCount = Array.isArray(protocol.checkpoints) ? sampleIssues(protocol).length : 0;
+  const pinExamples = includeFindingNumbers ? shareMessagePinExamples(protocol, 5) : "";
+  const completionTarget = pinExamples ? `zur Positionsnummer, z. B. ${pinExamples}` : "zur jeweiligen Feststellung";
+  const completionRequest = includeCompletionRequest ? `Bitte die Erledigung der aufgeführten Mängel und Auflagen vor Betonage jeweils mit aussagekräftigem Foto und kurzer Zuordnung ${completionTarget} bestätigen.` : "";
+  const titleParts = ["Bewehrungsabnahme", project, component || area, date].filter(Boolean);
+  const subject = titleParts.join(" – ");
+  const introDate = date ? ` vom ${date}` : "";
+  const scope = [component, area].filter(Boolean).join(" / ");
+
+  if (channel === "email") {
+    const sender = shareMessageSender(protocol);
+    const closing = ["Mit freundlichen Grüßen", sender.name, sender.company].filter(Boolean).join("\n");
+    const body = [
+      "Hallo,",
+      "",
+      `anbei erhalten Sie das Protokoll zur ${title || "Bewehrungskontrolle"}${introDate} für das Bauvorhaben ${project}.`,
+      scope ? `Bereich: ${scope}.` : "",
+      "",
+      "Ergebnis:",
+      result,
+      "",
+      completionRequest,
+      issueCount ? `Relevante Feststellungen: ${issueCount}.` : "",
+      "",
+      closing
+    ].filter((line) => line !== "").join("\n");
+    return { channel, subject, body, text: body, pinExamples, issueCount };
+  }
+
+  const body = [
+    `Anbei das Protokoll zur ${title || "Bewehrungskontrolle"}${introDate} für das Bauvorhaben ${project}.`,
+    scope ? `Bereich: ${scope}.` : "",
+    "",
+    `Ergebnis: ${result}.`,
+    issueCount ? `Relevante Feststellungen: ${issueCount}.` : "",
+    "",
+    completionRequest || "Bitte Bericht beachten."
+  ].filter((line) => line !== "").join("\n");
+  return { channel, subject, body, text: body, pinExamples, issueCount };
+}
+
+function buildReportShareText({ compact = false, channel = "whatsapp" } = {}) {
+  const message = buildShareMessage(state.current, { channel: compact ? "whatsapp" : channel, includeCompletionRequest: true, includeFindingNumbers: true });
+  return message.body || message.text;
+}
+
+function updateShareMessagePreview() {
+  const card = document.getElementById("shareMessageCard");
+  if (!card) return;
+  const channel = document.getElementById("shareMessageChannel")?.value || "whatsapp";
+  const message = buildShareMessage(state.current, { channel, includeCompletionRequest: true, includeFindingNumbers: true });
+  const subjectWrap = document.getElementById("shareMessageSubjectWrap");
+  const subjectInput = document.getElementById("shareMessageSubject");
+  const preview = document.getElementById("shareMessagePreview");
+  const copySubject = document.getElementById("copyShareSubjectBtn");
+  if (subjectWrap) subjectWrap.hidden = channel !== "email";
+  if (copySubject) copySubject.hidden = channel !== "email";
+  if (subjectInput) subjectInput.value = message.subject || "";
+  if (preview) preview.value = message.body || message.text || "";
+}
+
+async function copyCurrentShareMessage(kind = "body") {
+  const channel = document.getElementById("shareMessageChannel")?.value || "whatsapp";
+  const message = buildShareMessage(state.current, { channel, includeCompletionRequest: true, includeFindingNumbers: true });
+  const text = kind === "subject" ? (message.subject || "") : (message.body || message.text || "");
+  if (!text) return showAppToast("Kein Begleittext vorhanden.", { type: "info" });
+  await copyTextToClipboard(text);
+  showAppToast(kind === "subject" ? "Betreff kopiert." : "Begleittext kopiert.", { type: "success" });
 }
 
 async function copyTextToClipboard(text) {
@@ -12493,6 +12584,12 @@ function bindEvents() {
     if (pdfShare) triggerSavedPdfSharePicker();
     const copyReportTextMain = event.target.closest("#copyReportTextMainBtn");
     if (copyReportTextMain) shareReportText();
+    const shareMessageChannel = event.target.closest("#shareMessageChannel");
+    if (shareMessageChannel) updateShareMessagePreview();
+    const copyShareMessage = event.target.closest("#copyShareMessageBtn");
+    if (copyShareMessage) copyCurrentShareMessage("body");
+    const copyShareSubject = event.target.closest("#copyShareSubjectBtn");
+    if (copyShareSubject) copyCurrentShareMessage("subject");
     const pdfPreview = event.target.closest("#pdfPreviewBtn");
     if (pdfPreview) openReportDialogWithPhotoWarning({ printHint: false }).then((opened) => { if (opened !== false) setReportPreviewMode("a4"); });
     const deletePlanButton = event.target.closest("[data-delete-plan]");
@@ -12619,6 +12716,7 @@ function bindEvents() {
   bindOptional("#downloadReportPdfBtn", "click", savePdfFromA4ReportWithPhotoWarning);
   bindOptional("#shareReportBtn", "click", triggerSavedPdfSharePicker);
   bindOptional("#copyWhatsappTextBtn", "click", shareReportText);
+  bindOptional("#shareMessageChannel", "change", updateShareMessagePreview);
   bindOptional("#saveReportHtmlBtn", "click", saveReportHtml);
   bindOptional("#printReportBtn", "click", () => {
     if (typeof window.print === "function") {

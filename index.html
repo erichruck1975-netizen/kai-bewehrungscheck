@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=142">
-  <link rel="stylesheet" href="styles.css?v=142">
+  <link rel="manifest" href="manifest.webmanifest?v=143">
+  <link rel="stylesheet" href="styles.css?v=143">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v142</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v143</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -248,8 +248,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v142</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v142 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v143</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v143 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -497,7 +497,30 @@
                 <button class="secondary-btn" id="pdfShareBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small></button>
                 <button class="secondary-btn" id="copyReportTextMainBtn" type="button">Berichtstext teilen<br><small>Kurztext für WhatsApp/Mail</small></button>
               </div>
-              <details class="report-more-options">
+              <section class="share-message-card" id="shareMessageCard">
+                <div class="section-head compact">
+                  <div>
+                    <h3>Begleittext</h3>
+                    <p class="muted">Gemeinsamer Core-Textbaustein für WhatsApp oder E-Mail.</p>
+                  </div>
+                  <label class="inline-control">Kanal
+                    <select id="shareMessageChannel">
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="email">E-Mail</option>
+                    </select>
+                  </label>
+                </div>
+                <label id="shareMessageSubjectWrap" class="share-message-subject" hidden>Betreff
+                  <input id="shareMessageSubject" type="text" readonly>
+                </label>
+                <label>Textvorschau
+                  <textarea id="shareMessagePreview" rows="9" readonly></textarea>
+                </label>
+                <div class="result-actions share-message-actions">
+                  <button class="secondary-btn" id="copyShareMessageBtn" type="button">Begleittext kopieren</button>
+                  <button class="secondary-btn" id="copyShareSubjectBtn" type="button" hidden>Betreff kopieren</button>
+                </div>
+              </section>              <details class="report-more-options">
                 <summary>Weitere Optionen</summary>
                 <div class="result-actions report-secondary-actions">
                   <button class="secondary-btn" id="pdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button>
@@ -747,7 +770,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=132"></script>
-  <script src="app.js?v=142"></script>
+  <script src="app.js?v=143"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
