@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v141";
+const APP_VERSION = "v142";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -12713,6 +12713,7 @@ function bindEvents() {
   bindOptional("#translationEndpointUrl", "input", (event) => { state.settings.translationEndpointUrl = event.target.value || ""; persist(); });
   bindOptional("#translationDefaultDirection", "change", (event) => { state.settings.translationDefaultDirection = event.target.value || "auto"; persist(); });
   bindOptional("#storageCheckBtn", "click", checkStorage);
+  bindOptional("#reloadAppBtn", "click", reloadAppSafely);
   bindOptional("#reloadDataInventoryBtn", "click", reloadDataInventoryFromDb);
   bindOptional("#clearAllBtn", "click", () => {
     if (confirm("Wirklich alle lokalen Testdaten löschen?")) {
@@ -13613,7 +13614,8 @@ function updateAppVersionDisplay() {
     node.textContent = APP_VERSION;
   });
   const target = document.getElementById("appVersionInfo");
-  if (target) target.textContent = `Version: ${APP_VERSION} · Cache: ${APP_CACHE}`;
+  if (target) target.textContent = `Kai BewehrungsCheck ${APP_VERSION} · Cache: ${APP_CACHE}`;
+  updateCacheDiagnostics();
 }
 
 function updateDeviceStorageInfo() {
@@ -13622,6 +13624,64 @@ function updateDeviceStorageInfo() {
   target.textContent = "Daten werden lokal auf diesem Gerät gespeichert.";
 }
 
+
+function serviceWorkerStatusText() {
+  if (!("serviceWorker" in navigator)) return "nicht aktiv";
+  if (navigator.serviceWorker.controller) return "aktiv";
+  return "registriert/Start wird geprüft";
+}
+
+function updateCacheDiagnostics() {
+  const target = document.getElementById("appCacheInfo");
+  if (!target) return;
+  const onlineText = navigator.onLine ? "online" : "offline";
+  target.textContent = `Kai BewehrungsCheck ${APP_VERSION} · Service Worker: ${serviceWorkerStatusText()} · Cache-Version: ${APP_CACHE} · ${onlineText}`;
+}
+
+function showAppUpdateNotice(message = "Neue Version verfügbar. Bitte App neu laden.") {
+  let notice = document.getElementById("appUpdateNotice");
+  if (!notice) {
+    notice = document.createElement("div");
+    notice.id = "appUpdateNotice";
+    notice.className = "app-update-notice";
+    notice.innerHTML = `<span></span><button type="button" id="appUpdateReloadBtn">App neu laden</button>`;
+    document.body.appendChild(notice);
+    notice.querySelector("button")?.addEventListener("click", reloadAppSafely);
+  }
+  const text = notice.querySelector("span");
+  if (text) text.textContent = message;
+  notice.classList.add("visible");
+}
+
+async function reloadAppSafely() {
+  try {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      await registration?.update?.();
+    }
+  } catch (error) {
+    console.warn("Service-Worker-Update vor Reload nicht möglich", error);
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set("reload", Date.now().toString());
+  window.location.replace(url.toString());
+}
+
+function watchServiceWorkerUpdates(registration) {
+  if (!registration) return;
+  updateCacheDiagnostics();
+  registration.addEventListener("updatefound", () => {
+    const worker = registration.installing;
+    if (!worker) return;
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "installed" && navigator.serviceWorker.controller) {
+        showAppUpdateNotice();
+      }
+      updateCacheDiagnostics();
+    });
+  });
+  if (registration.waiting) showAppUpdateNotice();
+}
 async function cacheRuntimeAssets() {
   if (!("caches" in window)) return;
   try {
@@ -13652,8 +13712,18 @@ async function boot() {
     renderSiteControlView();
     renderDailyReportView();
     window.addEventListener("resize", updateReportPreviewFrame);
+    window.addEventListener("online", updateCacheDiagnostics);
+    window.addEventListener("offline", updateCacheDiagnostics);
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").then(() => cacheRuntimeAssets()).catch(() => {});
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        updateCacheDiagnostics();
+      });
+      navigator.serviceWorker.register("./sw.js").then((registration) => {
+        watchServiceWorkerUpdates(registration);
+        return registration.update().catch(() => registration);
+      }).then(() => cacheRuntimeAssets()).then(updateCacheDiagnostics).catch(() => updateCacheDiagnostics());
+    } else {
+      updateCacheDiagnostics();
     }
   } catch (error) {
     console.error("App-Initialisierung fehlgeschlagen", error);
