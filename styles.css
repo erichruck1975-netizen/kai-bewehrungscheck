@@ -3441,3 +3441,24 @@ dialog button {
     grid-template-columns: 1fr;
   }
 }
+/* v144 Share PDF buttons */
+.share-message-hint {
+  margin: 0;
+  font-size: 13px;
+}
+
+.share-message-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.share-message-actions .primary-btn,
+.share-message-actions .secondary-btn {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .share-message-actions {
+    grid-template-columns: 1fr;
+  }
+}

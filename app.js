@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v143";
+const APP_VERSION = "v144";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -9747,7 +9747,7 @@ function buildShareMessage(protocol = state.current, options = {}) {
     const body = [
       "Hallo,",
       "",
-      `anbei erhalten Sie das Protokoll zur ${title || "Bewehrungskontrolle"}${introDate} für das Bauvorhaben ${project}.`,
+      `anbei erhalten Sie das Protokoll zur Bewehrungskontrolle / Bewehrungsabnahme${introDate} für das Bauvorhaben ${project}.`,
       scope ? `Bereich: ${scope}.` : "",
       "",
       "Ergebnis:",
@@ -9762,7 +9762,7 @@ function buildShareMessage(protocol = state.current, options = {}) {
   }
 
   const body = [
-    `Anbei das Protokoll zur ${title || "Bewehrungskontrolle"}${introDate} für das Bauvorhaben ${project}.`,
+    `Anbei das Protokoll zur Bewehrungskontrolle / Bewehrungsabnahme${introDate} für das Bauvorhaben ${project}.`,
     scope ? `Bereich: ${scope}.` : "",
     "",
     `Ergebnis: ${result}.`,
@@ -9802,6 +9802,86 @@ async function copyCurrentShareMessage(kind = "body") {
   showAppToast(kind === "subject" ? "Betreff kopiert." : "Begleittext kopiert.", { type: "success" });
 }
 
+async function createSharePdfFile() {
+  const { blob, fileName, warnings } = await createReportPdfBlob();
+  const safeName = sanitizeFileName(fileName || reportFileName(state.current));
+  const type = blob?.type || "application/pdf";
+  if (!blob || type !== "application/pdf") throw new Error("PDF-Datei konnte nicht erstellt werden.");
+  if (typeof File !== "function") return { blob, file: null, fileName: safeName, warnings };
+  return { blob, file: new File([blob], safeName, { type: "application/pdf" }), fileName: safeName, warnings };
+}
+
+async function downloadSharePdfWithMessageFallback(messageText = "") {
+  const { blob, fileName, warnings } = await createSharePdfFile();
+  triggerPdfDownload(blob, fileName);
+  if (messageText) {
+    try { await copyTextToClipboard(messageText); } catch (error) { console.warn("Begleittext konnte nicht kopiert werden", error); }
+  }
+  showAppToast(warnings?.length ? "PDF wurde heruntergeladen. Einzelne Bilder konnten eventuell nicht eingebettet werden." : "PDF wurde heruntergeladen. Begleittext wurde kopiert.", { type: warnings?.length ? "info" : "success", timeout: 6500 });
+}
+
+async function sharePdfWithCurrentMessage() {
+  const channel = document.getElementById("shareMessageChannel")?.value || "whatsapp";
+  const message = buildShareMessage(state.current, { channel, includeCompletionRequest: true, includeFindingNumbers: true });
+  const text = message.body || message.text || "";
+  const title = channel === "email" ? (message.subject || reportShareTitle()) : (message.subject || reportShareTitle()).replace(/\s+–\s+.*$/, "");
+  let created = null;
+  try {
+    created = await createSharePdfFile();
+  } catch (error) {
+    console.error("PDF für Teilen konnte nicht erstellt werden", error);
+    if (text) await copyTextToClipboard(text).catch(() => {});
+    alert("PDF konnte nicht erstellt werden. Bitte PDF speichern oder Druckdialog als Fallback nutzen. Der Begleittext wurde, soweit möglich, kopiert.");
+    return;
+  }
+  const { blob, file, fileName, warnings } = created;
+  if (!navigator.share || !file) {
+    triggerPdfDownload(blob, fileName);
+    if (text) await copyTextToClipboard(text).catch(() => {});
+    alert("Direktes Teilen mit PDF-Anhang wird auf diesem Gerät/Browser nicht unterstützt. Die PDF wurde heruntergeladen. Bitte Begleittext kopieren und zusammen mit dem PDF versenden.");
+    return;
+  }
+  const shareData = { title, text, files: [file] };
+  let canShare = true;
+  if (navigator.canShare) {
+    try { canShare = navigator.canShare(shareData) || navigator.canShare({ files: [file] }); }
+    catch { canShare = false; }
+  }
+  if (!canShare) {
+    triggerPdfDownload(blob, fileName);
+    if (text) await copyTextToClipboard(text).catch(() => {});
+    alert("PDF wurde heruntergeladen. Bitte Begleittext kopieren und zusammen mit dem PDF versenden.");
+    return;
+  }
+  try {
+    await navigator.share(shareData);
+    if (warnings?.length) showAppToast("Share-Dialog geöffnet. Hinweis: einzelne Bilder konnten eventuell nicht eingebettet werden.", { type: "info", timeout: 6500 });
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    console.warn("PDF + Begleittext teilen fehlgeschlagen", error);
+    triggerPdfDownload(blob, fileName);
+    if (text) await copyTextToClipboard(text).catch(() => {});
+    alert("Direktes Teilen ist fehlgeschlagen. Die PDF wurde heruntergeladen und der Begleittext wurde, soweit möglich, kopiert.");
+  }
+}
+
+async function downloadCurrentSharePdf() {
+  const channel = document.getElementById("shareMessageChannel")?.value || "whatsapp";
+  const message = buildShareMessage(state.current, { channel, includeCompletionRequest: true, includeFindingNumbers: true });
+  try {
+    await downloadSharePdfWithMessageFallback(message.body || message.text || "");
+  } catch (error) {
+    console.error("PDF herunterladen fehlgeschlagen", error);
+    alert("PDF konnte nicht heruntergeladen werden. Bitte PDF speichern oder Druckdialog als Fallback nutzen.");
+  }
+}
+
+function openMailWithoutAttachment() {
+  const message = buildShareMessage(state.current, { channel: "email", includeCompletionRequest: true, includeFindingNumbers: true });
+  const subject = encodeURIComponent(message.subject || reportShareTitle());
+  const body = encodeURIComponent(`${message.body || message.text || ""}\n\nHinweis: PDF bitte manuell anhängen.`);
+  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+}
 async function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -12586,6 +12666,12 @@ function bindEvents() {
     if (copyReportTextMain) shareReportText();
     const shareMessageChannel = event.target.closest("#shareMessageChannel");
     if (shareMessageChannel) updateShareMessagePreview();
+    const sharePdfWithMessage = event.target.closest("#sharePdfWithMessageBtn");
+    if (sharePdfWithMessage) sharePdfWithCurrentMessage();
+    const downloadSharePdfButton = event.target.closest("#downloadSharePdfBtn");
+    if (downloadSharePdfButton) downloadCurrentSharePdf();
+    const openMailFallback = event.target.closest("#openMailFallbackBtn");
+    if (openMailFallback) openMailWithoutAttachment();
     const copyShareMessage = event.target.closest("#copyShareMessageBtn");
     if (copyShareMessage) copyCurrentShareMessage("body");
     const copyShareSubject = event.target.closest("#copyShareSubjectBtn");
