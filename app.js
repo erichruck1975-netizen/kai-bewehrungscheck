@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v145";
+const APP_VERSION = "v146";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -9699,10 +9699,15 @@ function shareMessagePinLabel(protocol, sample = {}) {
   return `P${pin.number || pins.findIndex((item) => item.id === pin.id) + 1}`;
 }
 
-function shareMessagePinExamples(protocol, max = 5) {
+function shareMessagePinExamples(protocol, max = 3) {
   if (!Array.isArray(protocol?.checkpoints)) return "";
   const labels = uniqueValues(sampleIssues(protocol).map(({ sample }) => shareMessagePinLabel(protocol, sample)).filter(Boolean));
-  const examples = labels.slice(0, max);
+  const examples = labels
+    .map((label) => ({ label, number: Number(String(label).match(/^P0*(\d+)$/i)?.[1] || 0) }))
+    .filter((item) => item.number > 0)
+    .sort((a, b) => a.number - b.number)
+    .slice(0, max)
+    .map((item) => `P${item.number}`);
   if (!examples.length) return "";
   if (examples.length === 1) return examples[0];
   return `${examples.slice(0, -1).join(", ")} oder ${examples[examples.length - 1]}`;
@@ -9779,6 +9784,7 @@ function buildReportShareText({ compact = false, channel = "whatsapp" } = {}) {
 }
 
 let preparedSharePdfCache = null;
+let sharePdfPreparing = false;
 
 function currentSharePdfCacheKey() {
   try {
@@ -9796,6 +9802,10 @@ function currentShareMessage() {
   return { channel, message, text, title };
 }
 
+function preparedSharePdfIsFresh() {
+  return Boolean(preparedSharePdfCache && preparedSharePdfCache.key === currentSharePdfCacheKey() && preparedSharePdfCache.blob);
+}
+
 function setSharePdfStatus(message, type = "info") {
   const node = document.getElementById("sharePdfStatus");
   if (!node) return;
@@ -9803,16 +9813,15 @@ function setSharePdfStatus(message, type = "info") {
   node.dataset.type = type;
 }
 
-function setSharePdfNotice(message, { type = "info", showFallbacks = true } = {}) {
+function setSharePdfNotice(message, { type = "info", showActions = false } = {}) {
   const box = document.getElementById("sharePdfNotice");
   const textNode = document.getElementById("sharePdfNoticeText");
   if (!box || !textNode) return;
   textNode.textContent = message;
   box.hidden = false;
   box.dataset.type = type;
-  box.querySelectorAll("[data-share-notice-fallback]").forEach((el) => {
-    el.hidden = !showFallbacks;
-  });
+  const actions = box.querySelector(".share-pdf-notice-actions");
+  if (actions) actions.hidden = !showActions;
 }
 
 function clearSharePdfNotice() {
@@ -9820,18 +9829,35 @@ function clearSharePdfNotice() {
   if (box) box.hidden = true;
 }
 
-function preparedSharePdfIsFresh() {
-  return Boolean(preparedSharePdfCache && preparedSharePdfCache.key === currentSharePdfCacheKey() && preparedSharePdfCache.blob);
+function updateSharePdfActionState() {
+  const isPrepared = preparedSharePdfIsFresh();
+  if (!isPrepared && preparedSharePdfCache) preparedSharePdfCache = null;
+  const prepareBtn = document.getElementById("prepareSharePdfBtn");
+  const shareBtn = document.getElementById("sharePdfWithMessageBtn");
+  const downloadBtn = document.getElementById("downloadSharePdfBtn");
+  if (prepareBtn) {
+    prepareBtn.hidden = isPrepared;
+    prepareBtn.disabled = sharePdfPreparing;
+    prepareBtn.textContent = sharePdfPreparing ? "PDF wird vorbereitet ..." : "1. PDF vorbereiten";
+  }
+  if (shareBtn) {
+    shareBtn.hidden = !isPrepared;
+    shareBtn.disabled = !isPrepared;
+    shareBtn.textContent = "2. PDF + Text teilen";
+  }
+  if (downloadBtn) downloadBtn.hidden = !isPrepared;
 }
 
 function updatePreparedSharePdfStatus() {
-  if (preparedSharePdfIsFresh()) {
-    const time = preparedSharePdfCache.preparedAt ? ` · ${new Date(preparedSharePdfCache.preparedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "";
-    setSharePdfStatus(`PDF ist vorbereitet${time}.`, "success");
+  if (sharePdfPreparing) {
+    setSharePdfStatus("PDF wird vorbereitet ...", "loading");
+  } else if (preparedSharePdfIsFresh()) {
+    setSharePdfStatus("PDF vorbereitet. Teilen ist jetzt möglich.", "success");
   } else {
     preparedSharePdfCache = null;
     setSharePdfStatus("PDF noch nicht vorbereitet.", "info");
   }
+  updateSharePdfActionState();
 }
 
 function updateShareMessagePreview() {
@@ -9876,19 +9902,24 @@ async function prepareSharePdfForCurrentProtocol({ force = false } = {}) {
     return preparedSharePdfCache;
   }
   clearSharePdfNotice();
-  setSharePdfStatus("PDF wird vorbereitet ...", "loading");
+  sharePdfPreparing = true;
+  preparedSharePdfCache = null;
+  updatePreparedSharePdfStatus();
   try {
     const created = await createSharePdfFile();
     preparedSharePdfCache = { ...created, key, preparedAt: Date.now() };
-    updatePreparedSharePdfStatus();
-    showAppToast("PDF ist vorbereitet.", { type: "success" });
+    setSharePdfStatus("PDF vorbereitet. Teilen ist jetzt möglich.", "success");
+    showAppToast("PDF vorbereitet. Teilen ist jetzt möglich.", { type: "success" });
     return preparedSharePdfCache;
   } catch (error) {
     console.error("PDF vorbereiten fehlgeschlagen", error);
     preparedSharePdfCache = null;
     setSharePdfStatus("PDF konnte nicht vorbereitet werden.", "error");
-    setSharePdfNotice("PDF konnte nicht vorbereitet werden. Bitte PDF speichern oder den Druckdialog als Fallback nutzen.", { type: "error", showFallbacks: false });
+    setSharePdfNotice("PDF konnte nicht vorbereitet werden. Bitte noch einmal vorbereiten oder Begleittext kopieren.", { type: "error", showActions: false });
     return null;
+  } finally {
+    sharePdfPreparing = false;
+    updateSharePdfActionState();
   }
 }
 
@@ -9897,8 +9928,9 @@ async function sharePdfWithCurrentMessage() {
   const key = currentSharePdfCacheKey();
   if (!preparedSharePdfCache || preparedSharePdfCache.key !== key) {
     preparedSharePdfCache = null;
-    setSharePdfStatus("PDF noch nicht vorbereitet.", "info");
-    setSharePdfNotice("PDF ist noch nicht vorbereitet. Bitte zuerst PDF vorbereiten drücken.", { type: "info", showFallbacks: false });
+    setSharePdfStatus("Bitte zuerst PDF vorbereiten.", "info");
+    clearSharePdfNotice();
+    updateSharePdfActionState();
     return;
   }
   const { file, fileName, blob, warnings } = preparedSharePdfCache;
@@ -9915,7 +9947,8 @@ async function sharePdfWithCurrentMessage() {
   };
   state.lastPdfMessageShareDebug = debug;
   if (!navigator.share || !file) {
-    setSharePdfNotice("PDF wurde vorbereitet. Direktes Teilen mit PDF-Anhang wird auf diesem Gerät/Browser nicht unterstützt. Bitte PDF herunterladen und den Begleittext kopieren.", { type: "info", showFallbacks: true });
+    setSharePdfStatus("Direktes Teilen nicht möglich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
+    setSharePdfNotice("Direktes Teilen mit PDF-Anhang wird auf diesem Gerät/Browser nicht unterstützt.", { type: "warning", showActions: true });
     return;
   }
   const shareData = { title, text, files: [file] };
@@ -9928,27 +9961,32 @@ async function sharePdfWithCurrentMessage() {
       debug.errorMessage = error?.message || String(error);
     }
     if (!debug.canShareResult) {
-      setSharePdfNotice("PDF wurde vorbereitet. Dateiteilen wird auf diesem Gerät/Browser nicht unterstützt. Bitte PDF herunterladen und den Begleittext kopieren.", { type: "info", showFallbacks: true });
+      setSharePdfStatus("Direktes Teilen nicht möglich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
+      setSharePdfNotice("Dateiteilen wird auf diesem Gerät/Browser nicht unterstützt.", { type: "warning", showActions: true });
       return;
     }
   }
   try {
     clearSharePdfNotice();
     await navigator.share(shareData);
+    setSharePdfStatus("Teilen wurde geöffnet.", "success");
     if (warnings?.length) showAppToast("Share-Dialog geöffnet. Hinweis: einzelne Bilder konnten eventuell nicht eingebettet werden.", { type: "info", timeout: 6500 });
   } catch (error) {
     debug.errorName = error?.name || "ShareError";
     debug.errorMessage = error?.message || String(error);
     if (error?.name === "AbortError") {
-      setSharePdfNotice("Teilen wurde abgebrochen.", { type: "info", showFallbacks: false });
+      setSharePdfStatus("Teilen wurde abgebrochen.", "info");
+      setSharePdfNotice("Teilen wurde abgebrochen.", { type: "info", showActions: true });
       return;
     }
     if (error?.name === "NotAllowedError") {
-      setSharePdfNotice("PDF wurde vorbereitet. Bitte Teilen erneut drücken.", { type: "info", showFallbacks: false });
+      setSharePdfStatus("Bitte erneut auf Teilen drücken.", "info");
+      setSharePdfNotice("PDF wurde vorbereitet. Bitte erneut auf Teilen drücken.", { type: "info", showActions: true });
       return;
     }
     console.warn("PDF + Begleittext teilen fehlgeschlagen", error);
-    setSharePdfNotice("Direktes Teilen wurde von Chrome/Android nicht abgeschlossen. Bitte erneut versuchen oder PDF herunterladen und den Begleittext kopieren.", { type: "warning", showFallbacks: true });
+    setSharePdfStatus("Direktes Teilen nicht möglich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
+    setSharePdfNotice("Direktes Teilen wurde von Chrome/Android nicht abgeschlossen.", { type: "warning", showActions: true });
   }
 }
 

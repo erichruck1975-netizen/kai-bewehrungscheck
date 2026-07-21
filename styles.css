@@ -3527,3 +3527,76 @@ dialog button {
     grid-template-columns: 1fr;
   }
 }
+/* v146: clean mobile share workflow */
+.share-message-card,
+.share-message-card * {
+  box-sizing: border-box;
+}
+
+.share-message-card {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  gap: 12px;
+}
+
+.share-message-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 220px);
+}
+
+.share-message-card [hidden] {
+  display: none !important;
+}
+
+.share-message-card label,
+.share-message-card input,
+.share-message-card select,
+.share-message-card textarea {
+  max-width: 100%;
+}
+
+.share-message-card input,
+.share-message-card select,
+.share-message-card textarea {
+  width: 100%;
+}
+
+.share-message-card textarea {
+  min-height: 150px;
+  max-height: 300px;
+  overflow: auto;
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+
+.share-message-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.share-message-actions .primary-btn,
+.share-message-actions .secondary-btn,
+.share-pdf-notice-actions .secondary-btn {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.share-pdf-notice-actions[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .share-message-head,
+  .share-message-actions,
+  .share-pdf-notice-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .share-message-card {
+    padding: 10px;
+  }
+}

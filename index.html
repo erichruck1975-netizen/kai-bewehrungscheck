@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=145">
-  <link rel="stylesheet" href="styles.css?v=145">
+  <link rel="manifest" href="manifest.webmanifest?v=146">
+  <link rel="stylesheet" href="styles.css?v=146">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v145</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v146</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -248,8 +248,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v145</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v145 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v146</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v146 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -498,10 +498,10 @@
                 <button class="secondary-btn" id="copyReportTextMainBtn" type="button">Berichtstext teilen<br><small>Kurztext für WhatsApp/Mail</small></button>
               </div>
               <section class="share-message-card" id="shareMessageCard">
-                <div class="section-head compact">
+                <div class="section-head compact share-message-head">
                   <div>
-                    <h3>Begleittext</h3>
-                    <p class="muted">Begleittext für den Versand des Protokolls.</p>
+                    <h3>Protokoll versenden</h3>
+                    <p class="muted">PDF vorbereiten, Begleittext prüfen und anschließend per WhatsApp oder E-Mail teilen.</p>
                   </div>
                   <label class="inline-control">Kanal
                     <select id="shareMessageChannel">
@@ -513,28 +513,29 @@
                 <label id="shareMessageSubjectWrap" class="share-message-subject" hidden>Betreff
                   <input id="shareMessageSubject" type="text" readonly>
                 </label>
-                <label>Textvorschau
-                  <textarea id="shareMessagePreview" rows="9" readonly></textarea>
+                <label class="share-message-preview-label">Textvorschau
+                  <textarea id="shareMessagePreview" rows="8" readonly></textarea>
                 </label>
                 <p class="muted share-message-hint">Hinweis: Das Android-Teilen-Menü zeigt häufig nur die PDF-Datei an. Der Begleittext wird trotzdem an die Ziel-App übergeben, kann aber je nach App fehlen. Falls der Text fehlt, bitte Begleittext kopieren und einfügen.</p>
                 <p id="sharePdfStatus" class="muted share-pdf-status" data-type="info">PDF noch nicht vorbereitet.</p>
                 <div id="sharePdfNotice" class="share-pdf-notice" data-type="info" hidden>
                   <p id="sharePdfNoticeText"></p>
-                  <div class="share-pdf-notice-actions">
+                  <div class="share-pdf-notice-actions" hidden>
                     <button class="secondary-btn" id="retrySharePdfBtn" type="button">Noch einmal teilen</button>
-                    <button class="secondary-btn" id="noticeDownloadSharePdfBtn" data-share-notice-fallback type="button">PDF herunterladen</button>
-                    <button class="secondary-btn" id="noticeCopyShareMessageBtn" data-share-notice-fallback type="button">Begleittext kopieren</button>
+                    <button class="secondary-btn" id="noticeDownloadSharePdfBtn" type="button">PDF herunterladen</button>
+                    <button class="secondary-btn" id="noticeCopyShareMessageBtn" type="button">Begleittext kopieren</button>
                   </div>
                 </div>
-                <div class="result-actions share-message-actions">
-                  <button class="primary-btn" id="prepareSharePdfBtn" type="button">PDF vorbereiten</button>
-                  <button class="primary-btn" id="sharePdfWithMessageBtn" type="button">PDF + Begleittext teilen</button>
-                  <button class="secondary-btn" id="downloadSharePdfBtn" type="button">PDF herunterladen</button>
+                <div class="share-message-actions">
+                  <button class="primary-btn" id="prepareSharePdfBtn" type="button">1. PDF vorbereiten</button>
+                  <button class="primary-btn" id="sharePdfWithMessageBtn" type="button" hidden>2. PDF + Text teilen</button>
+                  <button class="secondary-btn" id="downloadSharePdfBtn" type="button" hidden>PDF herunterladen</button>
                   <button class="secondary-btn" id="copyShareMessageBtn" type="button">Begleittext kopieren</button>
                   <button class="secondary-btn" id="copyShareSubjectBtn" type="button" hidden>Betreff kopieren</button>
                   <button class="secondary-btn" id="openMailFallbackBtn" type="button" hidden>E-Mail ohne Anhang öffnen</button>
                 </div>
-              </section>              <details class="report-more-options">
+              </section>
+              <details class="report-more-options">
                 <summary>Weitere Optionen</summary>
                 <div class="result-actions report-secondary-actions">
                   <button class="secondary-btn" id="pdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button>
@@ -784,7 +785,7 @@
   <datalist id="signatureCategoryOptions"></datalist>
 
   <script src="vendor/pdfjs/pdf.min.js?v=132"></script>
-  <script src="app.js?v=145"></script>
+  <script src="app.js?v=146"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
