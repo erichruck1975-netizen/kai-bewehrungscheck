@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v156";
+const APP_VERSION = "v157";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -539,6 +539,35 @@ function getProjectAddress(project = {}) {
 function projectAddressText(project = {}, { multiline = false } = {}) {
   return formatAddress(getProjectAddress(project), { multiline });
 }
+function addressToHeadFields(address = {}) {
+  const item = normalizeAddress(address);
+  const street = String(item.street || "").trim();
+  const houseNumber = String(item.houseNumber || "").trim();
+  const streetLine = houseNumber && street && !street.endsWith(houseNumber) ? `${street} ${houseNumber}` : (street || houseNumber);
+  return {
+    siteStreet: streetLine,
+    siteZip: item.zip || "",
+    siteCity: item.city || "",
+    siteCountry: item.country || "Deutschland",
+    siteAddress: formatAddress(item)
+  };
+}
+
+function protocolHeadAddress(protocol = {}, project = null) {
+  const head = protocol.head || {};
+  const fieldAddress = normalizeAddress({
+    street: head.siteStreet || "",
+    zip: head.siteZip || "",
+    city: head.siteCity || "",
+    country: head.siteCountry || "Deutschland"
+  });
+  if (hasAddressContent(fieldAddress)) return fieldAddress;
+  const textAddress = normalizeAddress(head.siteAddress || head.siteAddressText || "");
+  if (hasAddressContent(textAddress)) return textAddress;
+  const projectAddress = getProjectAddress(project || projectById(protocol.projectId));
+  if (hasAddressContent(projectAddress)) return projectAddress;
+  return normalizeAddress({ country: head.siteCountry || "Deutschland" });
+}
 
 function applySiteControlProjectAddress() {
   if (!isSiteControlProtocol()) return;
@@ -829,14 +858,15 @@ function syncProtocolProjectFields(protocol, project, { overwriteProtocol = true
   if (!protocol || !project) return;
   protocol.projectId = project.id;
   protocol.head = protocol.head || {};
-  const address = normalizeAddress(project.address || project.siteAddress);
+  const address = getProjectAddress(project);
+  const headAddress = addressToHeadFields(address);
   if (overwriteProtocol || !protocol.head.projectName) protocol.head.projectName = project.name || "";
-  if (overwriteProtocol || !protocol.head.siteAddress) {
-    protocol.head.siteStreet = address.street;
-    protocol.head.siteZip = address.zip;
-    protocol.head.siteCity = address.city;
-    protocol.head.siteCountry = address.country;
-    protocol.head.siteAddress = formatAddress(address);
+  if (overwriteProtocol || !hasAddressContent(protocolHeadAddress(protocol, null))) {
+    protocol.head.siteStreet = headAddress.siteStreet;
+    protocol.head.siteZip = headAddress.siteZip;
+    protocol.head.siteCity = headAddress.siteCity;
+    protocol.head.siteCountry = headAddress.siteCountry;
+    protocol.head.siteAddress = headAddress.siteAddress;
   }
   if (overwriteProtocol || !protocol.head.contractor) protocol.head.contractor = project.contractorSnapshot?.name || project.contractor || protocol.head.contractor || "";
   if (overwriteProtocol || !protocol.result?.inspectorName) {
@@ -1054,22 +1084,13 @@ function normalizeProtocol(protocol) {
   protocol.head.inspectorPersonSnapshot = protocol.head.inspectorPersonSnapshot || inspectorSelection.snapshot;
   protocol.head.projectName = protocol.head.projectName || "";
   protocol.head.inspectionDateTime = protocol.head.inspectionDateTime || protocol.head.reportDateTime || protocol.head.createdAt || protocol.weather?.weatherDateTime || nowLocalInput();
-  const protocolAddress = normalizeAddress(protocol.head.siteAddress || {
-    street: protocol.head.siteStreet || "",
-    zip: protocol.head.siteZip || "",
-    city: protocol.head.siteCity || "",
-    country: protocol.head.siteCountry || "Deutschland"
-  });
-  protocol.head.siteStreet = protocol.head.siteStreet || protocolAddress.street;
-  protocol.head.siteZip = protocol.head.siteZip || protocolAddress.zip;
-  protocol.head.siteCity = protocol.head.siteCity || protocolAddress.city;
-  protocol.head.siteCountry = protocol.head.siteCountry || protocolAddress.country;
-  protocol.head.siteAddress = formatAddress({
-    street: protocol.head.siteStreet,
-    zip: protocol.head.siteZip,
-    city: protocol.head.siteCity,
-    country: protocol.head.siteCountry
-  });
+  const protocolAddress = protocolHeadAddress(protocol);
+  const protocolAddressFields = addressToHeadFields(protocolAddress);
+  protocol.head.siteStreet = protocol.head.siteStreet || protocolAddressFields.siteStreet;
+  protocol.head.siteZip = protocol.head.siteZip || protocolAddressFields.siteZip;
+  protocol.head.siteCity = protocol.head.siteCity || protocolAddressFields.siteCity;
+  protocol.head.siteCountry = protocol.head.siteCountry || protocolAddressFields.siteCountry;
+  protocol.head.siteAddress = formatAddress(protocolHeadAddress(protocol));
   protocol.plans = protocol.plans || [];
   protocol.pins = protocol.pins || [];
   protocol.signatures = (protocol.signatures || []).map(normalizeSignature);
@@ -2637,6 +2658,7 @@ function fillForm() {
   const contractorCompany = resolveCompany(p.head.contractor || project?.contractor || "");
   const projectInspector = resolveInspector(project?.inspector || "");
   const values = { ...p.head, ...p.weather, ...p.result };
+  Object.assign(values, addressToHeadFields(protocolHeadAddress(p, project)));
   Object.entries(values).forEach(([key, value]) => {
     const field = $(`[name="${key}"]`);
     if (field) field.value = value || "";
