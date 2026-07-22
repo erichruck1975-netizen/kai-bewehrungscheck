@@ -3600,3 +3600,132 @@ dialog button {
     padding: 10px;
   }
 }
+/* v153: Baustellenkontrolle Tabs und Accordion */
+.site-tabs {
+  margin: 0 0 12px;
+}
+
+.site-tab-panel.active {
+  display: block;
+}
+
+.site-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.mini-stat {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fb;
+}
+
+.mini-stat strong {
+  display: block;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.mini-stat span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.site-plan-list,
+.site-pin-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.site-plan-mini-card,
+.site-pin-list > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.site-plan-mini-card span,
+.site-pin-list span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.site-item-card.site-item-accordion {
+  padding: 0;
+  overflow: hidden;
+}
+
+.site-item-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.site-item-toggle:hover,
+.site-item-accordion.open .site-item-toggle {
+  background: #eef5fb;
+}
+
+.site-item-toggle-main,
+.site-item-toggle-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.site-item-toggle-main strong,
+.site-item-toggle-main span,
+.site-item-toggle-meta small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-item-toggle-main span,
+.site-item-toggle-meta small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.site-item-toggle-meta {
+  justify-items: end;
+  max-width: 260px;
+}
+
+.site-item-detail {
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+
+@media (max-width: 720px) {
+  .site-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .site-item-toggle {
+    grid-template-columns: 1fr;
+  }
+
+  .site-item-toggle-meta {
+    justify-items: start;
+    max-width: none;
+  }
+}

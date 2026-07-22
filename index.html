@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v152</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v153</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -91,33 +91,64 @@
 
       <section id="siteControlEditorView" class="view">
         <div id="siteControlModeBanner" class="followup-context"></div>
+        <nav class="tabs site-tabs" aria-label="Baustellenkontrolle Bereiche">
+          <button class="tab active" data-site-tab="siteHeadTab" type="button">Kopf</button>
+          <button class="tab" data-site-tab="sitePlanTab" type="button">Plan</button>
+          <button class="tab" data-site-tab="siteCheckTab" type="button">Check</button>
+          <button class="tab" data-site-tab="siteResultTab" type="button">Ergebnis</button>
+        </nav>
         <form id="siteControlForm">
-          <div class="panel"><div class="grid">
-            <label>Protokollbezeichnung<input name="siteTitle"></label>
-            <label>Datum / Uhrzeit<input name="siteDate" type="datetime-local"></label>
-            <label>Projekt<input name="siteProject" disabled></label>
-            <label>Adresse<textarea name="siteAddress" rows="2"></textarea></label><button class="secondary-btn" id="siteAddressFromProjectBtn" type="button">Adresse aus Projekt übernehmen</button>
-            <label>Anlass<select name="siteReason"><option>Regelbegehung</option><option>Mangelkontrolle</option><option>Fotodokumentation</option><option>Abstimmung</option><option>Nachbegehung</option><option>Sonstige</option></select></label>
-            <label>Bereich / Ort<input name="siteArea" list="areaOptions"></label>
-            <label>Teilnehmer<input name="siteParticipants" list="responsibleOptions" placeholder="Personen/Firmen oder Freitext"></label>
-            <label>Wetter / Bedingungen<textarea name="siteWeather" rows="2"></textarea><button class="small-btn inline-field-action" id="siteWeatherAutoBtn" type="button">Wetter automatisch einf&uuml;gen</button></label>
-          </div></div>
-          <div class="panel"><div class="section-head"><h3>Feststellungen / Aufgaben</h3></div>
-            <div class="site-quick-actions">
-              <button class="primary-btn" type="button" data-add-site-item="Mangel">+ Mangel</button>
-              <button class="secondary-btn" type="button" data-add-site-item="Aufgabe">+ Aufgabe</button>
-              <button class="secondary-btn" type="button" data-add-site-item="Hinweis">+ Hinweis</button>
-              <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
-              <button class="secondary-btn" type="button" data-add-site-item="Klärungspunkt">+ Klärungspunkt</button>
-            </div>
-            <div id="siteControlItemList" class="site-item-list"></div>
+          <div id="siteHeadTab" class="tab-panel site-tab-panel active">
+            <div class="panel"><div class="grid">
+              <label>Protokollbezeichnung<input name="siteTitle"></label>
+              <label>Datum / Uhrzeit<input name="siteDate" type="datetime-local"></label>
+              <label>Projekt<input name="siteProject" disabled></label>
+              <label>Adresse<textarea name="siteAddress" rows="2"></textarea></label><button class="secondary-btn" id="siteAddressFromProjectBtn" type="button">Adresse aus Projekt übernehmen</button>
+              <label>Anlass<select name="siteReason"><option>Regelbegehung</option><option>Mangelkontrolle</option><option>Fotodokumentation</option><option>Abstimmung</option><option>Nachbegehung</option><option>Sonstige</option></select></label>
+              <label>Bereich / Ort<input name="siteArea" list="areaOptions"></label>
+              <label>Teilnehmer<input name="siteParticipants" list="responsibleOptions" placeholder="Personen/Firmen oder Freitext"></label>
+              <label>Wetter / Bedingungen<textarea name="siteWeather" rows="2"></textarea><button class="small-btn inline-field-action" id="siteWeatherAutoBtn" type="button">Wetter automatisch einfügen</button></label>
+            </div></div>
           </div>
-          <div class="panel"><label class="voice-field">Ergebnis / Schlussbemerkung<textarea name="siteFinalNote" rows="4"></textarea><button class="mic-btn" type="button" data-voice-for="siteFinalNote">Mikrofon</button></label>
-            <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Übersicht</button><button class="danger-btn" id="siteDeleteProtocolBtn" type="button">Vorgang löschen</button></div>
+          <div id="sitePlanTab" class="tab-panel site-tab-panel">
+            <div class="panel">
+              <div class="section-head">
+                <div>
+                  <h3>Plan / Markierungen</h3>
+                  <p class="muted">Projektpläne werden zentral verwaltet. Pins werden direkt an Feststellungen gesetzt.</p>
+                </div>
+                <button class="secondary-btn" data-project-module="plans" type="button">Projektpläne öffnen</button>
+              </div>
+              <div id="sitePlanSummary" class="site-plan-summary"></div>
+            </div>
+          </div>
+          <div id="siteCheckTab" class="tab-panel site-tab-panel">
+            <div class="panel"><div class="section-head"><h3>Feststellungen / Aufgaben</h3></div>
+              <div class="site-quick-actions">
+                <button class="primary-btn" type="button" data-add-site-item="Mangel">+ Mangel</button>
+                <button class="secondary-btn" type="button" data-add-site-item="Aufgabe">+ Aufgabe</button>
+                <button class="secondary-btn" type="button" data-add-site-item="Hinweis">+ Hinweis</button>
+                <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
+                <button class="secondary-btn" type="button" data-add-site-item="Klärungspunkt">+ Klärungspunkt</button>
+              </div>
+              <div id="siteControlItemList" class="site-item-list"></div>
+            </div>
+          </div>
+          <div id="siteResultTab" class="tab-panel site-tab-panel">
+            <div class="panel">
+              <div class="section-head">
+                <div>
+                  <h3>Ergebnis</h3>
+                  <p class="muted">Schlussbemerkung und Berichtsausgabe zur Baustellenkontrolle.</p>
+                </div>
+              </div>
+              <div id="siteControlResultSummary" class="site-result-summary"></div>
+              <label class="voice-field">Ergebnis / Schlussbemerkung<textarea name="siteFinalNote" rows="4"></textarea><button class="mic-btn" type="button" data-voice-for="siteFinalNote">Mikrofon</button></label>
+              <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Übersicht</button><button class="danger-btn" id="siteDeleteProtocolBtn" type="button">Vorgang löschen</button></div>
+            </div>
           </div>
         </form>
       </section>
-
 
       <section id="dailyReportView" class="view">
         <div class="section-head">
@@ -248,8 +279,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v152</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v152 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v153</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v153 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>

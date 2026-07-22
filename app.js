@@ -1,9 +1,9 @@
-﻿const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
+const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
 const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v152";
+const APP_VERSION = "v153";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1732,6 +1732,7 @@ function returnToResultAfterPrint() {
     return;
   }
   if (isSiteControlProtocol()) {
+    state.activeSiteControlTabId = state.activeSiteControlTabId || "siteHeadTab";
     showView("siteControlEditorView");
     renderSiteControlEditor();
     return;
@@ -8149,6 +8150,8 @@ function openSiteControlProtocol(protocol) {
   state.currentProjectId = state.current.projectId || "";
   const project = projectById(state.currentProjectId);
   if (project) syncProtocolProjectFields(state.current, project, { overwriteProtocol: false });
+  state.activeSiteControlTabId = "siteHeadTab";
+  state.openSiteItemId = "";
   showView("siteControlEditorView");
   renderSiteControlEditor();
 }
@@ -8239,6 +8242,26 @@ function renderSiteControlOpenItems() {
     </section>`;
 }
 
+function activeSiteControlTabId() {
+  return state.activeSiteControlTabId || "siteHeadTab";
+}
+
+function activateSiteControlTab(tabId = "siteHeadTab") {
+  const view = document.getElementById("siteControlEditorView");
+  if (!view) return;
+  const hasPanel = Array.from(view.querySelectorAll(".site-tab-panel")).some((panel) => panel.id === tabId);
+  const nextTabId = hasPanel ? tabId : "siteHeadTab";
+  state.activeSiteControlTabId = nextTabId;
+  view.querySelectorAll(".site-tabs .tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.siteTab === nextTabId));
+  view.querySelectorAll(".site-tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === nextTabId));
+  if (nextTabId === "siteCheckTab") {
+    renderSiteControlItems();
+    hydratePhotoThumbs($("#siteControlItemList"));
+  }
+  if (nextTabId === "sitePlanTab") renderSiteControlPlanTab();
+  if (nextTabId === "siteResultTab") renderSiteControlResultSummary();
+}
+
 function renderSiteControlEditor() {
   const protocol = state.current;
   if (!isSiteControlProtocol(protocol)) return;
@@ -8259,9 +8282,11 @@ function renderSiteControlEditor() {
   const title = $("#siteControlModeBanner");
   if (title) title.innerHTML = `<strong>Baustellenkontrolle</strong><span>${escapeHtml(project?.name || protocol.head.projectName || "Projekt")}</span>`;
   renderSiteControlItems();
+  renderSiteControlPlanTab();
+  renderSiteControlResultSummary();
+  activateSiteControlTab(activeSiteControlTabId());
   hydratePhotoThumbs($("#siteControlItemList"));
 }
-
 function saveSiteControlForm({ persistNow = true } = {}) {
   if (!isSiteControlProtocol()) return;
   const form = $("#siteControlForm");
@@ -8300,6 +8325,8 @@ function addSiteControlItem(type = "Hinweis") {
     updatedAt: now
   }], state.current.id)[0];
   state.current.siteItems.push(item);
+  state.openSiteItemId = item.id;
+  state.activeSiteControlTabId = "siteCheckTab";
   persist();
   renderSiteControlEditor();
 }
@@ -8308,66 +8335,112 @@ function renderSiteControlItems() {
   const list = $("#siteControlItemList");
   if (!list || !isSiteControlProtocol()) return;
   const items = state.current.siteItems || [];
+  if (state.openSiteItemId && !items.some((item) => item.id === state.openSiteItemId)) state.openSiteItemId = "";
   list.innerHTML = items.length ? items.map(siteControlItemCard).join("") : `<div class="empty-card muted">Noch keine Feststellung. Nutze oben + Mangel, + Aufgabe, + Hinweis oder + Foto-Doku.</div>`;
+}
+
+function renderSiteControlPlanTab() {
+  const target = $("#sitePlanSummary");
+  if (!target || !isSiteControlProtocol()) return;
+  const plans = plansForCurrentProtocol();
+  const itemsWithPins = (state.current.siteItems || []).map((item) => ({ item, pin: siteControlPinForItem(item) })).filter((entry) => entry.pin);
+  target.innerHTML = `
+    <div class="site-summary-grid">
+      <div class="mini-stat"><strong>${plans.length}</strong><span>Projektpläne</span></div>
+      <div class="mini-stat"><strong>${itemsWithPins.length}</strong><span>Planmarkierungen</span></div>
+      <div class="mini-stat"><strong>${(state.current.siteItems || []).length}</strong><span>Feststellungen</span></div>
+    </div>
+    ${plans.length ? `<div class="site-plan-list">${plans.slice(0, 6).map((plan) => `<article class="site-plan-mini-card"><strong>${escapeHtml(planCompactTitle(plan))}</strong><span>${escapeHtml([plan.category, plan.level, plan.component].filter(Boolean).join(" · ") || plan.fileName || "Projektplan")}</span></article>`).join("")}</div>` : `<p class="muted">Noch keine Projektpläne vorhanden. Öffne die Projektpläne, um Unterlagen hochzuladen.</p>`}
+    ${itemsWithPins.length ? `<div class="site-pin-list">${itemsWithPins.map(({ item, pin }) => `<div><strong>${escapeHtml(pinLabel(pin))}</strong><span>${escapeHtml(item.type || "Feststellung")} · ${escapeHtml(siteControlPlanReference(item, pin) || "Planbezug vorhanden")}</span></div>`).join("")}</div>` : `<p class="muted">Noch keine Feststellung ist auf einem Plan markiert.</p>`}
+  `;
+}
+
+function renderSiteControlResultSummary() {
+  const target = $("#siteControlResultSummary");
+  if (!target || !isSiteControlProtocol()) return;
+  const items = state.current.siteItems || [];
+  const open = items.filter(siteControlItemIsOpen).length;
+  const photos = items.reduce((sum, item) => sum + siteControlItemPhotos(item).length, 0);
+  const pins = items.filter((item) => siteControlPinForItem(item)).length;
+  target.innerHTML = `<div class="site-summary-grid"><div class="mini-stat"><strong>${items.length}</strong><span>Feststellungen</span></div><div class="mini-stat"><strong>${open}</strong><span>offen</span></div><div class="mini-stat"><strong>${pins}</strong><span>Pins</span></div><div class="mini-stat"><strong>${photos}</strong><span>Fotos</span></div></div>`;
 }
 
 function siteControlOptions(values, current) {
   return uniqueValues(values).map((value) => `<option value="${escapeAttr(value)}" ${value === current ? "selected" : ""}>${escapeHtml(value)}</option>`).join("");
 }
 
-function siteControlItemCard(item) {
-  const photos = item.photos || [];
-  const pin = siteControlPinForItem(item);
-  const planReference = siteControlPlanReference(item, pin) || item.planReference || "";
-  return `
-    <article class="site-item-card" data-site-item="${item.id}">
-      <div class="site-item-head">
-        <h4>${escapeHtml(item.type)} ${item.number ? `#${item.number}` : ""}</h4>
-        <span class="status-badge ${siteStatusClass(item.status)}">${escapeHtml(item.status)}</span>
-      </div>
-      <div class="grid site-item-grid">
-        <label>Typ<select data-site-item-field="type">${siteControlOptions(state.masterData.siteControlTypes || SITE_CONTROL_TYPES, item.type)}</select></label>
-        <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
-        <label>Bereich / Ort<input data-site-item-field="location" value="${escapeAttr(item.location)}"></label>
-        <label>Zust\u00e4ndig<input data-site-item-field="responsible" list="responsibleOptions" value="${escapeAttr(item.responsible)}"></label>
-        <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
-        <label>Priorit\u00e4t<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
-        <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
-        <label>Planbezug / Pin<input data-site-item-field="planReference" value="${escapeAttr(item.planReference)}" placeholder="z. B. Plan B-002, P3"></label>
-      </div>
-      <div class="site-plan-reference ${pin ? "has-pin" : ""}">
-        <div><strong>${pin ? "Planmarkierung" : "Kein Pin gesetzt"}</strong><span>${pin ? escapeHtml(planReference) : "Diese Feststellung kann auf einem Projektplan markiert werden."}</span></div>
-        <div class="site-plan-actions">
-          <button class="secondary-btn" type="button" data-mark-site-item="${item.id}">${pin ? "Pin neu setzen" : "Auf Plan markieren"}</button>
-          ${pin ? `<button class="secondary-btn" type="button" data-show-site-pin="${item.id}">Pin anzeigen / bearbeiten</button><button class="danger-btn" type="button" data-remove-site-pin="${item.id}">Planbezug entfernen</button>` : ""}
-        </div>
-      </div>
-      <label class="voice-field">Beschreibung / Feststellung
-        <textarea data-site-item-field="description" rows="4">${escapeHtml(item.description)}</textarea>
-        <button class="mic-btn" type="button" data-voice-site-item="${item.id}">Mikrofon</button>
-      </label>
-      <div class="result-actions site-photo-actions">
-        <button class="secondary-btn" type="button" data-site-photo-camera="${item.id}">Foto aufnehmen</button>
-        <button class="secondary-btn" type="button" data-site-photo-gallery="${item.id}">Foto aus Galerie ausw\u00e4hlen</button>
-        <button class="danger-btn" type="button" data-delete-site-item="${item.id}">Feststellung l\u00f6schen</button>
-      </div>
-      <div class="photo-grid compact-photo-grid">
-        ${photos.map((photo) => `
-          <figure class="photo-tool-card">
-            <img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
-            <figcaption><span>${escapeHtml(photo.name || "Foto")}</span>${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto l\u00f6schen</button></figcaption>
-          </figure>`).join("")}
-      </div>
-    </article>`;
+function siteControlItemSummary(item, pin, photos) {
+  const parts = [];
+  if (item.location) parts.push(item.location);
+  if (item.trade) parts.push(item.trade);
+  parts.push(`${photos.length} Foto${photos.length === 1 ? "" : "s"}`);
+  parts.push(pin ? `Pin ${pinLabel(pin)}` : "kein Pin");
+  if (item.responsible) parts.push(`Zuständig: ${item.responsible}`);
+  return parts.join(" · ");
 }
 
+function siteControlItemCard(item) {
+  const photos = siteControlItemPhotos(item);
+  const pin = siteControlPinForItem(item);
+  const planReference = siteControlPlanReference(item, pin) || item.planReference || "";
+  const isOpen = state.openSiteItemId === item.id;
+  const displayStatus = siteControlReportStatus(item, pin);
+  const statusClass = siteControlReportStatusClass(displayStatus);
+  const descriptionText = String(item.description || "").trim();
+  const teaser = descriptionText ? (descriptionText.length > 130 ? descriptionText.slice(0, 127) + "..." : descriptionText) : "Noch keine Beschreibung.";
+  return `
+    <article class="site-item-card site-item-accordion ${isOpen ? "open" : ""}" data-site-item="${item.id}">
+      <button class="site-item-toggle" type="button" data-toggle-site-item="${item.id}" aria-expanded="${isOpen ? "true" : "false"}">
+        <span class="site-item-toggle-main"><strong>${escapeHtml(item.type)} ${item.number ? `#${item.number}` : ""}</strong><span>${escapeHtml(teaser)}</span></span>
+        <span class="site-item-toggle-meta"><span class="status-badge ${statusClass}">${escapeHtml(displayStatus)}</span><small>${escapeHtml(siteControlItemSummary(item, pin, photos))}</small></span>
+      </button>
+      ${isOpen ? `<div class="site-item-detail">
+        <div class="grid site-item-grid">
+          <label>Typ<select data-site-item-field="type">${siteControlOptions(state.masterData.siteControlTypes || SITE_CONTROL_TYPES, item.type)}</select></label>
+          <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
+          <label>Bereich / Ort<input data-site-item-field="location" value="${escapeAttr(item.location)}"></label>
+          <label>Zuständig<input data-site-item-field="responsible" list="responsibleOptions" value="${escapeAttr(item.responsible)}"></label>
+          <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
+          <label>Priorität<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
+          <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
+          <label>Planbezug / Pin<input data-site-item-field="planReference" value="${escapeAttr(item.planReference)}" placeholder="z. B. Plan B-002, P3"></label>
+        </div>
+        <div class="site-plan-reference ${pin ? "has-pin" : ""}">
+          <div><strong>${pin ? "Planmarkierung" : "Kein Pin gesetzt"}</strong><span>${pin ? escapeHtml(planReference) : "Diese Feststellung kann auf einem Projektplan markiert werden."}</span></div>
+          <div class="site-plan-actions">
+            <button class="secondary-btn" type="button" data-mark-site-item="${item.id}">${pin ? "Pin neu setzen" : "Auf Plan markieren"}</button>
+            ${pin ? `<button class="secondary-btn" type="button" data-show-site-pin="${item.id}">Pin anzeigen / bearbeiten</button><button class="danger-btn" type="button" data-remove-site-pin="${item.id}">Planbezug entfernen</button>` : ""}
+          </div>
+        </div>
+        <label class="voice-field">Beschreibung / Feststellung
+          <textarea data-site-item-field="description" rows="4">${escapeHtml(item.description)}</textarea>
+          <button class="mic-btn" type="button" data-voice-site-item="${item.id}">Mikrofon</button>
+        </label>
+        <div class="result-actions site-photo-actions">
+          <button class="secondary-btn" type="button" data-site-photo-camera="${item.id}">Foto aufnehmen</button>
+          <button class="secondary-btn" type="button" data-site-photo-gallery="${item.id}">Foto aus Galerie auswählen</button>
+          <button class="danger-btn" type="button" data-delete-site-item="${item.id}">Feststellung löschen</button>
+        </div>
+        <div class="photo-grid compact-photo-grid">
+          ${photos.map((photo) => `
+            <figure class="photo-tool-card">
+              <img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
+              <figcaption><span>${escapeHtml(photo.name || "Foto")}</span>${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto löschen</button></figcaption>
+            </figure>`).join("")}
+        </div>
+      </div>` : ""}
+    </article>`;
+}
 function updateSiteControlItemField(element) {
   const item = findSiteControlItem(element.closest("[data-site-item]")?.dataset.siteItem || "");
   if (!item) return;
   item[element.dataset.siteItemField] = element.value || "";
   item.updatedAt = new Date().toISOString();
   persist();
-  if (element.dataset.siteItemField === "status") renderSiteControlItems();
+  if (element.dataset.siteItemField === "status") {
+    renderSiteControlItems();
+    renderSiteControlResultSummary();
+  }
 }
 
 function triggerSiteControlPhotoPicker(itemId, source) {
@@ -12510,6 +12583,21 @@ function bindEvents() {
     if (deleteCurrentSiteControl && isSiteControlProtocol() && confirmSiteControlDelete()) softDeleteSiteControlProtocol(state.current.id);
     const addSiteItem = event.target.closest("[data-add-site-item]");
     if (addSiteItem) addSiteControlItem(addSiteItem.dataset.addSiteItem);
+    const siteTabButton = event.target.closest("[data-site-tab]");
+    if (siteTabButton) {
+      event.preventDefault();
+      saveSiteControlForm({ persistNow: false });
+      activateSiteControlTab(siteTabButton.dataset.siteTab);
+      return;
+    }
+    const toggleSiteItem = event.target.closest("[data-toggle-site-item]");
+    if (toggleSiteItem) {
+      event.preventDefault();
+      state.openSiteItemId = state.openSiteItemId === toggleSiteItem.dataset.toggleSiteItem ? "" : toggleSiteItem.dataset.toggleSiteItem;
+      renderSiteControlItems();
+      hydratePhotoThumbs($("#siteControlItemList"));
+      return;
+    }
     const sitePhotoCamera = event.target.closest("[data-site-photo-camera]");
     if (sitePhotoCamera) triggerSiteControlPhotoPicker(sitePhotoCamera.dataset.sitePhotoCamera, "camera");
     const sitePhotoGallery = event.target.closest("[data-site-photo-gallery]");
