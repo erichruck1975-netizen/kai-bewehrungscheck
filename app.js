@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v154";
+const APP_VERSION = "v155";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -8587,7 +8587,45 @@ async function ensureSiteControlReportPlanImages(items = []) {
   }
 }
 
-function siteControlPlanAppendixReport(items = [], reportMeta = new Map()) {
+function siteControlCompactPlanTitle(plan) {
+  if (!plan) return "Plan unbekannt";
+  const number = displayPlanNumber(plan) || plan.number || plan.planNumber || "";
+  const rawName = planAppName(plan) || plan.title || plan.fileName || "Plan";
+  let name = String(rawName || "Plan").replace(/\s+/g, " ").trim();
+  name = name.replace(/\b(.{4,40}?)\s+\1\b/gi, "$1").trim();
+  const prefix = number ? `Plan ${number}` : "Plan";
+  if (!name || name.toLowerCase() === String(number).toLowerCase() || name.toLowerCase() === "plan") return prefix;
+  return `${prefix} – ${name}`;
+}
+
+function siteControlReportItemCard(item, meta = {}, photos = [], { pin = null } = {}) {
+  const effectivePin = pin || meta.pin || siteControlPinForItem(item);
+  const status = meta.status || siteControlReportStatus(item, effectivePin);
+  const title = meta.title || [meta.number, effectivePin ? pinLabel(effectivePin) : "", status, meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
+  const planRef = siteControlPlanReference(item, effectivePin) || item.planReference || "";
+  return `
+    <article class="site-report-card ${photos.length ? "has-photos" : ""}">
+      <div class="site-item-title"><div><strong>${escapeHtml(title)}</strong></div><span class="status-badge ${siteControlReportStatusClass(status)}">${escapeHtml(status)}</span></div>
+      <div class="site-item-body">
+        ${infoRow("Zuständig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("Priorität", item.priority)}${infoRow("Planbezug / Pin", planRef)}
+        <p>${escapeHtml(siteControlItemDescription(item) || "Keine Beschreibung erfasst.")}</p>
+        ${photos.length ? `<p class="muted">${photos.length} Foto${photos.length === 1 ? "" : "s"}</p>${siteControlReportPhotoGrid(photos)}` : ""}
+      </div>
+    </article>`;
+}
+
+function siteControlCompactItemOverview(items = [], reportMeta = new Map()) {
+  if (!items.length) return `<p class="muted">Keine offenen Punkte dokumentiert.</p>`;
+  return `<div class="site-compact-list">${items.map((item) => {
+    const meta = reportMeta.get(item.id) || {};
+    const pin = meta.pin || siteControlPinForItem(item);
+    const title = [meta.number, pin ? pinLabel(pin) : "", meta.status || siteControlReportStatus(item, pin), meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
+    const facts = [`Zuständig: ${item.responsible || "offen"}`, `Frist: ${item.dueDate || "offen"}`].join(" · ");
+    return `<article class="site-report-card compact"><div class="site-item-body"><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(facts)}</span></div></article>`;
+  }).join("")}</div>`;
+}
+
+function siteControlPlanAppendixReport(items = [], reportMeta = new Map(), itemPhotoCards = new Map()) {
   const entries = siteControlPinReportEntries(items);
   if (!entries.length) return siteControlPlanReferencesReport(items);
   const groups = new Map();
@@ -8599,15 +8637,18 @@ function siteControlPlanAppendixReport(items = [], reportMeta = new Map()) {
   return [...groups.values()].map((group, index) => {
     const plan = group.plan;
     const pins = [...new Map(group.rows.map((row) => [row.pin.id, row.pin])).values()];
+    const linkedRows = [...new Map(group.rows.map((row) => [row.item.id, row])).values()];
     const image = state.reportPlanImages.get(`${group.planId}:${group.pageNumber}`);
-    const title = plan ? `${displayPlanNumber(plan) || plan.fileName || "Plan"}${plan.title ? " – " + plan.title : ""}` : `Plan ${group.planId || "unbekannt"}`;
+    const title = siteControlCompactPlanTitle(plan);
+    const linkedItems = linkedRows.map(({ item, pin }) => siteControlReportItemCard(item, reportMeta.get(item.id) || {}, itemPhotoCards.get(item.id) || [], { pin })).join("");
     return `
       <section class="appendix-block site-plan-appendix ${index ? "page-break" : ""}">
-        <h3>${index === 0 ? "Plananlagen / Markierungen · " : ""}Plananlage ${index + 1} – ${escapeHtml(title)} – Seite ${group.pageNumber}</h3>
+        <h3>${index === 0 ? "Plananlagen / Markierungen &middot; " : ""}Plananlage ${index + 1} &ndash; ${escapeHtml(title)} &ndash; Seite ${group.pageNumber}</h3>
         ${image ? `<div class="plan"><img class="report-plan-image" src="${image}" alt="Plan">${reportPinCallouts(pins, group.planId, group.pageNumber)}</div>` : `<p class="report-warning">${escapeHtml(plan?.renderError || `Plan zum Pin konnte nicht geladen werden. plan_id: ${group.planId || "-"}, pin_id: ${pins.map((pin) => pin.id).join(", ") || "-"}`)}</p>`}
         <table class="pin-table"><thead><tr><th>BK-Nr.</th><th>Pin</th><th>Status</th><th>Feststellung</th><th>Bemerkung</th></tr></thead><tbody>
           ${group.rows.map(({ item, pin }) => { const meta = reportMeta.get(item.id) || {}; return `<tr><td><strong>${escapeHtml(meta.number || "BK")}</strong></td><td><strong>${escapeHtml(pinLabel(pin))}</strong></td><td>${escapeHtml(meta.status || siteControlReportStatus(item, pin))}</td><td>${escapeHtml(meta.context || siteControlItemContext(item))}</td><td>${escapeHtml(siteControlItemDescription(item) || pin.note || "")}</td></tr>`; }).join("")}
         </tbody></table>
+        ${linkedItems ? `<div class="site-plan-linked-items">${linkedItems}</div>` : ""}
       </section>`;
   }).join("");
 }
@@ -8644,22 +8685,12 @@ async function buildSiteControlReportParts() {
     ["Teilnehmer", p.siteControl?.participants],
     ["Wetter / Bedingungen", p.siteControl?.weather]
   ];
-  const itemHtml = items.length ? items.map((item) => {
-    const meta = reportMeta.get(item.id);
-    const photos = itemPhotoCards.get(item.id) || [];
-    const planRef = siteControlPlanReference(item, meta?.pin) || item.planReference || "";
-    return `
-    <article class="site-report-card ${photos.length ? "has-photos" : ""}">
-      <div class="site-item-title"><div><strong>${escapeHtml(meta.title)}</strong></div><span class="status-badge ${siteControlReportStatusClass(meta.status)}">${escapeHtml(meta.status)}</span></div>
-      <div class="site-item-body">
-        ${infoRow("Zuständig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("Priorität", item.priority)}${infoRow("Planbezug / Pin", planRef)}
-        <p>${escapeHtml(siteControlItemDescription(item) || "Keine Beschreibung erfasst.")}</p>
-        ${photos.length ? `<p class="muted">${photos.length} Foto${photos.length === 1 ? "" : "s"}</p>${siteControlReportPhotoGrid(photos)}` : ""}
-      </div>
-    </article>`;
-  }).join("") : `<p class="muted">Keine Feststellungen dokumentiert.</p>`;
   await ensureSiteControlReportPlanImages(items);
-  const planReferenceHtml = siteControlPlanAppendixReport(items, reportMeta);
+  const planEntries = siteControlPinReportEntries(items);
+  const pinnedItemIds = new Set(planEntries.map((entry) => entry.item?.id).filter(Boolean));
+  const planReferenceHtml = siteControlPlanAppendixReport(items, reportMeta, itemPhotoCards);
+  const unpinnedItems = items.filter((item) => !pinnedItemIds.has(item.id));
+  const unpinnedHtml = unpinnedItems.length ? unpinnedItems.map((item) => siteControlReportItemCard(item, reportMeta.get(item.id) || {}, itemPhotoCards.get(item.id) || [])).join("") : "";
   const directPhotoIds = new Set(photoCards.map((card) => card.photo?.id).filter(Boolean));
   const loosePhotoCards = [];
   for (const photo of [...(p.photos || []), ...(p.siteControl?.photos || [])]) {
@@ -8668,14 +8699,14 @@ async function buildSiteControlReportParts() {
     if (url) loosePhotoCards.push({ meta: { title: "Weitere Fotodokumentation" }, item: null, photo, url });
   }
   const photoHtml = loosePhotoCards.length ? siteControlReportPhotoGrid(loosePhotoCards, { compact: true }) : "";
-  const body = `
-    <div class="report-export"><main class="report-page">
+  const openOverviewHtml = siteControlCompactItemOverview(openItems, reportMeta);
+  const body = `    <div class="report-export"><main class="report-page">
       <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
       <section class="info-grid"><div class="info-card"><h3>Projekt</h3>${rows.slice(0,3).map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Kontrolle</h3>${rows.slice(3).map(([k,v]) => infoRow(k,v)).join("")}</div></section>
       <h2>Ergebnis / Zusammenfassung</h2><section class="info-card result-box">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
-      <h2>Offene Punkte</h2>${openItems.length ? openItems.map((item) => { const meta = reportMeta.get(item.id); return `<article class="site-report-card"><div class="site-item-title"><strong>${escapeHtml(meta.title)}</strong><span class="status-badge ${siteControlReportStatusClass(meta.status)}">${escapeHtml(meta.status)}</span></div><div class="site-item-body"><p>${escapeHtml(siteControlItemDescription(item) || "")}</p></div></article>`; }).join("") : `<p class="muted">Keine offenen Punkte dokumentiert.</p>`}
-      <h2>Feststellungen / Aufgaben</h2>${itemHtml}
+      <h2>Offene Punkte</h2>${openOverviewHtml}
       ${planReferenceHtml ? `<section class="site-plan-section">${planReferenceHtml}</section>` : ""}
+      ${unpinnedHtml ? `<h2>Feststellungen ohne Planmarkierung</h2>${unpinnedHtml}` : ""}
       ${photoHtml ? `<h2 class="page-break">Fotodokumentation</h2>${photoHtml}` : ""}
       <footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</span><span>Kai BauSuite</span></footer>
     </main></div>`;
