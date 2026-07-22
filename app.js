@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v158";
+const APP_VERSION = "v159";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -593,15 +593,54 @@ function resolveProtocolProject(protocol = state.current) {
   return byActiveId || null;
 }
 
-function applyRebarProjectAddress() {
-  if (!state.current || isSiteControlProtocol(state.current) || isDailyReportProtocol(state.current)) return;
-  const project = resolveProtocolProject(state.current);
-  const address = getProjectAddress(project);
-  if (!project || !hasAddressContent(address)) {
-    showAppToast("Keine Projektadresse gefunden.", { type: "error" });
-    return;
+function siteControlAddressSourceForProtocol(protocol = state.current) {
+  if (!protocol) return null;
+  const project = resolveProtocolProject(protocol);
+  const projectId = project?.id || protocol.projectId || state.currentProjectId || "";
+  const projectName = normalizeLookupText(project?.name || protocol.head?.projectName || protocol.projectName || "");
+  const candidates = (state.protocols || []).filter((entry) => {
+    if (!isSiteControlProtocol(entry) || siteControlProtocolIsDeleted(entry)) return false;
+    if (projectId && entry.projectId === projectId) return true;
+    const entryName = normalizeLookupText(entry.head?.projectName || projectById(entry.projectId)?.name || "");
+    return !!projectName && entryName === projectName;
+  });
+  for (const entry of candidates) {
+    const sources = [
+      ["siteControl.address", entry.siteControl?.address],
+      ["protocol.address", entry.address],
+      ["protocol.projectAddress", entry.projectAddress],
+      ["head.siteAddress", entry.head?.siteAddress],
+      ["head.siteAddressText", entry.head?.siteAddressText]
+    ];
+    for (const [source, value] of sources) {
+      const address = normalizeAddress(value || "");
+      if (hasAddressContent(address)) {
+        return {
+          type: "site-control",
+          protocol: entry,
+          source,
+          match: entry.projectId === projectId ? "projectId" : "projectName",
+          address,
+          text: formatAddress(address, { multiline: false })
+        };
+      }
+    }
   }
-  const fields = addressToHeadFields(address);
+  return null;
+}
+
+function rebarAddressSource(protocol = state.current) {
+  const project = resolveProtocolProject(protocol);
+  const projectAddress = getProjectAddress(project);
+  if (project && hasAddressContent(projectAddress)) {
+    return { type: "project", project, source: "Projektadresse", match: project.id ? "projectId" : "projectName", address: projectAddress, text: formatAddress(projectAddress, { multiline: false }) };
+  }
+  const siteSource = siteControlAddressSourceForProtocol(protocol);
+  if (siteSource) return siteSource;
+  return { type: "none", source: "keine", match: "none", address: normalizeAddress(), text: "" };
+}
+
+function fillRebarHeadAddressFields(fields, { source = "" } = {}) {
   const form = $("#protocolForm");
   if (form?.elements?.siteStreet) form.elements.siteStreet.value = fields.siteStreet;
   if (form?.elements?.siteZip) form.elements.siteZip.value = fields.siteZip;
@@ -612,10 +651,57 @@ function applyRebarProjectAddress() {
   state.current.head.siteCity = fields.siteCity;
   state.current.head.siteCountry = fields.siteCountry;
   state.current.head.siteAddress = fields.siteAddress;
+  if (source) state.current.head.siteAddressSource = source;
   state.current.updatedAt = new Date().toISOString();
-  console.info("BewehrungsCheck Projektadresse übernommen", { projectId: project.id, projectName: project.name, address: fields.siteAddress });
+}
+
+function updateRebarAddressTools() {
+  const projectButton = document.getElementById("rebarAddressFromProjectBtn");
+  const siteButton = document.getElementById("rebarAddressFromSiteControlBtn");
+  const diagnostic = document.getElementById("rebarAddressDiagnostic");
+  if (!projectButton && !siteButton && !diagnostic) return;
+  const source = rebarAddressSource(state.current);
+  if (projectButton) projectButton.hidden = source.type !== "project";
+  if (siteButton) siteButton.hidden = source.type !== "site-control";
+  if (diagnostic) {
+    const detail = source.type === "site-control"
+      ? `Quelle: Baustellenkontrolle ${source.protocol?.id || ""} / ${source.source}. Gefunden: ${source.text || "keine Adresse"}`
+      : source.type === "project"
+        ? `Quelle: Projektadresse. Gefunden: ${source.text || "keine Adresse"}`
+        : "Quelle: keine. Gefunden: keine Adresse";
+    diagnostic.textContent = detail;
+  }
+}
+function applyRebarProjectAddress() {
+  if (!state.current || isSiteControlProtocol(state.current) || isDailyReportProtocol(state.current)) return;
+  const source = rebarAddressSource(state.current);
+  if (source.type !== "project" || !hasAddressContent(source.address)) {
+    showAppToast(source.type === "site-control" ? "Keine Projektadresse gefunden. Adresse aus Baustellenkontrolle verfügbar." : "Keine Projektadresse gefunden.", { type: "error" });
+    updateRebarAddressTools();
+    return;
+  }
+  const fields = addressToHeadFields(source.address);
+  fillRebarHeadAddressFields(fields, { source: "project" });
+  console.info("BewehrungsCheck Projektadresse übernommen", { source: source.source, match: source.match, address: fields.siteAddress });
   persist();
   showAppToast("Projektadresse übernommen.", { type: "success" });
+  updateRebarAddressTools();
+}
+
+function applyRebarSiteControlAddress() {
+  if (!state.current || isSiteControlProtocol(state.current) || isDailyReportProtocol(state.current)) return;
+  const source = siteControlAddressSourceForProtocol(state.current);
+  if (!source || !hasAddressContent(source.address)) {
+    showAppToast("Keine Adresse aus Baustellenkontrolle gefunden.", { type: "error" });
+    updateRebarAddressTools();
+    return;
+  }
+  const fields = addressToHeadFields(source.address);
+  fillRebarHeadAddressFields(fields, { source: "site-control-fallback" });
+  console.info("BewehrungsCheck Adresse aus Baustellenkontrolle übernommen", { protocolId: source.protocol?.id, source: source.source, match: source.match, address: fields.siteAddress });
+  persist();
+  showAppToast("Adresse aus Baustellenkontrolle übernommen.", { type: "success" });
+  updateRebarAddressTools();
 }
 function applySiteControlProjectAddress() {
   if (!isSiteControlProtocol()) return;
@@ -2642,7 +2728,7 @@ function saveFromForm({ persistNow = true } = {}) {
   const form = $("#protocolForm");
   const data = new FormData(form);
   Object.keys(state.current.head).forEach((key) => {
-    if (["acceptanceTypeId", "acceptanceTypeSnapshot", "componentId", "componentSnapshot", "floorId", "floorSnapshot", "contractorId", "contractorSnapshot", "inspectorPersonId", "inspectorPersonSnapshot"].includes(key)) return;
+    if (["acceptanceTypeId", "acceptanceTypeSnapshot", "componentId", "componentSnapshot", "floorId", "floorSnapshot", "contractorId", "contractorSnapshot", "inspectorPersonId", "inspectorPersonSnapshot", "siteAddressSource"].includes(key)) return;
     state.current.head[key] = data.get(key) || "";
   });
   syncAcceptanceLookupFieldsFromHead(state.current.head);
@@ -2663,8 +2749,10 @@ function saveFromForm({ persistNow = true } = {}) {
   const project = projectById(state.current.projectId);
   if (project) {
     project.name = state.current.head.projectName || project.name;
-    project.address = siteAddress;
-    project.siteAddress = formatAddress(siteAddress);
+    if (state.current.head.siteAddressSource !== "site-control-fallback") {
+      project.address = siteAddress;
+      project.siteAddress = formatAddress(siteAddress);
+    }
     project.updatedAt = new Date().toISOString();
     protocolsForProject(project.id).forEach((protocol) => {
       if (protocol.id !== state.current.id) syncProtocolProjectFields(protocol, project);
@@ -2714,6 +2802,7 @@ function fillForm() {
     const field = $(`[name="${key}"]`);
     if (field) field.value = value || "";
   });
+  updateRebarAddressTools();
   renderFollowupContextBanner();
   renderOverviewPhotos();
   renderSignatures();
@@ -9576,7 +9665,7 @@ async function buildReportParts() {
             ${infoRow("Abnahme", p.head.acceptanceTitle)}
             ${infoRow("Art der Abnahme", p.head.acceptanceType)}
             ${followup ? infoRow("Bezug Erstabnahme", followupSourceLabel(p)) : ""}
-            ${infoRow("Baustellenadresse", formatAddress(project?.address || p.head.siteAddress))}
+            ${infoRow("Baustellenadresse", formatAddress(protocolHeadAddress(p, project)))}
             ${infoRow("Auftraggeber", companyReportText(clientCompany, project?.client || ""))}
             ${infoRow("Prüfingenieur", inspectorReportText(projectInspector, project?.inspector || ""))}
             ${infoRow("Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim())}
@@ -10939,7 +11028,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     ["Projekt / Bauvorhaben", p.head.projectName],
     ["Abnahme", p.head.acceptanceTitle],
     ["Art der Abnahme", p.head.acceptanceType],
-    ["Baustellenadresse", formatAddress(project?.address || p.head.siteAddress)],
+    ["Baustellenadresse", formatAddress(protocolHeadAddress(p, project))],
     ["Auftraggeber", companyReportText(clientCompany, project?.client || "")],
     ["Prüfingenieur", inspectorReportText(projectInspector, project?.inspector || "")],
     ["Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim()],
@@ -12750,6 +12839,8 @@ function bindEvents() {
     }
     const rebarAddressFromProject = event.target.closest("#rebarAddressFromProjectBtn");
     if (rebarAddressFromProject) applyRebarProjectAddress();
+    const rebarAddressFromSiteControl = event.target.closest("#rebarAddressFromSiteControlBtn");
+    if (rebarAddressFromSiteControl) applyRebarSiteControlAddress();
     const siteAddressFromProject = event.target.closest("#siteAddressFromProjectBtn");
     if (siteAddressFromProject) applySiteControlProjectAddress();
     const dailyAddressFromProject = event.target.closest("#dailyAddressFromProjectBtn");
