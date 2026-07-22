@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v157";
+const APP_VERSION = "v158";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -527,12 +527,21 @@ function uniqueValues(values) {
 
 function getProjectAddress(project = {}) {
   if (!project) return normalizeAddress();
-  const direct = normalizeAddress(project.address || project.siteAddress || project.baustellenAdresse || project.location || "");
-  const street = direct.street || project.street || project.siteStreet || project.addressStreet || project.road || "";
-  const houseNumber = direct.houseNumber || project.houseNumber || project.house_number || project.streetNumber || project.siteHouseNumber || project.addressNumber || "";
-  const zip = direct.zip || project.zip || project.postalCode || project.postcode || project.siteZip || "";
-  const city = direct.city || project.city || project.town || project.siteCity || "";
-  const country = direct.country || project.country || project.siteCountry || "Deutschland";
+  const objectAddress = normalizeAddress(project.address || "");
+  const textAddress = normalizeAddress(project.siteAddress || project.baustellenAdresse || project.baustellenadresse || project.location || project.addressText || "");
+  const fieldAddress = normalizeAddress({
+    street: project.street || project.siteStreet || project.addressStreet || project.road || "",
+    houseNumber: project.houseNumber || project.house_number || project.streetNumber || project.siteHouseNumber || project.addressNumber || "",
+    zip: project.zip || project.postalCode || project.postcode || project.siteZip || "",
+    city: project.city || project.town || project.siteCity || "",
+    country: project.country || project.siteCountry || "Deutschland"
+  });
+  const direct = hasAddressContent(objectAddress) ? objectAddress : (hasAddressContent(textAddress) ? textAddress : fieldAddress);
+  const street = direct.street || "";
+  const houseNumber = direct.houseNumber || "";
+  const zip = direct.zip || "";
+  const city = direct.city || "";
+  const country = direct.country || "Deutschland";
   return normalizeAddress({ street, houseNumber, zip, city, country });
 }
 
@@ -564,11 +573,50 @@ function protocolHeadAddress(protocol = {}, project = null) {
   if (hasAddressContent(fieldAddress)) return fieldAddress;
   const textAddress = normalizeAddress(head.siteAddress || head.siteAddressText || "");
   if (hasAddressContent(textAddress)) return textAddress;
-  const projectAddress = getProjectAddress(project || projectById(protocol.projectId));
+  const projectAddress = getProjectAddress(project || resolveProtocolProject(protocol));
   if (hasAddressContent(projectAddress)) return projectAddress;
   return normalizeAddress({ country: head.siteCountry || "Deutschland" });
 }
 
+function normalizeLookupText(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function resolveProtocolProject(protocol = state.current) {
+  if (!protocol) return null;
+  const byProtocolId = projectById(protocol.projectId || "");
+  if (byProtocolId) return byProtocolId;
+  const byActiveId = projectById(state.currentProjectId || "");
+  const protocolName = normalizeLookupText(protocol.head?.projectName || protocol.projectName || "");
+  if (byActiveId && (!protocolName || normalizeLookupText(byActiveId.name) === protocolName)) return byActiveId;
+  if (protocolName) return state.projects.find((project) => normalizeLookupText(project.name) === protocolName) || null;
+  return byActiveId || null;
+}
+
+function applyRebarProjectAddress() {
+  if (!state.current || isSiteControlProtocol(state.current) || isDailyReportProtocol(state.current)) return;
+  const project = resolveProtocolProject(state.current);
+  const address = getProjectAddress(project);
+  if (!project || !hasAddressContent(address)) {
+    showAppToast("Keine Projektadresse gefunden.", { type: "error" });
+    return;
+  }
+  const fields = addressToHeadFields(address);
+  const form = $("#protocolForm");
+  if (form?.elements?.siteStreet) form.elements.siteStreet.value = fields.siteStreet;
+  if (form?.elements?.siteZip) form.elements.siteZip.value = fields.siteZip;
+  if (form?.elements?.siteCity) form.elements.siteCity.value = fields.siteCity;
+  if (form?.elements?.siteCountry) form.elements.siteCountry.value = fields.siteCountry;
+  state.current.head.siteStreet = fields.siteStreet;
+  state.current.head.siteZip = fields.siteZip;
+  state.current.head.siteCity = fields.siteCity;
+  state.current.head.siteCountry = fields.siteCountry;
+  state.current.head.siteAddress = fields.siteAddress;
+  state.current.updatedAt = new Date().toISOString();
+  console.info("BewehrungsCheck Projektadresse übernommen", { projectId: project.id, projectName: project.name, address: fields.siteAddress });
+  persist();
+  showAppToast("Projektadresse übernommen.", { type: "success" });
+}
 function applySiteControlProjectAddress() {
   if (!isSiteControlProtocol()) return;
   const project = projectById(state.current.projectId || activeSiteControlProjectId());
@@ -1792,8 +1840,11 @@ function openProtocol(protocol) {
   }
   state.current = normalizeProtocol(protocol);
   state.currentProjectId = state.current.projectId || "";
-  const project = projectById(state.currentProjectId);
-  if (project) syncProtocolProjectFields(state.current, project, { overwriteProtocol: false });
+  const project = resolveProtocolProject(state.current);
+  if (project) {
+    state.currentProjectId = project.id;
+    syncProtocolProjectFields(state.current, project, { overwriteProtocol: false });
+  }
   const availablePlans = plansForCurrentProtocol();
   state.selectedPlanId = availablePlans.find((plan) => plan.id === state.current.activePlanId)?.id || availablePlans[0]?.id || "";
   state.current.activePlanId = state.selectedPlanId;
@@ -2653,7 +2704,7 @@ function syncResultLookupFields(protocol) {
 
 function fillForm() {
   const p = state.current;
-  const project = projectById(p.projectId);
+  const project = resolveProtocolProject(p);
   const clientCompany = resolveCompany(project?.client || "");
   const contractorCompany = resolveCompany(p.head.contractor || project?.contractor || "");
   const projectInspector = resolveInspector(project?.inspector || "");
@@ -9437,7 +9488,7 @@ async function buildReportParts() {
   saveFromForm();
   await ensureReportPlanImages();
   const p = state.current;
-  const project = projectById(p.projectId);
+  const project = resolveProtocolProject(p);
   const clientCompany = projectClientRecord(project);
   const contractorCompany = projectContractorRecord(project, p);
   const projectInspector = projectInspectorRecord(project);
@@ -10506,7 +10557,7 @@ function collectReportPhotoGroups(p) {
 
 async function buildStructuredReportPdfModel(parts, logStep = null) {
   const p = state.current;
-  const project = projectById(p.projectId);
+  const project = resolveProtocolProject(p);
   const clientCompany = projectClientRecord(project);
   const contractorCompany = projectContractorRecord(project, p);
   const projectInspector = projectInspectorRecord(project);
@@ -12697,6 +12748,8 @@ function bindEvents() {
       persist();
       renderSiteControlEditor();
     }
+    const rebarAddressFromProject = event.target.closest("#rebarAddressFromProjectBtn");
+    if (rebarAddressFromProject) applyRebarProjectAddress();
     const siteAddressFromProject = event.target.closest("#siteAddressFromProjectBtn");
     if (siteAddressFromProject) applySiteControlProjectAddress();
     const dailyAddressFromProject = event.target.closest("#dailyAddressFromProjectBtn");
