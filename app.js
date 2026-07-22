@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v147";
+const APP_VERSION = "v148";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -542,13 +542,18 @@ function projectAddressText(project = {}, { multiline = false } = {}) {
 
 function applySiteControlProjectAddress() {
   if (!isSiteControlProtocol()) return;
-  const project = projectById(state.current.projectId);
+  const project = projectById(state.current.projectId || activeSiteControlProjectId());
   const text = projectAddressText(project, { multiline: false });
   const form = $("#siteControlForm");
+  if (!text) {
+    showAppToast("Keine Projektadresse gefunden.", { type: "error" });
+    return;
+  }
   if (form?.elements?.siteAddress) form.elements.siteAddress.value = text;
-  state.current.head.siteAddress = text;
   state.current.siteControl = normalizeSiteControlMeta(state.current.siteControl || {}, state.current);
   state.current.siteControl.address = text;
+  state.current.head.siteAddress = text;
+  state.current.updatedAt = new Date().toISOString();
   persist();
   showAppToast("Adresse aus Projekt übernommen.", { type: "success" });
 }
@@ -828,6 +833,10 @@ function rebarProtocolsForProject(projectId) {
 
 function siteControlProtocolsForProject(projectId) {
   return protocolsForProject(projectId).filter(isSiteControlProtocol);
+}
+
+function activeSiteControlProjectId() {
+  return state.currentProjectId || state.current?.projectId || "";
 }
 
 function dailyReportProtocolsForProject(projectId) {
@@ -8111,8 +8120,9 @@ function renderSiteControlView() {
   if (!state.projects.length) {
     list.innerHTML = `<div class="panel"><p class="muted">Noch keine Projekte vorhanden. Bitte zuerst ein Projekt anlegen.</p><button class="primary-btn" id="siteNewProjectBtn" type="button">Neues Projekt</button></div>`;
   } else {
-    const visibleProjects = state.currentProjectId ? state.projects.filter((project) => project.id === state.currentProjectId) : [...state.projects];
-    list.innerHTML = visibleProjects.sort((a, b) => (b.id === state.currentProjectId) - (a.id === state.currentProjectId)).map((project) => {
+    const activeProjectId = activeSiteControlProjectId();
+    const visibleProjects = activeProjectId ? state.projects.filter((project) => project.id === activeProjectId) : [...state.projects];
+    list.innerHTML = visibleProjects.sort((a, b) => (b.id === activeProjectId) - (a.id === activeProjectId)).map((project) => {
       const protocols = siteControlProtocolsForProject(project.id);
       const openCount = protocols.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
       return `
@@ -8146,7 +8156,8 @@ function renderSiteControlOpenItems() {
   const target = $("#siteControlOpenItems");
   if (!target) return;
   const openItems = [];
-  state.protocols.filter(isSiteControlProtocol).filter((protocol) => !state.currentProjectId || protocol.projectId === state.currentProjectId).forEach((protocol) => {
+  const activeProjectId = activeSiteControlProjectId();
+  state.protocols.filter(isSiteControlProtocol).filter((protocol) => !activeProjectId || protocol.projectId === activeProjectId).forEach((protocol) => {
     (protocol.siteItems || []).filter(siteControlItemIsOpen).forEach((item) => openItems.push({ protocol, item }));
   });
   target.innerHTML = `
@@ -8441,7 +8452,7 @@ async function buildSiteControlReportParts() {
   `;
   const rows = [
     ["Projekt", project?.name || p.head.projectName],
-    ["Adresse", projectAddressText(project, { multiline: false }) || formatAddress(p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"],
+    ["Adresse", p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: false }) || "ohne Angabe"],
     ["Datum / Uhrzeit", formatDate(protocolInspectionDateTime(p))],
     ["Anlass", p.siteControl?.reason],
     ["Bereich", p.siteControl?.area],
@@ -9131,7 +9142,7 @@ async function buildDailyReportParts() {
   const showOriginalText = originalWorkText && (report.original_language || report.inputLanguage) !== "de";
   const originalLanguageLabel = report.original_language === "sq" ? "Albanisch" : report.original_language === "mixed" ? "Deutsch/Albanisch gemischt" : report.original_language === "auto" ? "automatisch" : "Deutsch";
   const workerHtml = workers.length ? `<table class="worker-table"><thead><tr><th>Name</th><th>Firma</th><th>Rolle</th><th>von</th><th>bis</th><th>Pause</th><th>Stunden</th><th>Bemerkung</th></tr></thead><tbody>${workers.map((worker) => `<tr><td>${escapeHtml(worker.name || "-")}</td><td>${escapeHtml(worker.company || "")}</td><td>${escapeHtml(worker.role || "")}</td><td>${escapeHtml(worker.start || "")}</td><td>${escapeHtml(worker.end || "")}</td><td>${escapeHtml(worker.breakHours || "")}</td><td>${escapeHtml(workerHours(worker) || worker.hours || "")}</td><td>${escapeHtml(worker.note || "")}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">Keine einzelnen Mitarbeiter erfasst.</p>`;
-  const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", projectAddressText(project, { multiline: false }) || formatAddress(p.head.siteAddress || p.head.siteAddressText || "") || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
+  const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: false }) || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
   const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" - ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
   const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", originalLanguageLabel)}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(germanWorkText || "Keine Tätigkeiten dokumentiert.")}</p>${report.translation_provider ? `<p class="muted">Deutsche Fassung: ${escapeHtml(report.translation_provider)} · bitte geprüft verwenden.</p>` : ""}${showOriginalText ? `<div class="info-card"><h3>Originaltext</h3><p class="text-block">${escapeHtml(originalWorkText)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
   const title = sanitizeFileName(`Bautagesbericht_${project?.name || p.head.projectName || "Projekt"}_${report.date || (p.head.createdAt || "").slice(0,10)}`);
@@ -12440,7 +12451,10 @@ function bindEvents() {
       if (action === "home") navigateToView("homeView");
       if (action === "directory") navigateToView("projectDirectoryView");
       if (action === "rebar") navigateToView("listView");
-      if (action === "site") navigateToView("siteControlView");
+      if (action === "site") {
+        if (!state.currentProjectId && state.current?.projectId) state.currentProjectId = state.current.projectId;
+        navigateToView("siteControlView");
+      }
       if (action === "daily") navigateToView("dailyReportView");
       if (action === "projectData") openProjectDialog(state.currentProjectId);
       if (action === "plans") {
