@@ -1,9 +1,9 @@
-const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
+﻿const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
 const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v149";
+const APP_VERSION = "v151";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -614,7 +614,25 @@ function dailyWorkerById(id) {
 
 function normalizeAddress(value = {}) {
   if (typeof value === "string") {
-    const text = value.trim().replace(/[ \t]+/g, " ");
+    const text = value
+      .trim()
+      .replace(/\r\n/g, "\n")
+      .replace(/[ \t]+/g, " ")
+      .replace(/([0-9A-Za-zÄÖÜäöüß])(?=\d{5}\s+\S)/g, "$1\n");
+    const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    if (lines.length >= 2) {
+      const cityLine = lines.slice(1).join(" ");
+      const cityMatch = cityLine.match(/^(\d{5})\s+(.+)$/);
+      if (cityMatch) {
+        return {
+          street: lines[0].replace(/,\s*$/, ""),
+          houseNumber: "",
+          zip: cityMatch[1].trim(),
+          city: cityMatch[2].trim(),
+          country: "Deutschland"
+        };
+      }
+    }
     const zipOnly = text.match(/^(\d{5})\s+(.+)$/);
     const separated = !zipOnly ? text.match(/^(.*?)[,\s]+(\d{5})\s+(.+)$/) : null;
     const glued = !zipOnly && !separated ? text.match(/^(.+?)(\d{5})\s+(.+)$/) : null;
@@ -627,11 +645,18 @@ function normalizeAddress(value = {}) {
       country: "Deutschland"
     };
   }
+  const streetValue = value.street || "";
+  const zipValue = value.zip || value.postalCode || value.postcode || "";
+  const cityValue = value.city || value.town || "";
+  if (streetValue && !zipValue && !cityValue) {
+    const parsedStreet = normalizeAddress(String(streetValue));
+    if (parsedStreet.zip || parsedStreet.city) return parsedStreet;
+  }
   return {
-    street: value.street || "",
+    street: streetValue,
     houseNumber: value.houseNumber || value.house_number || value.streetNumber || value.addressNumber || value.number || "",
-    zip: value.zip || value.postalCode || value.postcode || "",
-    city: value.city || value.town || "",
+    zip: zipValue,
+    city: cityValue,
     country: value.country || "Deutschland"
   };
 }
@@ -834,8 +859,13 @@ function rebarProtocolsForProject(projectId) {
   return protocolsForProject(projectId).filter((protocol) => !isSiteControlProtocol(protocol) && !isDailyReportProtocol(protocol) && !isProjectPlanLibraryProtocol(protocol));
 }
 
-function siteControlProtocolsForProject(projectId) {
-  return protocolsForProject(projectId).filter(isSiteControlProtocol);
+function siteControlProtocolIsDeleted(protocol = {}) {
+  return Boolean(protocol.deleted || protocol.is_deleted || protocol.deleted_at || protocol.deletedAt);
+}
+
+function siteControlProtocolsForProject(projectId, { includeDeleted = false } = {}) {
+  const protocols = protocolsForProject(projectId).filter(isSiteControlProtocol);
+  return includeDeleted ? protocols : protocols.filter((protocol) => !siteControlProtocolIsDeleted(protocol));
 }
 
 function activeSiteControlProjectId() {
@@ -3486,7 +3516,7 @@ function renderProjectHub() {
     </section>
     <section class="panel">
       <div class="section-head"><h3>Baustellenkontrollen</h3><button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button></div>
-      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
+      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button><button class="danger-btn small-btn" data-delete-site-control="${protocol.id}" type="button">Löschen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
     </section>`;
 }
 
@@ -8109,6 +8139,12 @@ function createBlankSiteControl(projectId) {
 }
 
 function openSiteControlProtocol(protocol) {
+  if (!protocol || siteControlProtocolIsDeleted(protocol)) {
+    showAppToast("Diese Baustellenkontrolle ist gelöscht und wird ausgeblendet.", { type: "info" });
+    showView("siteControlView");
+    renderSiteControlView();
+    return;
+  }
   state.current = normalizeProtocol(protocol);
   state.currentProjectId = state.current.projectId || "";
   const project = projectById(state.currentProjectId);
@@ -8117,6 +8153,34 @@ function openSiteControlProtocol(protocol) {
   renderSiteControlEditor();
 }
 
+function confirmSiteControlDelete() {
+  return confirm("Baustellenkontrolle wirklich löschen?\n\nDer Vorgang wird ausgeblendet, kann aber später wiederhergestellt werden.");
+}
+
+function softDeleteSiteControlProtocol(protocolId) {
+  const protocol = state.protocols.find((entry) => entry.id === protocolId && isSiteControlProtocol(entry));
+  if (!protocol) {
+    showAppToast("Baustellenkontrolle nicht gefunden.", { type: "error" });
+    return;
+  }
+  const activeProjectId = activeSiteControlProjectId();
+  if (activeProjectId && protocol.projectId !== activeProjectId) {
+    showAppToast("Dieser Vorgang gehört nicht zum aktiven Projekt.", { type: "error" });
+    return;
+  }
+  const deletedAt = new Date().toISOString();
+  protocol.deleted = true;
+  protocol.is_deleted = true;
+  protocol.deleted_at = deletedAt;
+  protocol.deleted_by = "local-user";
+  protocol.updatedAt = deletedAt;
+  state.currentProjectId = protocol.projectId || state.currentProjectId || "";
+  if (state.current?.id === protocol.id) state.current = null;
+  persist();
+  showAppToast("Baustellenkontrolle gelöscht. Der Vorgang bleibt technisch erhalten.", { type: "success", timeout: 5500 });
+  showView("siteControlView");
+  renderSiteControlView();
+}
 function renderSiteControlView() {
   const list = $("#siteControlProjectList");
   if (!list) return;
@@ -8146,7 +8210,7 @@ function renderSiteControlView() {
                   <div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div>
                   <div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div>
                 </div>
-                <div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button></div>
+                <div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button><button class="danger-btn small-btn" data-delete-site-control="${protocol.id}" type="button">Löschen</button></div>
               </article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}
           </div>
         </article>`;
@@ -8160,7 +8224,7 @@ function renderSiteControlOpenItems() {
   if (!target) return;
   const openItems = [];
   const activeProjectId = activeSiteControlProjectId();
-  state.protocols.filter(isSiteControlProtocol).filter((protocol) => !activeProjectId || protocol.projectId === activeProjectId).forEach((protocol) => {
+  state.protocols.filter(isSiteControlProtocol).filter((protocol) => !siteControlProtocolIsDeleted(protocol)).filter((protocol) => !activeProjectId || protocol.projectId === activeProjectId).forEach((protocol) => {
     (protocol.siteItems || []).filter(siteControlItemIsOpen).forEach((item) => openItems.push({ protocol, item }));
   });
   target.innerHTML = `
@@ -8209,7 +8273,7 @@ function saveSiteControlForm({ persistNow = true } = {}) {
     reason: form.elements.siteReason.value || "Regelbegehung",
     area: form.elements.siteArea.value || "",
     participants: form.elements.siteParticipants.value || "",
-    address: form.elements.siteAddress.value || "",
+    address: formatAddress(form.elements.siteAddress.value || "", { multiline: true }),
     weather: form.elements.siteWeather.value || "",
     finalNote: form.elements.siteFinalNote.value || ""
   };
@@ -8218,7 +8282,7 @@ function saveSiteControlForm({ persistNow = true } = {}) {
   p.head.acceptanceType = "Baustellenkontrolle";
   p.head.areaAxes = p.siteControl.area;
   p.head.peoplePresent = p.siteControl.participants;
-  p.head.siteAddress = p.siteControl.address || p.head.siteAddress;
+  p.head.siteAddress = formatAddress(p.siteControl.address || p.head.siteAddress || "", { multiline: true });
   p.weather.weatherCondition = p.siteControl.weather;
   p.result.finalNote = p.siteControl.finalNote;
   p.updatedAt = new Date().toISOString();
@@ -12389,6 +12453,10 @@ function bindEvents() {
     if (newSiteControl) createBlankSiteControl(newSiteControl.dataset.newSiteControl);
     const openSiteControl = event.target.closest("[data-open-site-control]");
     if (openSiteControl) openSiteControlProtocol(state.protocols.find((p) => p.id === openSiteControl.dataset.openSiteControl));
+    const deleteSiteControl = event.target.closest("[data-delete-site-control]");
+    if (deleteSiteControl && confirmSiteControlDelete()) softDeleteSiteControlProtocol(deleteSiteControl.dataset.deleteSiteControl);
+    const deleteCurrentSiteControl = event.target.closest("#siteDeleteProtocolBtn");
+    if (deleteCurrentSiteControl && isSiteControlProtocol() && confirmSiteControlDelete()) softDeleteSiteControlProtocol(state.current.id);
     const addSiteItem = event.target.closest("[data-add-site-item]");
     if (addSiteItem) addSiteControlItem(addSiteItem.dataset.addSiteItem);
     const sitePhotoCamera = event.target.closest("[data-site-photo-camera]");
@@ -14043,6 +14111,11 @@ async function boot() {
 }
 
 boot();
+
+
+
+
+
 
 
 

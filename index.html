@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v149</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v151</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -96,7 +96,7 @@
             <label>Protokollbezeichnung<input name="siteTitle"></label>
             <label>Datum / Uhrzeit<input name="siteDate" type="datetime-local"></label>
             <label>Projekt<input name="siteProject" disabled></label>
-            <label>Adresse<input name="siteAddress"></label><button class="secondary-btn" id="siteAddressFromProjectBtn" type="button">Adresse aus Projekt übernehmen</button>
+            <label>Adresse<textarea name="siteAddress" rows="2"></textarea></label><button class="secondary-btn" id="siteAddressFromProjectBtn" type="button">Adresse aus Projekt übernehmen</button>
             <label>Anlass<select name="siteReason"><option>Regelbegehung</option><option>Mangelkontrolle</option><option>Fotodokumentation</option><option>Abstimmung</option><option>Nachbegehung</option><option>Sonstige</option></select></label>
             <label>Bereich / Ort<input name="siteArea" list="areaOptions"></label>
             <label>Teilnehmer<input name="siteParticipants" list="responsibleOptions" placeholder="Personen/Firmen oder Freitext"></label>
@@ -113,7 +113,7 @@
             <div id="siteControlItemList" class="site-item-list"></div>
           </div>
           <div class="panel"><label class="voice-field">Ergebnis / Schlussbemerkung<textarea name="siteFinalNote" rows="4"></textarea><button class="mic-btn" type="button" data-voice-for="siteFinalNote">Mikrofon</button></label>
-            <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Übersicht</button></div>
+            <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Übersicht</button><button class="danger-btn" id="siteDeleteProtocolBtn" type="button">Vorgang löschen</button></div>
           </div>
         </form>
       </section>
@@ -248,8 +248,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v149</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v149 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v151</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v151 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -789,6 +789,8 @@
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
+
+
 
 
 
