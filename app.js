@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v148";
+const APP_VERSION = "v149";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -543,7 +543,7 @@ function projectAddressText(project = {}, { multiline = false } = {}) {
 function applySiteControlProjectAddress() {
   if (!isSiteControlProtocol()) return;
   const project = projectById(state.current.projectId || activeSiteControlProjectId());
-  const text = projectAddressText(project, { multiline: false });
+  const text = projectAddressText(project, { multiline: true });
   const form = $("#siteControlForm");
   if (!text) {
     showAppToast("Keine Projektadresse gefunden.", { type: "error" });
@@ -614,13 +614,16 @@ function dailyWorkerById(id) {
 
 function normalizeAddress(value = {}) {
   if (typeof value === "string") {
-    const text = value.trim();
-    const match = text.match(/^(.*?)[,\s]+(\d{5})\s+(.+)$/);
+    const text = value.trim().replace(/[ \t]+/g, " ");
+    const zipOnly = text.match(/^(\d{5})\s+(.+)$/);
+    const separated = !zipOnly ? text.match(/^(.*?)[,\s]+(\d{5})\s+(.+)$/) : null;
+    const glued = !zipOnly && !separated ? text.match(/^(.+?)(\d{5})\s+(.+)$/) : null;
+    const match = zipOnly || separated || glued;
     return {
-      street: match ? match[1].trim().replace(/,\s*$/, "") : text,
+      street: zipOnly ? "" : (match ? match[1].trim().replace(/,\s*$/, "") : text),
       houseNumber: "",
-      zip: match ? match[2].trim() : "",
-      city: match ? match[3].trim() : "",
+      zip: match ? match[zipOnly ? 1 : 2].trim() : "",
+      city: match ? match[zipOnly ? 2 : 3].trim() : "",
       country: "Deutschland"
     };
   }
@@ -8182,7 +8185,7 @@ function renderSiteControlEditor() {
   form.elements.siteTitle.value = protocol.head.acceptanceTitle || "";
   form.elements.siteDate.value = protocol.head.createdAt || nowLocalInput();
   form.elements.siteProject.value = project?.name || protocol.head.projectName || "";
-  const siteAddress = meta.address || protocol.head.siteAddress || projectAddressText(project, { multiline: false });
+  const siteAddress = formatAddress(meta.address || protocol.head.siteAddress || projectAddressText(project, { multiline: true }), { multiline: true });
   form.elements.siteAddress.value = siteAddress;
   form.elements.siteReason.value = meta.reason || "Regelbegehung";
   form.elements.siteArea.value = meta.area || "";
@@ -8452,7 +8455,7 @@ async function buildSiteControlReportParts() {
   `;
   const rows = [
     ["Projekt", project?.name || p.head.projectName],
-    ["Adresse", p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: false }) || "ohne Angabe"],
+    ["Adresse", formatAddress(p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: true }) || "", { multiline: true }) || "ohne Angabe"],
     ["Datum / Uhrzeit", formatDate(protocolInspectionDateTime(p))],
     ["Anlass", p.siteControl?.reason],
     ["Bereich", p.siteControl?.area],
@@ -9142,7 +9145,7 @@ async function buildDailyReportParts() {
   const showOriginalText = originalWorkText && (report.original_language || report.inputLanguage) !== "de";
   const originalLanguageLabel = report.original_language === "sq" ? "Albanisch" : report.original_language === "mixed" ? "Deutsch/Albanisch gemischt" : report.original_language === "auto" ? "automatisch" : "Deutsch";
   const workerHtml = workers.length ? `<table class="worker-table"><thead><tr><th>Name</th><th>Firma</th><th>Rolle</th><th>von</th><th>bis</th><th>Pause</th><th>Stunden</th><th>Bemerkung</th></tr></thead><tbody>${workers.map((worker) => `<tr><td>${escapeHtml(worker.name || "-")}</td><td>${escapeHtml(worker.company || "")}</td><td>${escapeHtml(worker.role || "")}</td><td>${escapeHtml(worker.start || "")}</td><td>${escapeHtml(worker.end || "")}</td><td>${escapeHtml(worker.breakHours || "")}</td><td>${escapeHtml(workerHours(worker) || worker.hours || "")}</td><td>${escapeHtml(worker.note || "")}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">Keine einzelnen Mitarbeiter erfasst.</p>`;
-  const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: false }) || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
+  const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", formatAddress(p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: true }) || "", { multiline: true }) || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
   const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" - ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
   const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", originalLanguageLabel)}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(germanWorkText || "Keine Tätigkeiten dokumentiert.")}</p>${report.translation_provider ? `<p class="muted">Deutsche Fassung: ${escapeHtml(report.translation_provider)} · bitte geprüft verwenden.</p>` : ""}${showOriginalText ? `<div class="info-card"><h3>Originaltext</h3><p class="text-block">${escapeHtml(originalWorkText)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
   const title = sanitizeFileName(`Bautagesbericht_${project?.name || p.head.projectName || "Projekt"}_${report.date || (p.head.createdAt || "").slice(0,10)}`);
