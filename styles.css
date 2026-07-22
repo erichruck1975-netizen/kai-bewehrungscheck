@@ -3729,3 +3729,27 @@ dialog button {
     max-width: none;
   }
 }
+.readonly-field {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fb;
+}
+
+.readonly-field strong {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.readonly-field span {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.readonly-field small {
+  color: var(--muted);
+}

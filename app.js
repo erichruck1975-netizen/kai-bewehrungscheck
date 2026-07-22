@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v155";
+const APP_VERSION = "v156";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -2364,12 +2364,14 @@ function siteControlItemContext(item = {}) {
 
 function siteControlPinStatus(status = "") {
   const value = String(status || "").toLowerCase();
-  if (value.includes("erledigt")) return "OK";
-  if (value.includes("kl\u00e4r") || value.includes("bearbeitung")) return "teilweise / Auflage";
-  if (value.includes("offen") || value.includes("mangel")) return "nicht OK";
-  return "offen / nicht bewertet";
+  if (value.includes("mangel") || value.includes("nicht ok")) return "Mangel";
+  if (value.includes("foto") || value.includes("doku") || value.includes("dokument")) return "Foto-Doku";
+  if (value.includes("kl\u00e4r") || value.includes("klär")) return "Klärungspunkt";
+  if (value.includes("aufgabe") || value.includes("auflage") || value.includes("teilweise")) return "Aufgabe";
+  if (value.includes("hinweis")) return "Hinweis";
+  if (value.includes("erledigt") || value.includes("fertig") || value === "ok") return "Erledigt";
+  return "Hinweis";
 }
-
 function siteControlPlanReference(item = {}, pin = siteControlPinForItem(item)) {
   const planId = pin?.planId || item.planId || "";
   const plan = planById(planId);
@@ -7131,6 +7133,14 @@ function renderMarkPinSheet(pinId = state.selectedPinId) {
   const context = siteItem
     ? siteControlItemContext(siteItem)
     : `${check?.title || "Allgemeine Feststellung"}${sample ? ` \u00b7 Pr\u00fcfstelle ${sample.number}${sample.location ? ` \u00b7 ${escapeHtml(sample.location)}` : ""}` : ""}`;
+  if (siteItem) pin.status = siteControlPinStatus(siteItem.type || siteItem.status || pin.status);
+  const statusControlHtml = siteItem
+    ? `<div class="readonly-field"><strong>Status</strong><span>${escapeHtml(pin.status)}</span><small>wird aus der Feststellung übernommen</small></div>`
+    : `<label>Status
+        <select data-mark-pin-field="status">
+          ${STATUSES.map((status) => `<option value="${escapeAttr(status)}" ${pin.status === status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
+        </select>
+      </label>`;
   sheet.classList.remove("hidden");
   sheet.innerHTML = `
     <div class="sheet-head">
@@ -7138,11 +7148,7 @@ function renderMarkPinSheet(pinId = state.selectedPinId) {
       <button class="small-btn" type="button" data-close-mark-pin-sheet>Schlie\u00dfen</button>
     </div>
     <div class="grid compact-grid">
-      <label>Status
-        <select data-mark-pin-field="status">
-          ${STATUSES.map((status) => `<option value="${escapeAttr(status)}" ${pin.status === status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
-        </select>
-      </label>
+      ${statusControlHtml}
       <label class="voice-field">Titel / Bereich
         <input data-mark-pin-field="title" value="${escapeAttr(pin.title || "")}">
         <button class="mic-btn" type="button" data-voice-mark-pin="${pin.id}" data-voice-mark-field="title">Sprache</button>
@@ -7409,7 +7415,7 @@ function placeSiteControlPin(clientX, clientY) {
       yPercent: y,
       placements: [],
       title: item.location || item.type || "Feststellung",
-      status: siteControlPinStatus(item.status),
+      status: siteControlPinStatus(item.type || item.status),
       note: item.description || "",
       photos: [],
       createdAt: now,
@@ -7428,7 +7434,7 @@ function placeSiteControlPin(clientX, clientY) {
   pin.xPercent = x;
   pin.yPercent = y;
   pin.title = item.location || pin.title || item.type || "Feststellung";
-  pin.status = pin.status || siteControlPinStatus(item.status);
+  pin.status = siteControlPinStatus(item.type || item.status || pin.status);
   pin.note = pin.note || item.description || "";
   pin.updatedAt = now;
   pin.placements = pinPlacements(pin).filter((placement) => !(placement.planId === plan.id && placement.pageNumber === state.mark.pageNumber));
@@ -8495,17 +8501,13 @@ function applyDailyReportProjectAddress() {
 }
 
 function siteControlReportStatus(item = {}, pin = siteControlPinForItem(item)) {
-  const text = [item.status, item.type, item.priority, pin?.status].filter(Boolean).join(" ").toLowerCase();
-  if (text.includes("mangel") || text.includes("nicht ok")) return "Mangel";
-  if (text.includes("doku") || text.includes("foto") || text.includes("dokument")) return "Dokumentation";
-  if (text.includes("erledigt") || text.includes("fertig") || text === "ok") return "Erledigt";
-  return "Hinweis";
+  return siteControlPinStatus(item.type || item.status || pin?.status || "Hinweis");
 }
-
 function siteControlReportStatusClass(status = "") {
   const text = String(status || "").toLowerCase();
   if (text.includes("mangel")) return "bad";
-  if (text.includes("dokument")) return "doc";
+  if (text.includes("dokument") || text.includes("doku") || text.includes("foto")) return "doc";
+  if (text.includes("aufgabe") || text.includes("auflage") || text.includes("klär") || text.includes("klaer")) return "partial";
   if (text.includes("erledigt")) return "ok";
   return "neutral";
 }
@@ -12548,7 +12550,7 @@ function bindEvents() {
     }
     if (siteItem) {
       if (event.target.dataset.markPinField === "note") siteItem.description = event.target.value || siteItem.description || "";
-      if (event.target.dataset.markPinField === "status") siteItem.status = pin.status || siteItem.status;
+      if (event.target.dataset.markPinField === "status") pin.status = siteControlPinStatus(siteItem.type || siteItem.status || pin.status);
       syncSiteControlItemPinReference(siteItem, pin);
     }
     schedulePersist();
@@ -12570,7 +12572,7 @@ function bindEvents() {
     }
     if (siteItem) {
       if (event.target.dataset.markPinField === "note") siteItem.description = event.target.value || siteItem.description || "";
-      if (event.target.dataset.markPinField === "status") siteItem.status = pin.status || siteItem.status;
+      if (event.target.dataset.markPinField === "status") pin.status = siteControlPinStatus(siteItem.type || siteItem.status || pin.status);
       syncSiteControlItemPinReference(siteItem, pin);
     }
     persist();
