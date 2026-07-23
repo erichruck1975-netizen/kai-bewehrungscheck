@@ -1,4 +1,4 @@
-const CACHE = "kai-bewehrungscheck-v160";
+const CACHE = "kai-bewehrungscheck-v161";
 const ASSETS = ["./", "./index.html", "./styles.css?v=156", "./app.js?v=156", "./manifest.webmanifest?v=156", "./icon.svg", "./vendor/pdfjs/pdf.min.js?v=156", "./vendor/pdfjs/pdf.worker.min.js?v=156"];
 const RUNTIME_ASSETS = [];
 

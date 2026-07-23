@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v160";
+const APP_VERSION = "v161";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -1371,13 +1371,20 @@ function isProjectPlanLibraryProtocol(protocol = state.current) {
 }
 
 function normalizeSiteControlMeta(meta = {}, protocol = {}) {
+  const numberingLocked = !!(meta.numberingLocked || meta.numbering_locked || meta.reportFinalizedAt || meta.firstReportCreatedAt);
   return {
     reason: meta.reason || protocol.head?.acceptanceType || "Regelbegehung",
     area: meta.area || protocol.head?.areaAxes || "",
     participants: meta.participants || protocol.head?.peoplePresent || "",
     address: meta.address || protocol.head?.siteAddress || protocol.head?.siteAddressText || "",
     weather: meta.weather || protocol.weather?.weatherCondition || "",
-    finalNote: meta.finalNote || protocol.result?.finalNote || ""
+    finalNote: meta.finalNote || protocol.result?.finalNote || "",
+    numberingLocked,
+    numbering_locked: numberingLocked,
+    numberingLockedAt: meta.numberingLockedAt || meta.numbering_locked_at || meta.firstReportCreatedAt || meta.reportFinalizedAt || "",
+    numbering_locked_at: meta.numbering_locked_at || meta.numberingLockedAt || meta.firstReportCreatedAt || meta.reportFinalizedAt || "",
+    numberingLockedBy: meta.numberingLockedBy || meta.numbering_locked_by || "local-user",
+    firstReportCreatedAt: meta.firstReportCreatedAt || meta.reportFinalizedAt || meta.numberingLockedAt || meta.numbering_locked_at || ""
   };
 }
 
@@ -1401,6 +1408,14 @@ function normalizeSiteControlItems(items = [], protocolId = "") {
     planId: item.planId || "",
     pageNumber: Math.max(1, Number(item.pageNumber) || 1),
     photos: (item.photos || []).map(normalizePhotoRef),
+    deleted: !!(item.deleted || item.is_deleted || item.deletedAt || item.deleted_at),
+    is_deleted: !!(item.deleted || item.is_deleted || item.deletedAt || item.deleted_at),
+    deletedAt: item.deletedAt || item.deleted_at || "",
+    deleted_at: item.deleted_at || item.deletedAt || "",
+    deletedReason: item.deletedReason || item.deleted_reason || "",
+    deleted_reason: item.deleted_reason || item.deletedReason || "",
+    deletedBy: item.deletedBy || item.deleted_by || "",
+    deleted_by: item.deleted_by || item.deletedBy || "",
     createdAt: item.createdAt || new Date().toISOString(),
     updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
   }));
@@ -2533,15 +2548,57 @@ function siteControlItemBkLabel(item = {}, fallbackIndex = 0) {
   return "BK" + number;
 }
 
+function siteControlItemDeleted(item = {}) {
+  return !!(item.deleted || item.is_deleted || item.deletedAt || item.deleted_at);
+}
+
+function siteControlNumberingLocked(protocol = state.current) {
+  const meta = protocol?.siteControl || {};
+  return !!(meta.numberingLocked || meta.numbering_locked || meta.firstReportCreatedAt || meta.reportFinalizedAt);
+}
+
+function siteControlSortByBk(items = []) {
+  return [...(items || [])].sort((a, b) => {
+    const diff = siteControlItemBkNumberRaw(a) - siteControlItemBkNumberRaw(b);
+    if (diff) return diff;
+    return String(a.createdAt || a.updatedAt || "").localeCompare(String(b.createdAt || b.updatedAt || ""));
+  });
+}
+
+function siteControlActiveItems(items = []) {
+  return (items || []).filter((item) => !siteControlItemDeleted(item));
+}
+
+function siteControlDeletedItems(items = []) {
+  return siteControlSortByBk((items || []).filter(siteControlItemDeleted));
+}
+
+function siteControlReportItems(items = []) {
+  return siteControlSortByBk(siteControlActiveItems(items));
+}
+
 function nextSiteControlBkNumber(items = []) {
   return (items || []).reduce((max, item) => Math.max(max, siteControlItemBkNumberRaw(item)), 0) + 1;
 }
 
 function ensureSiteControlItemBkNumbers(protocol = state.current) {
   const items = protocol?.siteItems || [];
+  const locked = siteControlNumberingLocked(protocol);
+  const now = new Date().toISOString();
+  if (!locked) {
+    siteControlSortByBk(siteControlActiveItems(items)).forEach((item, index) => {
+      const number = index + 1;
+      item.number = number;
+      item.bkNo = number;
+      item.bkLabel = "BK" + number;
+      item.createdAt = item.createdAt || item.created_at || item.updatedAt || now;
+      item.updatedAt = item.updatedAt || item.createdAt;
+    });
+    return;
+  }
   const used = new Set();
   let max = items.reduce((highest, item) => Math.max(highest, siteControlItemBkNumberRaw(item)), 0);
-  items.forEach((item) => {
+  siteControlSortByBk(items).forEach((item) => {
     let number = siteControlItemBkNumberRaw(item);
     if (!number || used.has(number)) {
       do { max += 1; number = max; } while (used.has(number));
@@ -2550,13 +2607,28 @@ function ensureSiteControlItemBkNumbers(protocol = state.current) {
     item.number = number;
     item.bkNo = number;
     item.bkLabel = "BK" + number;
-    item.createdAt = item.createdAt || item.created_at || item.updatedAt || new Date().toISOString();
+    item.createdAt = item.createdAt || item.created_at || item.updatedAt || now;
     item.updatedAt = item.updatedAt || item.createdAt;
   });
 }
 
+function lockSiteControlNumbering(protocol = state.current) {
+  if (!protocol || !isSiteControlProtocol(protocol)) return false;
+  protocol.siteControl = normalizeSiteControlMeta(protocol.siteControl || {}, protocol);
+  if (siteControlNumberingLocked(protocol)) return false;
+  const lockedAt = new Date().toISOString();
+  protocol.siteControl.numberingLocked = true;
+  protocol.siteControl.numbering_locked = true;
+  protocol.siteControl.numberingLockedAt = lockedAt;
+  protocol.siteControl.numbering_locked_at = lockedAt;
+  protocol.siteControl.numberingLockedBy = protocol.siteControl.numberingLockedBy || "local-user";
+  protocol.siteControl.firstReportCreatedAt = protocol.siteControl.firstReportCreatedAt || lockedAt;
+  protocol.updatedAt = lockedAt;
+  return true;
+}
+
 function siteControlDisplayItems(items = []) {
-  return [...(items || [])].sort((a, b) => String(b.createdAt || b.updatedAt || "").localeCompare(String(a.createdAt || a.updatedAt || "")));
+  return siteControlActiveItems(items).sort((a, b) => String(b.createdAt || b.updatedAt || "").localeCompare(String(a.createdAt || a.updatedAt || "")));
 }
 
 function siteControlItemContext(item = {}) {
@@ -8322,6 +8394,7 @@ function findSiteControlItem(id) {
 }
 
 function siteControlItemIsOpen(item = {}) {
+  if (siteControlItemDeleted(item)) return false;
   const status = String(item.status || "").toLowerCase();
   return !status.includes("erledigt");
 }
@@ -8406,7 +8479,7 @@ function renderSiteControlView() {
     const visibleProjects = activeProjectId ? state.projects.filter((project) => project.id === activeProjectId) : [...state.projects];
     list.innerHTML = visibleProjects.sort((a, b) => (b.id === activeProjectId) - (a.id === activeProjectId)).map((project) => {
       const protocols = siteControlProtocolsForProject(project.id);
-      const openCount = protocols.reduce((sum, protocol) => sum + (protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
+      const openCount = protocols.reduce((sum, protocol) => sum + siteControlActiveItems(protocol.siteItems || []).filter(siteControlItemIsOpen).length, 0);
       return `
         <article class="project-card site-module-card">
           <div class="section-head">
@@ -8440,7 +8513,7 @@ function renderSiteControlOpenItems() {
   const openItems = [];
   const activeProjectId = activeSiteControlProjectId();
   state.protocols.filter(isSiteControlProtocol).filter((protocol) => !siteControlProtocolIsDeleted(protocol)).filter((protocol) => !activeProjectId || protocol.projectId === activeProjectId).forEach((protocol) => {
-    (protocol.siteItems || []).filter(siteControlItemIsOpen).forEach((item) => openItems.push({ protocol, item }));
+    siteControlActiveItems(protocol.siteItems || []).filter(siteControlItemIsOpen).forEach((item) => openItems.push({ protocol, item }));
   });
   target.innerHTML = `
     <section class="panel site-open-dashboard">
@@ -8577,11 +8650,12 @@ function renderSiteControlResultSummary() {
   const target = $("#siteControlResultSummary");
   if (!target || !isSiteControlProtocol()) return;
   ensureSiteControlItemBkNumbers(state.current);
-  const items = state.current.siteItems || [];
+  const items = siteControlActiveItems(state.current.siteItems || []);
+  const deleted = siteControlDeletedItems(state.current.siteItems || []).length;
   const open = items.filter(siteControlItemIsOpen).length;
   const photos = items.reduce((sum, item) => sum + siteControlItemPhotos(item).length, 0);
   const pins = items.filter((item) => siteControlPinForItem(item)).length;
-  target.innerHTML = `<div class="site-summary-grid"><div class="mini-stat"><strong>${items.length}</strong><span>Feststellungen</span></div><div class="mini-stat"><strong>${open}</strong><span>offen</span></div><div class="mini-stat"><strong>${pins}</strong><span>Pins</span></div><div class="mini-stat"><strong>${photos}</strong><span>Fotos</span></div></div>`;
+  target.innerHTML = `<div class="site-summary-grid"><div class="mini-stat"><strong>${items.length}</strong><span>Feststellungen</span></div><div class="mini-stat"><strong>${open}</strong><span>offen</span></div><div class="mini-stat"><strong>${pins}</strong><span>Pins</span></div><div class="mini-stat"><strong>${photos}</strong><span>Fotos</span></div>${deleted ? `<div class="mini-stat"><strong>${deleted}</strong><span>gel?scht</span></div>` : ""}</div>`;
 }
 
 function siteControlOptions(values, current) {
@@ -8650,6 +8724,40 @@ function siteControlItemCard(item) {
       </div>` : ""}
     </article>`;
 }
+function deleteSiteControlItem(itemId) {
+  if (!isSiteControlProtocol() || !state.current) return;
+  ensureSiteControlItemBkNumbers(state.current);
+  const item = findSiteControlItem(itemId);
+  if (!item) return;
+  const label = siteControlItemBkLabel(item);
+  if (siteControlNumberingLocked(state.current)) {
+    const confirmed = confirm(`Diese Baustellenkontrolle wurde bereits als Bericht ausgegeben.\n\nDie Nummer ${label} bleibt aus Nachvollziehbarkeitsgr\u00fcnden erhalten und wird im n\u00e4chsten Bericht als gel\u00f6scht ausgewiesen.\n\n${label} l\u00f6schen / als gel\u00f6scht markieren?`);
+    if (!confirmed) return;
+    const reason = prompt("L\u00f6schgrund optional:", item.deletedReason || "") || "";
+    const deletedAt = new Date().toISOString();
+    item.deleted = true;
+    item.is_deleted = true;
+    item.deletedAt = deletedAt;
+    item.deleted_at = deletedAt;
+    item.deletedReason = reason.trim();
+    item.deleted_reason = reason.trim();
+    item.deletedBy = "local-user";
+    item.deleted_by = "local-user";
+    item.updatedAt = deletedAt;
+    if (state.openSiteItemId === item.id) state.openSiteItemId = "";
+    persist();
+    renderSiteControlEditor();
+    showAppToast(`${label} wurde als gel?scht markiert.`, { type: "success" });
+    return;
+  }
+  if (!confirm("Diese Feststellung l?schen?")) return;
+  state.current.siteItems = siteControlActiveItems(state.current.siteItems || []).filter((entry) => entry.id !== itemId);
+  ensureSiteControlItemBkNumbers(state.current);
+  if (state.openSiteItemId === itemId) state.openSiteItemId = "";
+  persist();
+  renderSiteControlEditor();
+}
+
 function updateSiteControlItemField(element) {
   const item = findSiteControlItem(element.closest("[data-site-item]")?.dataset.siteItem || "");
   if (!item) return;
@@ -8727,7 +8835,7 @@ function siteControlReportStatusClass(status = "") {
 
 function siteControlReportMetaMap(items = []) {
   const map = new Map();
-  const orderedItems = siteControlDisplayItems(items);
+  const orderedItems = siteControlSortByBk(items);
   orderedItems.forEach((item, index) => {
     const pin = siteControlPinForItem(item);
     const status = siteControlReportStatus(item, pin);
@@ -8842,7 +8950,7 @@ function siteControlCompactItemOverview(items = [], reportMeta = new Map()) {
 }
 
 function siteControlPlanAppendixReport(items = [], reportMeta = new Map(), itemPhotoCards = new Map()) {
-  const entries = siteControlPinReportEntries(items);
+  const entries = siteControlPinReportEntries(siteControlReportItems(items));
   if (!entries.length) return siteControlPlanReferencesReport(items);
   const groups = new Map();
   for (const entry of entries) {
@@ -8850,10 +8958,11 @@ function siteControlPlanAppendixReport(items = [], reportMeta = new Map(), itemP
     if (!groups.has(key)) groups.set(key, { ...entry, rows: [] });
     groups.get(key).rows.push(entry);
   }
-  return [...groups.values()].map((group, index) => {
+  return [...groups.values()].sort((a, b) => Math.min(...a.rows.map((row) => siteControlItemBkNumberRaw(row.item))) - Math.min(...b.rows.map((row) => siteControlItemBkNumberRaw(row.item)))).map((group, index) => {
+    group.rows = siteControlSortByBk(group.rows.map((row) => row.item)).map((item) => group.rows.find((row) => row.item.id === item.id));
     const plan = group.plan;
     const pins = [...new Map(group.rows.map((row) => [row.pin.id, row.pin])).values()];
-    const linkedRows = [...new Map(group.rows.map((row) => [row.item.id, row])).values()];
+    const linkedRows = siteControlSortByBk([...new Map(group.rows.map((row) => [row.item.id, row])).values()].map((row) => row.item)).map((item) => group.rows.find((row) => row.item.id === item.id));
     const image = state.reportPlanImages.get(`${group.planId}:${group.pageNumber}`);
     const title = siteControlCompactPlanTitle(plan);
     const linkedItems = linkedRows.map(({ item, pin }) => siteControlReportItemCard(item, reportMeta.get(item.id) || {}, itemPhotoCards.get(item.id) || [], { pin })).join("");
@@ -8868,12 +8977,27 @@ function siteControlPlanAppendixReport(items = [], reportMeta = new Map(), itemP
       </section>`;
   }).join("");
 }
+function siteControlDeletedItemsReport(items = []) {
+  const deleted = siteControlDeletedItems(items);
+  if (!deleted.length) return "";
+  return `<h2>Gel\u00f6schte / entfallene Feststellungen</h2><div class="site-compact-list">${deleted.map((item) => {
+    const number = siteControlItemBkLabel(item);
+    const context = [item.type || "Feststellung", [item.trade, item.location].filter(Boolean).join(" / ")].filter(Boolean).join(" \u00b7 ");
+    const deletedAt = item.deletedAt || item.deleted_at || "";
+    const reason = item.deletedReason || item.deleted_reason || "ohne Angabe";
+    return `<article class="site-report-card compact"><div class="site-item-body"><strong>${escapeHtml(number)} wurde gel\u00f6scht.</strong><br><span class="muted">Urspr\u00fcnglich: ${escapeHtml(context || "ohne Zuordnung")}</span><br><span class="muted">Gel\u00f6scht am: ${escapeHtml(formatDate(deletedAt) || "ohne Angabe")}</span><br><span class="muted">Grund: ${escapeHtml(reason)}</span></div></article>`;
+  }).join("")}</div>`;
+}
+
 async function buildSiteControlReportParts() {
   saveSiteControlForm({ persistNow: false });
   const p = state.current;
   const project = projectById(p.projectId);
   ensureSiteControlItemBkNumbers(p);
-  const items = siteControlDisplayItems(p.siteItems || []);
+  const lockedNow = lockSiteControlNumbering(p);
+  if (lockedNow) await persist();
+  const items = siteControlReportItems(p.siteItems || []);
+  const deletedItems = siteControlDeletedItems(p.siteItems || []);
   const reportMeta = siteControlReportMetaMap(items);
   const openItems = items.filter(siteControlItemIsOpen);
   const itemPhotoCards = new Map();
@@ -8917,13 +9041,15 @@ async function buildSiteControlReportParts() {
   }
   const photoHtml = loosePhotoCards.length ? siteControlReportPhotoGrid(loosePhotoCards, { compact: true }) : "";
   const openOverviewHtml = siteControlCompactItemOverview(openItems, reportMeta);
+  const deletedHtml = siteControlDeletedItemsReport(deletedItems);
   const body = `    <div class="report-export"><main class="report-page">
       <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
       <section class="info-grid"><div class="info-card"><h3>Projekt</h3>${rows.slice(0,3).map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Kontrolle</h3>${rows.slice(3).map(([k,v]) => infoRow(k,v)).join("")}</div></section>
-      <h2>Ergebnis / Zusammenfassung</h2><section class="info-card result-box">${infoRow("Offene Punkte", String(openItems.length))}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
+      <h2>Ergebnis / Zusammenfassung</h2><section class="info-card result-box">${infoRow("Feststellungen gesamt", String(items.length + deletedItems.length))}${infoRow("Offene Punkte", String(openItems.length))}${deletedItems.length ? infoRow("Gel?schte Punkte", String(deletedItems.length)) : ""}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
       <h2>Offene Punkte</h2>${openOverviewHtml}
       ${planReferenceHtml ? `<section class="site-plan-section">${planReferenceHtml}</section>` : ""}
       ${unpinnedHtml ? `<h2>Feststellungen ohne Planmarkierung</h2>${unpinnedHtml}` : ""}
+      ${deletedHtml}
       ${photoHtml ? `<h2 class="page-break">Fotodokumentation</h2>${photoHtml}` : ""}
       <footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</span><span>Kai BauSuite</span></footer>
     </main></div>`;
@@ -12885,11 +13011,7 @@ function bindEvents() {
       }
     }
     const deleteSiteItem = event.target.closest("[data-delete-site-item]");
-    if (deleteSiteItem && confirm("Diese Feststellung löschen?")) {
-      state.current.siteItems = (state.current.siteItems || []).filter((item) => item.id !== deleteSiteItem.dataset.deleteSiteItem);
-      persist();
-      renderSiteControlEditor();
-    }
+    if (deleteSiteItem) deleteSiteControlItem(deleteSiteItem.dataset.deleteSiteItem);
     const rebarAddressFromProject = event.target.closest("#rebarAddressFromProjectBtn");
     if (rebarAddressFromProject) applyRebarProjectAddress();
     const rebarAddressFromSiteControl = event.target.closest("#rebarAddressFromSiteControlBtn");
