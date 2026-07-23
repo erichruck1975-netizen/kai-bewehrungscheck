@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v159";
+const APP_VERSION = "v160";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -36,7 +36,8 @@ const PROTOCOL_KIND_DAILY_REPORT = "daily-report";
 const PROTOCOL_KIND_PROJECT_PLANS = "project-plans";
 
 const SITE_CONTROL_TYPES = ["Mangel", "Aufgabe", "Hinweis", "Foto-Doku", "Klärungspunkt"];
-const SITE_CONTROL_TRADES = ["Rohbau", "Bewehrung", "Schalung", "Betonage", "TGA", "Elektro", "Abdichtung", "Ausbau", "Planung", "Bauleitung", "Sonstige"];
+const SITE_CONTROL_TRADES = ["Rohbau", "Schalung", "Bewehrung", "Betonarbeiten", "Pflasterarbeiten", "Klempnerarbeiten", "Au\u00dfenputz", "Fensterbau", "Heizung", "Sanit\u00e4r", "Elektro", "Fassade", "Dachdecker", "Trockenbau", "Maler", "Au\u00dfenanlagen", "Sonstige"];
+const SITE_CONTROL_AREAS = ["Bodenplatte", "Fundament", "Wand", "St\u00fctze", "Unterzug", "Decke", "Filigrandecke", "Decke UG/Unterz\u00fcge", "Aufzugsschacht", "Treppenhauskern", "Rampe", "Hauseingang", "Au\u00dfenanlagen", "Wohnung M\u00fcller Schlafzimmer", "Wohnung M\u00fcller Wiga", "Wohnung Fennwick Wiga", "Sonstige"];
 const SITE_CONTROL_PRIORITIES = ["normal", "hoch", "kritisch"];
 const SITE_CONTROL_STATUSES = ["offen", "in Bearbeitung", "erledigt", "zur Klärung", "nicht prüfbar"];
 const SITE_CONTROL_REASONS = ["Regelbegehung", "Mangelkontrolle", "Fotodokumentation", "Abstimmung", "Nachbegehung", "Sonstige"];
@@ -145,12 +146,13 @@ const DEFAULT_MASTER_DATA = {
   ownPersons: [],
   companies: [],
   inspectors: [],
-  components: ["Bodenplatte", "Fundament", "Wand", "Stütze", "Unterzug", "Decke", "Filigrandecke", "Decke UG/Unterzüge", "Aufzugsschacht", "Treppenhauskern", "Rampe", "Sonstige"],
+  components: SITE_CONTROL_AREAS,
   floors: ["UG", "EG", "1. OG", "2. OG", "DG", "Tiefgarage", "Untergeschoss", "Sonstige"],
   acceptanceTypes: ["Erstabnahme", "Nachkontrolle", "Teilabnahme", "Ergänzung"],
   areaAxes: ["Achse A/1", "Achse B/2", "Randbereich", "Mittelbereich", "Wandanschluss", "Deckenfeld", "Unterzug", "Stütze", "Sonstige"],
   signatureRoles: ["Abnehmender / Bewehrungskontrolle", "Verantwortlicher vor Ort", "Polier", "Bauleiter", "Eisenflechter", "Betonbauer", "Prüfingenieur", "Sonstige"],
   trades: SITE_CONTROL_TRADES,
+  siteControlAreas: SITE_CONTROL_AREAS,
   siteControlTypes: SITE_CONTROL_TYPES,
   siteControlReasons: SITE_CONTROL_REASONS,
   siteControlPriorities: SITE_CONTROL_PRIORITIES
@@ -508,12 +510,13 @@ function normalizeMasterData(masterData = {}) {
       phone: item.phone || "",
       note: item.note || ""
     })),
-    components: uniqueValues(source.components || DEFAULT_MASTER_DATA.components),
+    components: uniqueValues([...(source.components || []), ...DEFAULT_MASTER_DATA.components]),
     floors: uniqueValues(source.floors || DEFAULT_MASTER_DATA.floors),
     acceptanceTypes: uniqueValues(source.acceptanceTypes || DEFAULT_MASTER_DATA.acceptanceTypes),
     areaAxes: uniqueValues(source.areaAxes || DEFAULT_MASTER_DATA.areaAxes),
     signatureRoles: uniqueValues(source.signatureRoles || DEFAULT_MASTER_DATA.signatureRoles),
-    trades: uniqueValues(source.trades || DEFAULT_MASTER_DATA.trades),
+    trades: uniqueValues([...(source.trades || []), ...DEFAULT_MASTER_DATA.trades]),
+    siteControlAreas: uniqueValues([...(source.siteControlAreas || []), ...(source.components || []), ...(source.areaAxes || []), ...DEFAULT_MASTER_DATA.siteControlAreas]),
     siteControlTypes: uniqueValues(source.siteControlTypes || DEFAULT_MASTER_DATA.siteControlTypes),
     siteControlReasons: uniqueValues(source.siteControlReasons || DEFAULT_MASTER_DATA.siteControlReasons),
     siteControlPriorities: uniqueValues(source.siteControlPriorities || DEFAULT_MASTER_DATA.siteControlPriorities)
@@ -1382,7 +1385,9 @@ function normalizeSiteControlItems(items = [], protocolId = "") {
   return (items || []).map((item, index) => ({
     id: item.id || uid("siteitem"),
     protocolId: item.protocolId || protocolId,
-    number: item.number || index + 1,
+    number: Number(String(item.number || item.bkNo || item.bkNumber || "").replace(/^BK/i, "")) || index + 1,
+    bkNo: Number(String(item.bkNo || item.bkNumber || item.number || "").replace(/^BK/i, "")) || index + 1,
+    bkLabel: item.bkLabel || "BK" + (Number(String(item.bkNo || item.bkNumber || item.number || "").replace(/^BK/i, "")) || index + 1),
     type: item.type || "Hinweis",
     trade: item.trade || "",
     location: item.location || "",
@@ -2516,10 +2521,47 @@ function siteControlPinForItem(item) {
   return state.current.pins.find((pin) => pin.id === item.pinId) || null;
 }
 
-function siteControlItemContext(item = {}) {
-  return [item.type, item.location || item.trade].filter(Boolean).join(" \u00b7 ") || "Feststellung";
+function siteControlItemBkNumberRaw(item = {}) {
+  const raw = item.bkNo || item.bkNumber || item.number || item.bkLabel || "";
+  const normalized = String(raw || "").replace(/^BK/i, "").trim();
+  const number = Number(normalized);
+  return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
+function siteControlItemBkLabel(item = {}, fallbackIndex = 0) {
+  const number = siteControlItemBkNumberRaw(item) || fallbackIndex + 1;
+  return "BK" + number;
+}
+
+function nextSiteControlBkNumber(items = []) {
+  return (items || []).reduce((max, item) => Math.max(max, siteControlItemBkNumberRaw(item)), 0) + 1;
+}
+
+function ensureSiteControlItemBkNumbers(protocol = state.current) {
+  const items = protocol?.siteItems || [];
+  const used = new Set();
+  let max = items.reduce((highest, item) => Math.max(highest, siteControlItemBkNumberRaw(item)), 0);
+  items.forEach((item) => {
+    let number = siteControlItemBkNumberRaw(item);
+    if (!number || used.has(number)) {
+      do { max += 1; number = max; } while (used.has(number));
+    }
+    used.add(number);
+    item.number = number;
+    item.bkNo = number;
+    item.bkLabel = "BK" + number;
+    item.createdAt = item.createdAt || item.created_at || item.updatedAt || new Date().toISOString();
+    item.updatedAt = item.updatedAt || item.createdAt;
+  });
+}
+
+function siteControlDisplayItems(items = []) {
+  return [...(items || [])].sort((a, b) => String(b.createdAt || b.updatedAt || "").localeCompare(String(a.createdAt || a.updatedAt || "")));
+}
+
+function siteControlItemContext(item = {}) {
+  return [siteControlItemBkLabel(item), item.type, item.location || item.trade].filter(Boolean).join(" \u00b7 ") || "Feststellung";
+}
 function siteControlPinStatus(status = "") {
   const value = String(status || "").toLowerCase();
   if (value.includes("mangel") || value.includes("nicht ok")) return "Mangel";
@@ -3178,7 +3220,8 @@ function renderDatalists() {
   setDatalist("componentOptions", master.components);
   setDatalist("floorOptions", master.floors);
   setDatalist("acceptanceTypeOptions", master.acceptanceTypes);
-  setDatalist("areaOptions", master.areaAxes);
+  setDatalist("areaOptions", uniqueValues([...master.areaAxes, ...(master.siteControlAreas || [])]));
+  setDatalist("siteControlAreaOptions", master.siteControlAreas || SITE_CONTROL_AREAS);
   setDatalist("tradeRoleOptions", tradeRoleOptions());
   setDatalist("signatureCategoryOptions", signatureCategoryOptions());
   setDatalist("tradeOptions", state.masterData.trades || SITE_CONTROL_TRADES);
@@ -3292,7 +3335,7 @@ function masterDataSectionSummary(sectionId, master) {
   if (sectionId === "companies") return `${master.companies.length} Eintrag${master.companies.length === 1 ? "" : "e"}`;
   if (sectionId === "persons") return `${master.ownPersons.length} Eintrag${master.ownPersons.length === 1 ? "" : "e"}`;
   if (sectionId === "inspectors") return `${master.inspectors.length} Eintrag${master.inspectors.length === 1 ? "" : "e"}`;
-  if (sectionId === "trades") return `${master.components.length} Bauteilwerte`;
+  if (sectionId === "trades") return `${master.trades.length} Gewerke \u00b7 ${(master.siteControlAreas || []).length} Bereiche`;
   if (sectionId === "roles") return `${master.signatureRoles.length} Rollen`;
   if (sectionId === "defaults") return `${master.acceptanceTypes.length + master.floors.length + master.areaAxes.length} Standardwerte`;
   if (sectionId === "planStorage") return state.settings?.dropboxBaseFolder ? "Basisordner gesetzt" : "Noch nicht eingerichtet";
@@ -3326,8 +3369,9 @@ function renderMasterDataSectionBody(sectionId, master) {
   }
   if (sectionId === "trades") {
     return `
-      ${lookupMasterSection("Standard-Bauteile / Gewerke", "components", master.components)}
-      <section class="panel master-info-card"><p class="muted">Diese Werte werden f\u00fcr Bauteile, Gewerke und wiederkehrende Auswahlfelder genutzt.</p></section>
+      ${lookupMasterSection("Bauteile / Bereiche", "siteControlAreas", master.siteControlAreas || [])}
+      ${lookupMasterSection("Gewerke", "trades", master.trades || [])}
+      <section class="panel master-info-card"><p class="muted">Bauteile/Bereiche steuern die Auswahl &quot;Bereich / Ort&quot;. Gewerke sind die fachlichen Gewerke der Baustellenkontrolle.</p></section>
     `;
   }
   if (sectionId === "roles") {
@@ -8485,14 +8529,19 @@ function saveSiteControlForm({ persistNow = true } = {}) {
 function addSiteControlItem(type = "Hinweis") {
   saveSiteControlForm({ persistNow: false });
   const now = new Date().toISOString();
+  const nextNumber = nextSiteControlBkNumber(state.current.siteItems || []);
   const item = normalizeSiteControlItems([{
     type,
+    number: nextNumber,
+    bkNo: nextNumber,
+    bkLabel: "BK" + nextNumber,
     priority: type === "Mangel" ? "hoch" : "normal",
     status: "offen",
     createdAt: now,
     updatedAt: now
   }], state.current.id)[0];
-  state.current.siteItems.push(item);
+  state.current.siteItems.unshift(item);
+  ensureSiteControlItemBkNumbers(state.current);
   state.openSiteItemId = item.id;
   state.activeSiteControlTabId = "siteCheckTab";
   persist();
@@ -8502,7 +8551,8 @@ function addSiteControlItem(type = "Hinweis") {
 function renderSiteControlItems() {
   const list = $("#siteControlItemList");
   if (!list || !isSiteControlProtocol()) return;
-  const items = state.current.siteItems || [];
+  ensureSiteControlItemBkNumbers(state.current);
+  const items = siteControlDisplayItems(state.current.siteItems || []);
   if (state.openSiteItemId && !items.some((item) => item.id === state.openSiteItemId)) state.openSiteItemId = "";
   list.innerHTML = items.length ? items.map(siteControlItemCard).join("") : `<div class="empty-card muted">Noch keine Feststellung. Nutze oben + Mangel, + Aufgabe, + Hinweis oder + Foto-Doku.</div>`;
 }
@@ -8526,6 +8576,7 @@ function renderSiteControlPlanTab() {
 function renderSiteControlResultSummary() {
   const target = $("#siteControlResultSummary");
   if (!target || !isSiteControlProtocol()) return;
+  ensureSiteControlItemBkNumbers(state.current);
   const items = state.current.siteItems || [];
   const open = items.filter(siteControlItemIsOpen).length;
   const photos = items.reduce((sum, item) => sum + siteControlItemPhotos(item).length, 0);
@@ -8559,14 +8610,14 @@ function siteControlItemCard(item) {
   return `
     <article class="site-item-card site-item-accordion ${isOpen ? "open" : ""}" data-site-item="${item.id}">
       <button class="site-item-toggle" type="button" data-toggle-site-item="${item.id}" aria-expanded="${isOpen ? "true" : "false"}">
-        <span class="site-item-toggle-main"><strong>${escapeHtml(item.type)} ${item.number ? `#${item.number}` : ""}</strong><span>${escapeHtml(teaser)}</span></span>
+        <span class="site-item-toggle-main"><strong>${escapeHtml(siteControlItemBkLabel(item))} \u00b7 ${escapeHtml(item.type || "Feststellung")}</strong><span>${escapeHtml(teaser)}</span></span>
         <span class="site-item-toggle-meta"><span class="status-badge ${statusClass}">${escapeHtml(displayStatus)}</span><small>${escapeHtml(siteControlItemSummary(item, pin, photos))}</small></span>
       </button>
       ${isOpen ? `<div class="site-item-detail">
         <div class="grid site-item-grid">
           <label>Typ<select data-site-item-field="type">${siteControlOptions(state.masterData.siteControlTypes || SITE_CONTROL_TYPES, item.type)}</select></label>
           <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
-          <label>Bereich / Ort<input data-site-item-field="location" value="${escapeAttr(item.location)}"></label>
+          <label>Bereich / Ort<input data-site-item-field="location" list="siteControlAreaOptions" value="${escapeAttr(item.location)}"></label>
           <label>Zuständig<input data-site-item-field="responsible" list="responsibleOptions" value="${escapeAttr(item.responsible)}"></label>
           <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
           <label>Priorität<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
@@ -8676,12 +8727,13 @@ function siteControlReportStatusClass(status = "") {
 
 function siteControlReportMetaMap(items = []) {
   const map = new Map();
-  items.forEach((item, index) => {
+  const orderedItems = siteControlDisplayItems(items);
+  orderedItems.forEach((item, index) => {
     const pin = siteControlPinForItem(item);
     const status = siteControlReportStatus(item, pin);
     const pinText = pin ? pinLabel(pin) : "";
     const context = [item.trade, item.location].filter(Boolean).join(" / ") || item.location || item.trade || "ohne Zuordnung";
-    const number = `BK${index + 1}`;
+    const number = siteControlItemBkLabel(item, index);
     map.set(item.id, { number, pin, pinText, status, context, title: [number, pinText, status, context].filter(Boolean).join(" · ") });
   });
   return map;
@@ -8820,7 +8872,8 @@ async function buildSiteControlReportParts() {
   saveSiteControlForm({ persistNow: false });
   const p = state.current;
   const project = projectById(p.projectId);
-  const items = p.siteItems || [];
+  ensureSiteControlItemBkNumbers(p);
+  const items = siteControlDisplayItems(p.siteItems || []);
   const reportMeta = siteControlReportMetaMap(items);
   const openItems = items.filter(siteControlItemIsOpen);
   const itemPhotoCards = new Map();
