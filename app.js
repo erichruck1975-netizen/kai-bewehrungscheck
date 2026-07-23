@@ -3,13 +3,13 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v162";
+const APP_VERSION = "v163";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
 const STABLE_TAG = "v52-stable-before-v53";
 const STATUSES = ["fertig / OK", "teilweise / Auflage", "nicht OK / Mangel", "Dokumentation", "nicht relevant"];
-const FOLLOWUP_STATUSES = ["erledigt", "teilweise erledigt", "weiterhin offen", "nicht prÃ¼fbar", "neu hinzugekommen"];
+const FOLLOWUP_STATUSES = ["erledigt", "teilweise erledigt", "weiterhin offen", "nicht prüfbar", "neu hinzugekommen"];
 const OVERLAP_PLAN_MODE = "plan_value";
 const OVERLAP_EC2_MODE = "ec2_na";
 const EC2_NA_CONFIG = {
@@ -35,16 +35,16 @@ const PROTOCOL_KIND_SITE_CONTROL = "site-control";
 const PROTOCOL_KIND_DAILY_REPORT = "daily-report";
 const PROTOCOL_KIND_PROJECT_PLANS = "project-plans";
 
-const SITE_CONTROL_TYPES = ["Mangel", "Aufgabe", "Hinweis", "Foto-Doku", "KlÃ¤rungspunkt"];
+const SITE_CONTROL_TYPES = ["Mangel", "Aufgabe", "Hinweis", "Foto-Doku", "Klärungspunkt"];
 const SITE_CONTROL_TRADES = ["Rohbau", "Schalung", "Bewehrung", "Betonarbeiten", "Pflasterarbeiten", "Klempnerarbeiten", "Au\u00dfenputz", "Fensterbau", "Heizung", "Sanit\u00e4r", "Elektro", "Fassade", "Dachdecker", "Trockenbau", "Maler", "Au\u00dfenanlagen", "Sonstige"];
 const SITE_CONTROL_AREAS = ["Bodenplatte", "Fundament", "Wand", "St\u00fctze", "Unterzug", "Decke", "Filigrandecke", "Decke UG/Unterz\u00fcge", "Aufzugsschacht", "Treppenhauskern", "Rampe", "Hauseingang", "Au\u00dfenanlagen", "Wohnung M\u00fcller Schlafzimmer", "Wohnung M\u00fcller Wiga", "Wohnung Fennwick Wiga", "Sonstige"];
 const SITE_CONTROL_PRIORITIES = ["normal", "hoch", "kritisch"];
-const SITE_CONTROL_STATUSES = ["offen", "in Bearbeitung", "erledigt", "zur KlÃ¤rung", "nicht prÃ¼fbar"];
+const SITE_CONTROL_STATUSES = ["offen", "in Bearbeitung", "erledigt", "zur Klärung", "nicht prüfbar"];
 const SITE_CONTROL_REASONS = ["Regelbegehung", "Mangelkontrolle", "Fotodokumentation", "Abstimmung", "Nachbegehung", "Sonstige"];
 const POSTAL_CITY_LOOKUP = {
-  "80999": "MÃ¼nchen",
+  "80999": "München",
   "86150": "Augsburg",
-  "91550": "DinkelsbÃ¼hl",
+  "91550": "Dinkelsbühl",
   "91744": "Weiltingen"
 };
 
@@ -56,11 +56,11 @@ const CHECK_ITEMS = [
   "Zulagen",
   "Durchstanzbewehrung/Schubbewehrung",
   "Anschlussbewehrung",
-  "BÃ¼gel / BÃ¼gelabstÃ¤nde",
-  "Abstandhalter / UnterstÃ¼tzungen",
+  "Bügel / Bügelabstände",
+  "Abstandhalter / Unterstützungen",
   "Betondeckung augenscheinlich",
-  "ÃœbergreifungslÃ¤ngen augenscheinlich",
-  "Aussparungen / DurchbrÃ¼che",
+  "Übergreifungslängen augenscheinlich",
+  "Aussparungen / Durchbrüche",
   "Einbauteile",
   "Fundamenterder / Erdung",
   "Fugen / Fugenbleche",
@@ -76,10 +76,10 @@ const CHECK_SCOPE_TEMPLATES = {
     "Zulagen",
     "Durchstanzbewehrung/Schubbewehrung",
     "Anschlussbewehrung",
-    "Abstandhalter / UnterstÃ¼tzungen",
+    "Abstandhalter / Unterstützungen",
     "Betondeckung augenscheinlich",
-    "ÃœbergreifungslÃ¤ngen",
-    "Aussparungen / DurchbrÃ¼che",
+    "Übergreifungslängen",
+    "Aussparungen / Durchbrüche",
     "Einbauteile",
     "Fundamenterder / Erdung",
     "Fugen / Fugenbleche"
@@ -90,10 +90,10 @@ const CHECK_SCOPE_TEMPLATES = {
     "Zulagen",
     "Durchstanzbewehrung/Schubbewehrung",
     "Anschlussbewehrung",
-    "Abstandhalter / UnterstÃ¼tzungen",
+    "Abstandhalter / Unterstützungen",
     "Betondeckung augenscheinlich",
-    "ÃœbergreifungslÃ¤ngen",
-    "Aussparungen / DurchbrÃ¼che",
+    "Übergreifungslängen",
+    "Aussparungen / Durchbrüche",
     "Einbauteile",
     "besondere Feststellungen"
   ],
@@ -103,10 +103,10 @@ const CHECK_SCOPE_TEMPLATES = {
     "Zulagen",
     "Durchstanzbewehrung/Schubbewehrung",
     "Anschlussbewehrung",
-    "Abstandhalter / UnterstÃ¼tzungen",
+    "Abstandhalter / Unterstützungen",
     "Betondeckung augenscheinlich",
-    "ÃœbergreifungslÃ¤ngen",
-    "Aussparungen / DurchbrÃ¼che",
+    "Übergreifungslängen",
+    "Aussparungen / Durchbrüche",
     "Einbauteile",
     "besondere Feststellungen"
   ],
@@ -114,18 +114,18 @@ const CHECK_SCOPE_TEMPLATES = {
     "Anschlussbewehrung",
     "Randbewehrung",
     "Zulagen",
-    "Aussparungen / DurchbrÃ¼che",
+    "Aussparungen / Durchbrüche",
     "Einbauteile",
     "Betondeckung augenscheinlich",
-    "ÃœbergreifungslÃ¤ngen",
+    "Übergreifungslängen",
     "besondere Feststellungen"
   ],
   stuetze: [
     "Anschlussbewehrung",
-    "BÃ¼gel / BÃ¼gelabstÃ¤nde",
-    "Abstandhalter / UnterstÃ¼tzungen",
+    "Bügel / Bügelabstände",
+    "Abstandhalter / Unterstützungen",
     "Betondeckung augenscheinlich",
-    "ÃœbergreifungslÃ¤ngen",
+    "Übergreifungslängen",
     "besondere Feststellungen"
   ],
   rampe: [
@@ -134,9 +134,9 @@ const CHECK_SCOPE_TEMPLATES = {
     "obere Bewehrungslage",
     "Randbewehrung",
     "Anschlussbewehrung",
-    "Abstandhalter / UnterstÃ¼tzungen",
+    "Abstandhalter / Unterstützungen",
     "Betondeckung augenscheinlich",
-    "ÃœbergreifungslÃ¤ngen",
+    "Übergreifungslängen",
     "Fugen / Fugenbleche",
     "besondere Feststellungen"
   ]
@@ -148,9 +148,9 @@ const DEFAULT_MASTER_DATA = {
   inspectors: [],
   components: SITE_CONTROL_AREAS,
   floors: ["UG", "EG", "1. OG", "2. OG", "DG", "Tiefgarage", "Untergeschoss", "Sonstige"],
-  acceptanceTypes: ["Erstabnahme", "Nachkontrolle", "Teilabnahme", "ErgÃ¤nzung"],
-  areaAxes: ["Achse A/1", "Achse B/2", "Randbereich", "Mittelbereich", "Wandanschluss", "Deckenfeld", "Unterzug", "StÃ¼tze", "Sonstige"],
-  signatureRoles: ["Abnehmender / Bewehrungskontrolle", "Verantwortlicher vor Ort", "Polier", "Bauleiter", "Eisenflechter", "Betonbauer", "PrÃ¼fingenieur", "Sonstige"],
+  acceptanceTypes: ["Erstabnahme", "Nachkontrolle", "Teilabnahme", "Ergänzung"],
+  areaAxes: ["Achse A/1", "Achse B/2", "Randbereich", "Mittelbereich", "Wandanschluss", "Deckenfeld", "Unterzug", "Stütze", "Sonstige"],
+  signatureRoles: ["Abnehmender / Bewehrungskontrolle", "Verantwortlicher vor Ort", "Polier", "Bauleiter", "Eisenflechter", "Betonbauer", "Prüfingenieur", "Sonstige"],
   trades: SITE_CONTROL_TRADES,
   siteControlAreas: SITE_CONTROL_AREAS,
   siteControlTypes: SITE_CONTROL_TYPES,
@@ -302,7 +302,7 @@ function syncSettingsInputs() {
   const defaultCompany = $("#defaultCompany");
   if (defaultCompany) defaultCompany.value = state.settings.defaultCompany || "";
   if ($("#dropboxBaseFolder")) $("#dropboxBaseFolder").value = state.settings.dropboxBaseFolder || "";
-  if ($("#dropboxPlanFolder")) $("#dropboxPlanFolder").value = state.settings.dropboxPlanFolder || "PlÃ¤ne";
+  if ($("#dropboxPlanFolder")) $("#dropboxPlanFolder").value = state.settings.dropboxPlanFolder || "Pläne";
   if ($("#dropboxPhotoFolder")) $("#dropboxPhotoFolder").value = state.settings.dropboxPhotoFolder || "Fotos";
   if ($("#dropboxReportFolder")) $("#dropboxReportFolder").value = state.settings.dropboxReportFolder || "Berichte";
   if ($("#translationEnabled")) $("#translationEnabled").checked = !!state.settings.translationEnabled;
@@ -324,7 +324,7 @@ function schedulePersist(delay = 450) {
 
 async function persistAsync() {
   if (!state.dataLoaded) {
-    console.warn("Persist Ã¼bersprungen: Datenbestand wurde noch nicht erfolgreich geladen.");
+    console.warn("Persist übersprungen: Datenbestand wurde noch nicht erfolgreich geladen.");
     return;
   }
   try {
@@ -435,7 +435,7 @@ async function migrateLocalStorageData() {
     }
     localStorage.removeItem(STORAGE_KEY);
   } catch (error) {
-    showStorageWarning("Alte localStorage-Testdaten konnten nicht automatisch migriert werden. In Einstellungen kÃ¶nnen lokale Testdaten gelÃ¶scht werden.");
+    showStorageWarning("Alte localStorage-Testdaten konnten nicht automatisch migriert werden. In Einstellungen können lokale Testdaten gelöscht werden.");
   }
 }
 
@@ -466,7 +466,7 @@ function normalizeProject(project = {}) {
     note: project.note || "",
     dropboxFolder: project.dropboxFolder || project.dropboxProjectFolder || "",
     dropboxLink: project.dropboxLink || project.dropboxProjectLink || "",
-    planFolder: project.planFolder || state.settings.dropboxPlanFolder || "PlÃ¤ne",
+    planFolder: project.planFolder || state.settings.dropboxPlanFolder || "Pläne",
     reportFolder: project.reportFolder || state.settings.dropboxReportFolder || "Berichte",
     photoFolder: project.photoFolder || state.settings.dropboxPhotoFolder || "Fotos",
     generalData: project.generalData || "",
@@ -679,15 +679,15 @@ function applyRebarProjectAddress() {
   if (!state.current || isSiteControlProtocol(state.current) || isDailyReportProtocol(state.current)) return;
   const source = rebarAddressSource(state.current);
   if (source.type !== "project" || !hasAddressContent(source.address)) {
-    showAppToast(source.type === "site-control" ? "Keine Projektadresse gefunden. Adresse aus Baustellenkontrolle verfÃ¼gbar." : "Keine Projektadresse gefunden.", { type: "error" });
+    showAppToast(source.type === "site-control" ? "Keine Projektadresse gefunden. Adresse aus Baustellenkontrolle verfügbar." : "Keine Projektadresse gefunden.", { type: "error" });
     updateRebarAddressTools();
     return;
   }
   const fields = addressToHeadFields(source.address);
   fillRebarHeadAddressFields(fields, { source: "project" });
-  console.info("BewehrungsCheck Projektadresse Ã¼bernommen", { source: source.source, match: source.match, address: fields.siteAddress });
+  console.info("BewehrungsCheck Projektadresse übernommen", { source: source.source, match: source.match, address: fields.siteAddress });
   persist();
-  showAppToast("Projektadresse Ã¼bernommen.", { type: "success" });
+  showAppToast("Projektadresse übernommen.", { type: "success" });
   updateRebarAddressTools();
 }
 
@@ -701,9 +701,9 @@ function applyRebarSiteControlAddress() {
   }
   const fields = addressToHeadFields(source.address);
   fillRebarHeadAddressFields(fields, { source: "site-control-fallback" });
-  console.info("BewehrungsCheck Adresse aus Baustellenkontrolle Ã¼bernommen", { protocolId: source.protocol?.id, source: source.source, match: source.match, address: fields.siteAddress });
+  console.info("BewehrungsCheck Adresse aus Baustellenkontrolle übernommen", { protocolId: source.protocol?.id, source: source.source, match: source.match, address: fields.siteAddress });
   persist();
-  showAppToast("Adresse aus Baustellenkontrolle Ã¼bernommen.", { type: "success" });
+  showAppToast("Adresse aus Baustellenkontrolle übernommen.", { type: "success" });
   updateRebarAddressTools();
 }
 function applySiteControlProjectAddress() {
@@ -721,7 +721,7 @@ function applySiteControlProjectAddress() {
   state.current.head.siteAddress = text;
   state.current.updatedAt = new Date().toISOString();
   persist();
-  showAppToast("Adresse aus Projekt Ã¼bernommen.", { type: "success" });
+  showAppToast("Adresse aus Projekt übernommen.", { type: "success" });
 }
 
 function normalizeTimeValue(value = "") {
@@ -784,7 +784,7 @@ function normalizeAddress(value = {}) {
       .trim()
       .replace(/\r\n/g, "\n")
       .replace(/[ \t]+/g, " ")
-      .replace(/([0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ])(?=\d{5}\s+\S)/g, "$1\n");
+      .replace(/([0-9A-Za-zÄÖÜäöüß])(?=\d{5}\s+\S)/g, "$1\n");
     const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
     if (lines.length >= 2) {
       const cityLine = lines.slice(1).join(" ");
@@ -875,20 +875,20 @@ function personNames() {
   return uniqueValues([
     ...(state.masterData?.ownPersons || []).map(personLabel),
     ...(state.masterData?.inspectors || []).map(inspectorLabel),
-    ...(state.masterData?.companies || []).map((company) => company.contact ? `${company.contact} â€“ ${company.name}` : "")
+    ...(state.masterData?.companies || []).map((company) => company.contact ? `${company.contact} – ${company.name}` : "")
   ]);
 }
 
 function companyLabel(company = {}) {
-  return [company.name, addressCity(company.address)].filter(Boolean).join(" â€“ ");
+  return [company.name, addressCity(company.address)].filter(Boolean).join(" – ");
 }
 
 function personLabel(person = {}) {
-  return [person.name, person.company].filter(Boolean).join(" â€“ ");
+  return [person.name, person.company].filter(Boolean).join(" – ");
 }
 
 function inspectorLabel(inspector = {}) {
-  return [inspector.name, inspector.office].filter(Boolean).join(" â€“ ");
+  return [inspector.name, inspector.office].filter(Boolean).join(" – ");
 }
 
 function resolveCompany(value = "") {
@@ -1315,7 +1315,7 @@ function normalizeProtocol(protocol) {
   const templateActive = new Set((CHECK_SCOPE_TEMPLATES[templateKey] || CHECK_ITEMS).map((title) => title.toLowerCase()));
   protocol.checkpoints.forEach((check, index) => {
     check.id = check.id || uid(`check-${index}`);
-    check.title = check.title || CHECK_ITEMS[index] || `PrÃ¼fpunkt ${index + 1}`;
+    check.title = check.title || CHECK_ITEMS[index] || `Prüfpunkt ${index + 1}`;
     if (check.title === "Durchstanzbewehrung") check.title = "Durchstanzbewehrung/Schubbewehrung";
     check.status = check.status || "offen / nicht bewertet";
     check.note = check.note || "";
@@ -1442,7 +1442,7 @@ function normalizeDailyReportMeta(meta = {}, protocol = {}) {
     area: meta.area || "",
     trade: meta.trade || "",
     inputLanguage: meta.inputLanguage || "de",
-    translationStatus: meta.translationStatus || "nicht Ã¼bersetzt",
+    translationStatus: meta.translationStatus || "nicht übersetzt",
     workOriginal: meta.workOriginal || "",
     workGerman: meta.workGerman || "",
     workAlbanian: meta.workAlbanian || "",
@@ -1630,7 +1630,7 @@ function photoBackupStatusLabel(photo = {}) {
   if (status === "user_confirmed_external") return "Extern gesichert";
   if (status === "share_started") return "Share gestartet";
   if (status === "download_started") return "Download gestartet";
-  if (photo.original_capture_source === "gallery" || photo.external_backup_method === "gallery_input") return "Aus Galerie Ã¼bernommen";
+  if (photo.original_capture_source === "gallery" || photo.external_backup_method === "gallery_input") return "Aus Galerie übernommen";
   return "Extern offen";
 }
 
@@ -1728,7 +1728,7 @@ function updateAppHeader(viewId = activeViewId()) {
     homeView: "Startseite",
     projectDirectoryView: "Projektverwaltung",
     projectHubView: "Projektzentrale",
-    projectPlansView: "ProjektplÃ¤ne",
+    projectPlansView: "Projektpläne",
     listView: "Bewehrungsabnahme",
     siteControlView: "Baustellenkontrolle",
     siteControlEditorView: "Baustellenkontrolle",
@@ -1751,7 +1751,7 @@ function isAndroidFirefox() {
 }
 
 function androidFirefoxWarningText() {
-  return "Hinweis: Firefox auf Android kann technische PDF-/BewehrungsplÃ¤ne fehlerhaft darstellen. Bitte fÃ¼r Bewehrungsabnahmen Chrome verwenden.";
+  return "Hinweis: Firefox auf Android kann technische PDF-/Bewehrungspläne fehlerhaft darstellen. Bitte für Bewehrungsabnahmen Chrome verwenden.";
 }
 
 function renderBrowserWarnings() {
@@ -1765,8 +1765,8 @@ function renderBrowserWarnings() {
   const info = $("#browserRecommendationInfo");
   if (info) {
     info.textContent = shouldWarn
-      ? `${androidFirefoxWarningText()} Empfohlen fÃ¼r Baustellennutzung: Android Chrome.`
-      : "Empfohlen fÃ¼r Baustellennutzung: Android Chrome.";
+      ? `${androidFirefoxWarningText()} Empfohlen für Baustellennutzung: Android Chrome.`
+      : "Empfohlen für Baustellennutzung: Android Chrome.";
   }
 }
 
@@ -1987,7 +1987,7 @@ function openProjectDialog(projectId = "") {
   $("#projectDefaultInspectorInput").value = defaultOwnPerson()?.name || state.settings.defaultInspector || "";
   $("#projectDropboxFolderInput").value = suggestProjectDropboxFolder({ name: $("#projectNameInput")?.value || "" });
   $("#projectDropboxLinkInput").value = "";
-  $("#projectPlanFolderInput").value = state.settings.dropboxPlanFolder || "PlÃ¤ne";
+  $("#projectPlanFolderInput").value = state.settings.dropboxPlanFolder || "Pläne";
   $("#projectReportFolderInput").value = state.settings.dropboxReportFolder || "Berichte";
   $("#projectPhotoFolderInput").value = state.settings.dropboxPhotoFolder || "Fotos";
   $("#projectPlanDateInput").value = "";
@@ -2005,7 +2005,7 @@ function openProjectDialog(projectId = "") {
     $("#projectDefaultInspectorInput").value = displayOwnPersonSnapshot(project.defaultInspectorPersonSnapshot, project.defaultInspector);
     $("#projectDropboxFolderInput").value = project.dropboxFolder || suggestProjectDropboxFolder(project);
     $("#projectDropboxLinkInput").value = project.dropboxLink || "";
-    $("#projectPlanFolderInput").value = project.planFolder || state.settings.dropboxPlanFolder || "PlÃ¤ne";
+    $("#projectPlanFolderInput").value = project.planFolder || state.settings.dropboxPlanFolder || "Pläne";
     $("#projectReportFolderInput").value = project.reportFolder || state.settings.dropboxReportFolder || "Berichte";
     $("#projectPhotoFolderInput").value = project.photoFolder || state.settings.dropboxPhotoFolder || "Fotos";
     $("#projectPlanDateInput").value = project.planDate || "";
@@ -2049,7 +2049,7 @@ function createProjectFromDialog() {
     note: $("#projectNoteInput").value.trim(),
     dropboxFolder: $("#projectDropboxFolderInput")?.value.trim() || suggestProjectDropboxFolder({ name }),
     dropboxLink: $("#projectDropboxLinkInput")?.value.trim() || "",
-    planFolder: $("#projectPlanFolderInput")?.value.trim() || state.settings.dropboxPlanFolder || "PlÃ¤ne",
+    planFolder: $("#projectPlanFolderInput")?.value.trim() || state.settings.dropboxPlanFolder || "Pläne",
     reportFolder: $("#projectReportFolderInput")?.value.trim() || state.settings.dropboxReportFolder || "Berichte",
     photoFolder: $("#projectPhotoFolderInput")?.value.trim() || state.settings.dropboxPhotoFolder || "Fotos",
     updatedAt: new Date().toISOString()
@@ -2143,7 +2143,7 @@ function suggestProjectDropboxFolder(project = {}) {
 
 function normalizeDocumentStatus(value = "") {
   const text = String(value || "").trim();
-  if (text === "ma" + String.fromCharCode(63) + "gebend") return "maÃŸgebend";
+  if (text === "ma" + String.fromCharCode(63) + "gebend") return "maßgebend";
   return text || "verwendet";
 }
 
@@ -2155,9 +2155,9 @@ function ensureProjectPlanLibraryProtocol(projectId = state.currentProjectId) {
   protocol = blankProtocol(project, {
     kind: PROTOCOL_KIND_PROJECT_PLANS,
     head: {
-      acceptanceTitle: "ProjektplÃ¤ne",
+      acceptanceTitle: "Projektpläne",
       acceptanceType: "Planverwaltung",
-      component: "ProjektplÃ¤ne"
+      component: "Projektpläne"
     }
   });
   protocol.kind = PROTOCOL_KIND_PROJECT_PLANS;
@@ -2182,14 +2182,14 @@ function shouldHideProtocolInModuleLists(protocol = {}) {
 
 const PLAN_CATEGORIES = ["Bewehrungsplan", "Arbeitsplan", "Schalplan", "Baugesuch", "Sonstiges"];
 const PLAN_FLOOR_OPTIONS = ["UG", "EG", "OG", "DG", "Dach", "Sonstiges"];
-const PLAN_COMPONENT_OPTIONS = ["Bodenplatte", "Decke", "Wand", "Fundament", "StÃ¼tze", "Unterzug", "Treppe", "Gesamt", "Sonstiges"];
+const PLAN_COMPONENT_OPTIONS = ["Bodenplatte", "Decke", "Wand", "Fundament", "Stütze", "Unterzug", "Treppe", "Gesamt", "Sonstiges"];
 const APP_PLAN_NAME_SUGGESTIONS = [
   "Bewehrung Bodenplatte untere Lage",
   "Bewehrung Bodenplatte obere Lage",
-  "Bewehrung Decke Ã¼ber UG",
+  "Bewehrung Decke über UG",
   "Bewehrung Wand",
   "Schalplan Bodenplatte UG",
-  "Schalplan Decke Ã¼ber UG",
+  "Schalplan Decke über UG",
   "Arbeitsplan UG",
   "Arbeitsplan EG",
   "Baugesuch Grundriss",
@@ -2201,7 +2201,7 @@ function cleanPlanTitleFromFileName(fileName = "") {
   return String(fileName || "")
     .replace(/\.[^.]+$/, "")
     .replace(/[_]+/g, " ")
-    .replace(/[-â€“â€”]+/g, " ")
+    .replace(/[-–—]+/g, " ")
     .replace(/\b(plan|bewehrungsplan|schalplan)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -2231,7 +2231,7 @@ function inferPlanComponent(plan = {}) {
   if (/decke/.test(source)) return "Decke";
   if (/wand/.test(source)) return "Wand";
   if (/fundament/.test(source)) return "Fundament";
-  if (/stÃ¼tze|stuetze/.test(source)) return "StÃ¼tze";
+  if (/stütze|stuetze/.test(source)) return "Stütze";
   if (/unterzug/.test(source)) return "Unterzug";
   if (/treppe/.test(source)) return "Treppe";
   if (/gesamt/.test(source)) return "Gesamt";
@@ -2249,7 +2249,7 @@ function planAppName(plan = {}) {
 function planCompactTitle(plan = {}) {
   const number = planPrimaryNumber(plan) || `Plan ${plan.number || ""}`.trim() || "ohne Plan-Nr.";
   const name = planAppName(plan);
-  return `${number} Â· ${name}`;
+  return `${number} · ${name}`;
 }
 
 function planMetaLine(plan = {}) {
@@ -2259,7 +2259,7 @@ function planMetaLine(plan = {}) {
     plan.component || "ohne Bauteil",
     plan.planDate ? `Stand ${plan.planDate}` : "ohne Stand",
     plan.planIndex ? `Index ${plan.planIndex}` : "ohne Index"
-  ].filter(Boolean).join(" Â· ");
+  ].filter(Boolean).join(" · ");
 }
 
 function normalizePlanMeta(plan = {}) {
@@ -2322,7 +2322,7 @@ function projectPlanEntries(projectId = state.currentProjectId) {
 function syncStatusLabel(status = "") {
   return ({
     not_configured: "Nicht eingerichtet",
-    linked: "VerknÃ¼pft",
+    linked: "Verknüpft",
     needs_sync: "Abgleich erforderlich",
     synced: "Synchron",
     error: "Fehler"
@@ -2494,8 +2494,8 @@ function reportPlansForProtocol(protocol = state.current) {
         add(resolved, { scope: "resolved", protocolId: protocol.id || "" });
         return;
       }
-      const warning = `Plan zu ${pinLabel(pin)} konnte nicht aufgelÃ¶st werden. plan_id: ${placement.planId}, pin_id: ${pin.id}.`;
-      add({ id: String(placement.planId), planId: String(placement.planId), planNumber: placement.planNumber || pin.planNumber || "", appPlanName: placement.planName || pin.planName || "Plan nicht aufgelÃ¶st", title: placement.planName || pin.planName || "Plan nicht aufgelÃ¶st", fileName: String(placement.planId), pageCount: placement.pageNumber || 1, currentPage: placement.pageNumber || 1, type: "missing", documentStatus: "verwendet", reportOnly: true, renderError: warning }, { scope: "missing", protocolId: protocol.id || "" });
+      const warning = `Plan zu ${pinLabel(pin)} konnte nicht aufgelöst werden. plan_id: ${placement.planId}, pin_id: ${pin.id}.`;
+      add({ id: String(placement.planId), planId: String(placement.planId), planNumber: placement.planNumber || pin.planNumber || "", appPlanName: placement.planName || pin.planName || "Plan nicht aufgelöst", title: placement.planName || pin.planName || "Plan nicht aufgelöst", fileName: String(placement.planId), pageCount: placement.pageNumber || 1, currentPage: placement.pageNumber || 1, type: "missing", documentStatus: "verwendet", reportOnly: true, renderError: warning }, { scope: "missing", protocolId: protocol.id || "" });
     });
   });
   return plans;
@@ -2661,7 +2661,7 @@ function siteControlPinStatus(status = "") {
   const value = String(status || "").toLowerCase();
   if (value.includes("mangel") || value.includes("nicht ok")) return "Mangel";
   if (value.includes("foto") || value.includes("doku") || value.includes("dokument")) return "Foto-Doku";
-  if (value.includes("kl\u00e4r") || value.includes("klÃ¤r")) return "KlÃ¤rungspunkt";
+  if (value.includes("kl\u00e4r") || value.includes("klär")) return "Klärungspunkt";
   if (value.includes("aufgabe") || value.includes("auflage") || value.includes("teilweise")) return "Aufgabe";
   if (value.includes("hinweis")) return "Hinweis";
   if (value.includes("erledigt") || value.includes("fertig") || value === "ok") return "Erledigt";
@@ -2718,7 +2718,7 @@ async function addProjectFieldToMaster(kind) {
     if (!value) return alert("Bitte zuerst einen Namen eintragen.");
     const existing = resolveCompany(value);
     if (existing) return alert("Dieser Stammdatensatz ist bereits vorhanden.");
-    const company = { id: uid("company"), name: value, role: kind === "client" ? "Auftraggeber" : "AusfÃ¼hrende Firma", contact: "", address: normalizeAddress(), phone: "", email: "", note: "" };
+    const company = { id: uid("company"), name: value, role: kind === "client" ? "Auftraggeber" : "Ausführende Firma", contact: "", address: normalizeAddress(), phone: "", email: "", note: "" };
     master.companies.push(company);
     state.masterData = master;
     await saveMasterDataFromProjectDialog();
@@ -2790,7 +2790,7 @@ async function openAcceptanceDialog(projectId) {
   $("#acceptanceInspectorInput").value = project.defaultInspector || defaultOwnPerson()?.name || state.settings.defaultInspector || "";
   const sourceSelect = $("#acceptancePlanSourceInput");
   const acceptances = rebarProtocolsForProject(project.id);
-  sourceSelect.innerHTML = `<option value="">Keine Planunterlagen Ã¼bernehmen</option>${acceptances.map((protocol) => `<option value="${protocol.id}">${escapeHtml(protocol.head.acceptanceTitle || protocol.head.component || formatDate(protocol.head.createdAt))}</option>`).join("")}`;
+  sourceSelect.innerHTML = `<option value="">Keine Planunterlagen übernehmen</option>${acceptances.map((protocol) => `<option value="${protocol.id}">${escapeHtml(protocol.head.acceptanceTitle || protocol.head.component || formatDate(protocol.head.createdAt))}</option>`).join("")}`;
   $("#acceptanceDialog").showModal();
 }
 
@@ -2845,7 +2845,7 @@ async function createProtocolFromDialog() {
 async function createProtocol(projectId = state.currentProjectId, options = {}) {
   let project = projectById(projectId);
   if (!project) {
-    alert("Bitte zuerst ein Projekt Ã¶ffnen. Abnahmen kÃ¶nnen nur innerhalb eines Projekts angelegt werden.");
+    alert("Bitte zuerst ein Projekt öffnen. Abnahmen können nur innerhalb eines Projekts angelegt werden.");
     return;
   }
   const protocol = blankProtocol(project, { head: options.head || {} });
@@ -2968,25 +2968,25 @@ function renderOverviewPhotos() {
   state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
   const photos = state.current.overviewPhotos;
   if (!photos.length) {
-    list.innerHTML = `<div class="overview-photo-empty"><p class="muted">Noch keine Ãœbersichtsfotos zur Baustelle erfasst.</p></div>`;
+    list.innerHTML = `<div class="overview-photo-empty"><p class="muted">Noch keine Übersichtsfotos zur Baustelle erfasst.</p></div>`;
     return;
   }
   list.innerHTML = photos.map((item, index) => `
     <article class="overview-photo-card" data-overview-photo-id="${item.id}">
       <div class="overview-photo-preview">
-        <img data-photo-thumb="${item.photoId}" alt="${escapeAttr(item.caption || "Ãœbersichtsfoto Baustelle")}">
+        <img data-photo-thumb="${item.photoId}" alt="${escapeAttr(item.caption || "Übersichtsfoto Baustelle")}">
         ${item.isCover ? `<span class="cover-badge">Titelbild</span>` : ""}
       </div>
       <div class="overview-photo-fields">
         <label>Bildbeschreibung / Kommentar
-          <textarea data-overview-caption="${item.id}" rows="2" placeholder="z. B. Bodenplatte Ãœbersicht">${escapeHtml(item.caption)}</textarea>
+          <textarea data-overview-caption="${item.id}" rows="2" placeholder="z. B. Bodenplatte Übersicht">${escapeHtml(item.caption)}</textarea>
         </label>
-        ${photoBackupActions({ ...item, id: item.photoId, name: item.caption || "Ãœbersichtsfoto" })}
+        ${photoBackupActions({ ...item, id: item.photoId, name: item.caption || "Übersichtsfoto" })}
         <div class="overview-photo-tools">
           <button class="small-btn" type="button" data-overview-up="${item.id}" ${index === 0 ? "disabled" : ""}>Nach oben</button>
           <button class="small-btn" type="button" data-overview-down="${item.id}" ${index === photos.length - 1 ? "disabled" : ""}>Nach unten</button>
           <button class="small-btn" type="button" data-overview-cover="${item.id}">${item.isCover ? "Titelbild entfernen" : "Als Titelbild"}</button>
-          <button class="danger-btn" type="button" data-overview-delete="${item.id}">Foto lÃ¶schen</button>
+          <button class="danger-btn" type="button" data-overview-delete="${item.id}">Foto löschen</button>
         </div>
       </div>
     </article>
@@ -3058,13 +3058,13 @@ function signatureCard(signature) {
     <article class="signature-card" data-signature="${signature.id}">
       <div class="section-head">
         <h4>${escapeHtml(signature.name || "Neue Unterschrift")}</h4>
-        <button class="danger-btn" type="button" data-delete-signature="${signature.id}">Eintrag lÃ¶schen</button>
+        <button class="danger-btn" type="button" data-delete-signature="${signature.id}">Eintrag löschen</button>
       </div>
       <div class="grid compact-grid">
         ${comboField({ label: "Name", field: "name", list: "personOptions", value: signature.name, placeholder: "Name" })}
         ${comboField({ label: "Firma", field: "company", list: "companyOptions", value: signature.company, placeholder: "Firma" })}
         ${comboField({ label: "Funktion / Rolle", field: "role", list: "signatureRoleOptions", value: signature.role, placeholder: "z. B. Polier" })}
-        ${comboField({ label: "Unterschrift fÃ¼r", field: "category", list: "signatureCategoryOptions", value: signature.category, placeholder: "z. B. Verantwortlicher vor Ort" })}
+        ${comboField({ label: "Unterschrift für", field: "category", list: "signatureCategoryOptions", value: signature.category, placeholder: "z. B. Verantwortlicher vor Ort" })}
         ${comboField({ label: "Datum / Uhrzeit", field: "signedAt", type: "datetime-local", value: signature.signedAt })}
         ${comboField({ label: "Bemerkung", field: "note", rows: 2, value: signature.note, placeholder: "optional" })}
       </div>
@@ -3073,13 +3073,13 @@ function signatureCard(signature) {
         <div class="signature-placeholder">${isEditing ? "Unterschriftsmodus aktiv - bitte unterschreiben" : (hasSignature ? "" : "Noch keine Unterschrift")}</div>
         <div class="signature-line"></div>
       </div>
-      <p class="muted signature-mode-hint">${isEditing ? "Unterschriftsmodus aktiv. Beim Zeichnen wird das Scrollen im Feld blockiert." : "Unterschriftsfeld ist gesperrt. Scrollen Ã¼ber dem Feld erzeugt keine Striche."}</p>
+      <p class="muted signature-mode-hint">${isEditing ? "Unterschriftsmodus aktiv. Beim Zeichnen wird das Scrollen im Feld blockiert." : "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche."}</p>
       <div class="result-actions">
         ${isEditing
           ? `<button class="primary-btn" type="button" data-save-signature="${signature.id}">Fertig</button>
-             <button class="small-btn" type="button" data-reset-signature="${signature.id}">ZurÃ¼cksetzen</button>`
+             <button class="small-btn" type="button" data-reset-signature="${signature.id}">Zurücksetzen</button>`
           : `<button class="primary-btn" type="button" data-edit-signature="${signature.id}">${hasSignature ? "Unterschrift bearbeiten" : "Unterschreiben"}</button>
-             ${hasSignature ? `<button class="small-btn" type="button" data-reset-signature="${signature.id}">Unterschrift lÃ¶schen</button>` : ""}`}
+             ${hasSignature ? `<button class="small-btn" type="button" data-reset-signature="${signature.id}">Unterschrift löschen</button>` : ""}`}
       </div>
     </article>
   `;
@@ -3223,7 +3223,7 @@ function lockSignatureCardNow(card, canvas = null) {
     pad.style.touchAction = "auto";
   }
   const hint = card?.querySelector?.(".signature-mode-hint");
-  if (hint) hint.textContent = "Unterschriftsfeld ist gesperrt. Scrollen Ã¼ber dem Feld erzeugt keine Striche.";
+  if (hint) hint.textContent = "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche.";
 }
 function syncSignatureSnapshots(signature) {
   const person = ownPersonSelection(signature.name || "");
@@ -3333,7 +3333,7 @@ function tradeRoleOptions() {
     "Bewehrung",
     "Schalung",
     "Bauleitung",
-    "PrÃ¼fung",
+    "Prüfung",
     "Kenntnisnahme vor Ort"
   ].filter(Boolean));
 }
@@ -3342,9 +3342,9 @@ function signatureCategoryOptions() {
   return uniqueValues([
     "Verantwortlicher vor Ort",
     "Abnehmender / Bewehrungskontrolle",
-    "PrÃ¼fer / Abnehmender",
-    "PrÃ¼fingenieur",
-    "AusfÃ¼hrende Firma",
+    "Prüfer / Abnehmender",
+    "Prüfingenieur",
+    "Ausführende Firma",
     "Bauherr",
     "Kenntnisnahme vor Ort",
     "Sonstige"
@@ -3525,7 +3525,7 @@ function masterSection(title, collection, items, fields) {
         <button class="secondary-btn" type="button" data-add-master="${collection}">${addLabel}</button>
       </div>
       <div class="master-items ${collection === "companies" ? "master-items-compact" : ""}">
-        ${items.length ? items.map((item) => masterItemCard(collection, item, fields)).join("") : `<p class="muted">Noch keine EintrÃ¤ge.</p>`}
+        ${items.length ? items.map((item) => masterItemCard(collection, item, fields)).join("") : `<p class="muted">Noch keine Einträge.</p>`}
       </div>
     </section>
   `;
@@ -3534,10 +3534,10 @@ function masterSection(title, collection, items, fields) {
 function masterItemSummary(collection, item) {
   if (collection === "companies") {
     const city = addressCity(item.address);
-    return [item.name || "Neue Firma", city, item.role].filter(Boolean).join(" Â· ");
+    return [item.name || "Neue Firma", city, item.role].filter(Boolean).join(" · ");
   }
-  if (collection === "inspectors") return [item.name || "Neuer PrÃ¼fer", item.office].filter(Boolean).join(" Â· ");
-  return [item.name || "Neuer Eintrag", item.company || item.role].filter(Boolean).join(" Â· ");
+  if (collection === "inspectors") return [item.name || "Neuer Prüfer", item.office].filter(Boolean).join(" · ");
+  return [item.name || "Neuer Eintrag", item.company || item.role].filter(Boolean).join(" · ");
 }
 
 function masterItemCard(collection, item, fields) {
@@ -3545,7 +3545,7 @@ function masterItemCard(collection, item, fields) {
       <div class="grid compact-grid">
         ${fields.map((field) => masterInput(collection, item, field)).join("")}
       </div>
-      <button class="danger-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">LÃ¶schen</button>`;
+      <button class="danger-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">Löschen</button>`;
   if (collection === "companies") {
     return `
       <details class="master-card master-card-collapsible" data-master-item="${collection}" data-master-id="${item.id}" ${item.name ? "" : "open"}>
@@ -3607,7 +3607,7 @@ function masterInput(collection, item, field) {
     return `<label>${escapeHtml(field.label)}<input data-master-field="${field.name}" type="checkbox" ${getPath(item, field.name) ? "checked" : ""}></label>`;
   }
   const zipWarning = field.name.endsWith(".zip") && value && !/^\d{5}$/.test(value)
-    ? `<span class="field-warning">PLZ prÃ¼fen: deutsche PLZ normalerweise 5-stellig.</span>`
+    ? `<span class="field-warning">PLZ prüfen: deutsche PLZ normalerweise 5-stellig.</span>`
     : "";
   return `<label>${escapeHtml(field.label)}<input data-master-field="${field.name}" ${inputAttributesForField(field)} value="${escapeAttr(value)}" ${field.required ? "required" : ""} ${field.list ? `list="${field.list}"` : ""}>${zipWarning}</label>`;
 }
@@ -3623,7 +3623,7 @@ function lookupMasterSection(title, key, values) {
         ${values.map((value, index) => `
           <div class="lookup-row">
             <input data-lookup-key="${key}" data-lookup-index="${index}" value="${escapeAttr(value)}">
-            <button class="danger-btn" type="button" data-delete-lookup="${key}" data-lookup-index="${index}">LÃ¶schen</button>
+            <button class="danger-btn" type="button" data-delete-lookup="${key}" data-lookup-index="${index}">Löschen</button>
           </div>
         `).join("")}
       </div>
@@ -3636,7 +3636,7 @@ function personMasterFields() {
     { name: "name", label: "Name" },
     { name: "company", label: "Firma", list: "companyOptions" },
     { name: "role", label: "Funktion", list: "signatureRoleOptions" },
-    { name: "address.street", label: "StraÃŸe / Hausnummer" },
+    { name: "address.street", label: "Straße / Hausnummer" },
     { name: "address.zip", label: "PLZ" },
     { name: "address.city", label: "Ort" },
     { name: "address.country", label: "Land" },
@@ -3651,7 +3651,7 @@ function companyMasterFields() {
     { name: "name", label: "Firmenname", required: true },
     { name: "role", label: "Gewerk / Rolle", list: "tradeRoleOptions" },
     { name: "contact", label: "Ansprechpartner" },
-    { name: "address.street", label: "StraÃŸe / Hausnummer" },
+    { name: "address.street", label: "Straße / Hausnummer" },
     { name: "address.zip", label: "PLZ" },
     { name: "address.city", label: "Ort" },
     { name: "address.country", label: "Land" },
@@ -3665,7 +3665,7 @@ function inspectorMasterFields() {
   return [
     { name: "name", label: "Name" },
     { name: "office", label: "Sachbearbeiter" },
-    { name: "address.street", label: "StraÃŸe / Hausnummer" },
+    { name: "address.street", label: "Straße / Hausnummer" },
     { name: "address.zip", label: "PLZ" },
     { name: "address.city", label: "Ort" },
     { name: "address.country", label: "Land" },
@@ -3714,16 +3714,16 @@ function acceptanceCard(p) {
     <article class="acceptance-card">
       <div>
         <h4>${escapeHtml(p.head.acceptanceTitle || p.head.component || "Unbenannte Abnahme")}</h4>
-        <div class="muted">${escapeHtml(formatDate(protocolInspectionDateTime(p)))} Â· ${escapeHtml(p.head.acceptanceType || "Erstabnahme")} Â· ${escapeHtml(p.head.component || "Bauteil offen")}</div>
+        <div class="muted">${escapeHtml(formatDate(protocolInspectionDateTime(p)))} · ${escapeHtml(p.head.acceptanceType || "Erstabnahme")} · ${escapeHtml(p.head.component || "Bauteil offen")}</div>
         <div>${escapeHtml(p.head.areaAxes || p.head.floor || "")}</div>
-        <div class="muted">${escapeHtml(p.result?.resultStatus || "Ergebnis offen")} Â· ${issues} Auflage(n)/Mangel Â· ${p.pins.length} Pin(s)</div>
+        <div class="muted">${escapeHtml(p.result?.resultStatus || "Ergebnis offen")} · ${issues} Auflage(n)/Mangel · ${p.pins.length} Pin(s)</div>
         <div class="muted">Zuletzt bearbeitet: ${escapeHtml(formatDate(p.updatedAt || p.createdAt || p.head.createdAt))}</div>
       </div>
       <div class="card-actions">
-        <button class="secondary-btn" data-open="${p.id}" type="button">Ã–ffnen</button>
+        <button class="secondary-btn" data-open="${p.id}" type="button">Öffnen</button>
         ${p.type === "followup" ? "" : `<button class="secondary-btn" data-create-followup="${p.id}" type="button">Nachbegehung aus offenen Punkten erstellen</button>`}
         <button class="secondary-btn" data-duplicate-acceptance="${p.id}" type="button">Duplizieren</button>
-        <button class="danger-btn" data-delete="${p.id}" type="button">Abnahme lÃ¶schen</button>
+        <button class="danger-btn" data-delete="${p.id}" type="button">Abnahme löschen</button>
       </div>
     </article>
   `;
@@ -3741,10 +3741,10 @@ function projectDirectoryCard(project) {
       <div class="project-directory-main">
         <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
         <p class="muted">${escapeHtml(address)}</p>
-        <p class="project-directory-meta">${stats.acceptances.length} BA Â· ${stats.siteControls.length} BK Â· ${stats.dailyReports.length} BT Â· ${stats.openPoints} offene Punkte Â· zuletzt ${escapeHtml(formatDate(stats.latest))}</p>
+        <p class="project-directory-meta">${stats.acceptances.length} BA · ${stats.siteControls.length} BK · ${stats.dailyReports.length} BT · ${stats.openPoints} offene Punkte · zuletzt ${escapeHtml(formatDate(stats.latest))}</p>
       </div>
       <div class="project-directory-actions">
-        <button class="primary-btn" data-open-project="${escapeAttr(project.id)}" type="button">Ã–ffnen</button>
+        <button class="primary-btn" data-open-project="${escapeAttr(project.id)}" type="button">Öffnen</button>
         <button class="secondary-btn" data-edit-project="${escapeAttr(project.id)}" type="button">Bearbeiten</button>
       </div>
     </article>`;
@@ -3769,7 +3769,7 @@ function renderProjectDirectory() {
     return haystack.includes(search);
   }) : projects;
   if (!filtered.length) {
-    list.innerHTML = `<div class="empty-card muted">${state.projects.length ? "Kein Projekt zur Suche gefunden." : "Noch keine Projekte vorhanden. Lege ein Projekt an, danach wÃ¤hlst du darin das passende Modul."}</div>`;
+    list.innerHTML = `<div class="empty-card muted">${state.projects.length ? "Kein Projekt zur Suche gefunden." : "Noch keine Projekte vorhanden. Lege ein Projekt an, danach wählst du darin das passende Modul."}</div>`;
     return;
   }
   list.innerHTML = filtered.map((project) => projectDirectoryCard(project)).join("");
@@ -3780,7 +3780,7 @@ function renderProjectHub() {
   if (!hub) return;
   const project = projectById(state.currentProjectId) || state.projects[0] || null;
   if (!project) {
-    hub.innerHTML = `<div class="panel"><p class="muted">Kein Projekt gewÃ¤hlt.</p><button class="primary-btn" id="projectHubNewProjectBtn" type="button">Neues Projekt</button></div>`;
+    hub.innerHTML = `<div class="panel"><p class="muted">Kein Projekt gewählt.</p><button class="primary-btn" id="projectHubNewProjectBtn" type="button">Neues Projekt</button></div>`;
     return;
   }
   state.currentProjectId = project.id;
@@ -3800,14 +3800,14 @@ function renderProjectHub() {
     <section class="panel">
       <h3>Module</h3>
       <div class="module-card-grid">
-        ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, MÃ¤ngel, Aufgaben, Fotos", "site")}
-        ${moduleCard("BT", "Bautagesbericht", "Arbeitszeiten, TÃ¤tigkeiten, Wetter, Fotos", "daily")}
-        ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung prÃ¼fen, Pins, Nachbegehung, A4-Bericht", "rebar")}
-        ${moduleCard("PL", "PlÃ¤ne", "ProjektplÃ¤ne verwalten und anzeigen", "plans")}
+        ${moduleCard("BK", "Baustellenkontrolle", "Begehungen, Mängel, Aufgaben, Fotos", "site")}
+        ${moduleCard("BT", "Bautagesbericht", "Arbeitszeiten, Tätigkeiten, Wetter, Fotos", "daily")}
+        ${moduleCard("BA", "Bewehrungsabnahme", "Bewehrung prüfen, Pins, Nachbegehung, A4-Bericht", "rebar")}
+        ${moduleCard("PL", "Pläne", "Projektpläne verwalten und anzeigen", "plans")}
         ${moduleCard("PI", "Projekt bearbeiten", "Projektkopf, Adresse, Beteiligte, Zuordnungen", "projectData")}
-        ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} MÃ¤ngel, Aufgaben, Auflagen`, "openPoints")}
+        ${moduleCard("OP", "Offene Punkte", `${openRebar + openSite} Mängel, Aufgaben, Auflagen`, "openPoints")}
         ${moduleCard("BP", "Berichte / Protokolle", "Vorhandene Berichte und Protokolle", "reports")}
-        ${moduleCard("PV", "ZurÃ¼ck zur Projektverwaltung", "Projektliste und Projektwahl", "directory")}
+        ${moduleCard("PV", "Zurück zur Projektverwaltung", "Projektliste und Projektwahl", "directory")}
       </div>
     </section>
     <section class="panel">
@@ -3820,7 +3820,7 @@ function renderProjectHub() {
     </section>
     <section class="panel">
       <div class="section-head"><h3>Baustellenkontrollen</h3><button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button></div>
-      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} Â· ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) Â· ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Ã–ffnen</button><button class="danger-btn small-btn" data-delete-site-control="${protocol.id}" type="button">LÃ¶schen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
+      <div class="acceptance-list">${stats.siteControls.length ? stats.siteControls.map((protocol) => `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</h4><div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div><div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div></div><div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button><button class="danger-btn small-btn" data-delete-site-control="${protocol.id}" type="button">Löschen</button></div></article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}</div>
     </section>`;
 }
 
@@ -3857,7 +3857,7 @@ function renderProjectPlansView() {
   if (!container) return;
   const project = projectById(state.currentProjectId) || null;
   if (!project) {
-    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewÃ¤hlt. Bitte zuerst ein Projekt Ã¶ffnen.</p></section>`;
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt öffnen.</p></section>`;
     return;
   }
   const searchValue = $("#projectPlanSearchInput")?.value || "";
@@ -3866,7 +3866,7 @@ function renderProjectPlansView() {
   const visibleEntries = normalizedSearch
     ? entries.filter(({ protocol, plan }) => [plan.planNumber, plan.appPlanName, plan.title, plan.category, plan.floor, plan.component, plan.fileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase().includes(normalizedSearch))
     : entries;
-  const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "PlÃ¤ne")}` : "Kein Dropbox-Projektordner hinterlegt.";
+  const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
   container.innerHTML = `
     <section class="panel project-plan-summary">
       <div>
@@ -3879,8 +3879,8 @@ function renderProjectPlansView() {
     <section class="panel project-plan-toolbar-card">
       <div class="section-head">
         <div>
-          <h3>ProjektplÃ¤ne</h3>
-          <p class="muted">PlÃ¤ne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur VerfÃ¼gung.</p>
+          <h3>Projektpläne</h3>
+          <p class="muted">Pläne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verfügung.</p>
         </div>
         <button class="primary-btn" id="projectPlanUploadBtn" type="button">Plan hochladen</button>
       </div>
@@ -3888,7 +3888,7 @@ function renderProjectPlansView() {
       <label>Plan suchen
         <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Bezeichnung, Datei, Stand">
       </label>
-      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird spÃ¤ter Ã¼ber eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem GerÃ¤t gespeichert.</p>
+      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Gerät gespeichert.</p>
       <datalist id="appPlanNameSuggestions">${APP_PLAN_NAME_SUGGESTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
       <datalist id="projectPlanFloorOptions">${PLAN_FLOOR_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
       <datalist id="projectPlanComponentOptions">${PLAN_COMPONENT_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
@@ -3898,7 +3898,7 @@ function renderProjectPlansView() {
         <h3>Importierte Planunterlagen</h3>
         <span class="badge neutral">${visibleEntries.length} von ${entries.length}</span>
       </div>
-      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prÃ¼fen." : "Keine Planunterlagen fÃ¼r dieses Projekt gefunden. Ãœber â€žPlan hochladenâ€œ kÃ¶nnen PDF- und BildplÃ¤ne direkt im Projekt gespeichert werden."}</div>`}
+      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. Über „Plan hochladen“ können PDF- und Bildpläne direkt im Projekt gespeichert werden."}</div>`}
     </section>`;
 }
 
@@ -3924,7 +3924,7 @@ function projectPlanCard(protocol, plan) {
     plan.planDate ? `Stand ${plan.planDate}` : "ohne Stand",
     plan.planIndex ? `Index ${plan.planIndex}` : "ohne Index",
     pins ? `${pins} Pin(s)` : "ohne Pins"
-  ].join(" Â· ");
+  ].join(" · ");
   return `
     <details class="project-plan-card project-plan-accordion" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
       <summary class="project-plan-summary-row">
@@ -3944,10 +3944,10 @@ function projectPlanCard(protocol, plan) {
             <p class="muted">Aus: ${escapeHtml(isProjectPlanLibraryProtocol(protocol) ? "Projektplanablage" : acceptanceLabel(protocol))}</p>
             <p class="muted">Original-Datei: ${escapeHtml(file)}</p>
             <div class="card-actions compact-actions">
-              <button class="secondary-btn" data-open-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan Ã¶ffnen / Vorschau</button>
-              ${state.current ? `<button class="secondary-btn" data-use-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan fÃ¼r Abnahme verwenden</button>` : ""}
-              ${link ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox Ã¶ffnen</button>` : ""}
-              <button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan lÃ¶schen</button>
+              <button class="secondary-btn" data-open-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan öffnen / Vorschau</button>
+              ${state.current ? `<button class="secondary-btn" data-use-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan für Abnahme verwenden</button>` : ""}
+              ${link ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox öffnen</button>` : ""}
+              <button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan löschen</button>
             </div>
           </div>
         </div>
@@ -3965,7 +3965,7 @@ function projectPlanCard(protocol, plan) {
           <label>Index<input data-project-plan-field="planIndex" value="${escapeAttr(plan.planIndex || "")}"></label>
           <label>Status
             <select data-project-plan-field="documentStatus">
-              ${["maÃŸgebend", "verwendet", "nur Orientierung", "ersetzt / veraltet"].map((status) => `<option value="${escapeAttr(status)}" ${status === (plan.documentStatus || "verwendet") ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
+              ${["maßgebend", "verwendet", "nur Orientierung", "ersetzt / veraltet"].map((status) => `<option value="${escapeAttr(status)}" ${status === (plan.documentStatus || "verwendet") ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
             </select>
           </label>
           <label>Quelle
@@ -3976,10 +3976,10 @@ function projectPlanCard(protocol, plan) {
           <label>Seiten<input data-project-plan-field="pageCount" value="${escapeAttr(plan.pageCount || "")}" disabled></label>
         </div>
         <details class="project-plan-dropbox">
-          <summary>Dropbox / spÃ¤tere Synchronisierung</summary>
-          <p class="muted">Dropbox ist vorbereitet. Automatischer Abgleich wird spÃ¤ter Ã¼ber eine Dropbox-Anbindung aktiviert. Aktuell kÃ¶nnen Pfade und Links gespeichert werden. Noch keine automatische Synchronisierung.</p>
+          <summary>Dropbox / spätere Synchronisierung</summary>
+          <p class="muted">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Dropbox-Anbindung aktiviert. Aktuell können Pfade und Links gespeichert werden. Noch keine automatische Synchronisierung.</p>
           <div class="grid compact-grid project-plan-fields">
-            <label>Dropbox-Pfad<input data-project-plan-field="dropboxPath" value="${escapeAttr(plan.dropboxPath || "")}" placeholder="/Bauprojekte/.../PlÃ¤ne/B-003.pdf"></label>
+            <label>Dropbox-Pfad<input data-project-plan-field="dropboxPath" value="${escapeAttr(plan.dropboxPath || "")}" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
             <label>Dropbox-Link<input data-project-plan-field="dropboxSharedLink" value="${escapeAttr(plan.dropboxSharedLink || "")}" placeholder="https://www.dropbox.com/..."></label>
             <label>Dropbox-Dateiname<input data-project-plan-field="dropboxFileName" value="${escapeAttr(plan.dropboxFileName || "")}" placeholder="B-003.pdf"></label>
             <label>Letzter manueller Abgleich / Stand<input data-project-plan-field="lastManualSync" value="${escapeAttr(plan.lastManualSync || "")}" placeholder="z. B. 15.07.2026"></label>
@@ -4001,7 +4001,7 @@ function useProjectPlanForCurrentAcceptance(protocolId, planId) {
   state.selectedPlanId = entry.plan.id;
   state.current.activePlanId = entry.plan.id;
   persist();
-  showAppToast("Plan fÃ¼r diese Abnahme ausgewÃ¤hlt.", { type: "success" });
+  showAppToast("Plan für diese Abnahme ausgewählt.", { type: "success" });
   navigateToView("editorView", { replace: true, keepProjectPlansReturn: true });
   activateProtocolTab("planTab", { replace: true });
   renderPlanControls();
@@ -4042,7 +4042,7 @@ function renderList() {
           <div>
             <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
             <div class="muted">${escapeHtml(projectAddressText(project, { multiline: false }) || "Adresse offen")}</div>
-            <div class="muted">${acceptances.length} Abnahme(n) Â· zuletzt bearbeitet ${escapeHtml(formatDate(stats.latest))}</div>
+            <div class="muted">${acceptances.length} Abnahme(n) · zuletzt bearbeitet ${escapeHtml(formatDate(stats.latest))}</div>
           </div>
           <button class="primary-btn" data-new-acceptance="${project.id}" type="button">+ Neue Abnahme</button>
         </div>
@@ -4054,7 +4054,7 @@ function renderList() {
         </div>
         <details class="project-more-actions">
           <summary>Weitere Aktionen</summary>
-          <button class="project-delete-link" data-delete-project="${project.id}" type="button">Projekt lÃ¶schen</button>
+          <button class="project-delete-link" data-delete-project="${project.id}" type="button">Projekt löschen</button>
         </details>
       </article>
     `;
@@ -4077,11 +4077,11 @@ function confirmProjectDeletion(projectId) {
   const project = projectById(projectId);
   if (!project) return false;
   const projectName = project.name || "Unbenanntes Projekt";
-  const confirmed = confirm("Projekt wirklich lÃ¶schen? Alle Abnahmen, PlÃ¤ne, Fotos und Protokolldaten dieses Projekts werden gelÃ¶scht.");
+  const confirmed = confirm("Projekt wirklich löschen? Alle Abnahmen, Pläne, Fotos und Protokolldaten dieses Projekts werden gelöscht.");
   if (!confirmed) return false;
-  const typedName = prompt(`Bitte Projektname zur BestÃ¤tigung eingeben:\n${projectName}`);
+  const typedName = prompt(`Bitte Projektname zur Bestätigung eingeben:\n${projectName}`);
   if (typedName !== projectName) {
-    alert("Projekt wurde nicht gelÃ¶scht. Der eingegebene Projektname stimmt nicht Ã¼berein.");
+    alert("Projekt wurde nicht gelöscht. Der eingegebene Projektname stimmt nicht überein.");
     return false;
   }
   return true;
@@ -4117,7 +4117,7 @@ function pinMarkerClass(pin) {
   const status = String(pin?.status || "").toLowerCase();
   let colorClass = "pin-neutral";
   if (status.includes("mangel") || status.includes("nicht ok")) colorClass = "pin-bad";
-  else if (status.includes("auflage") || status.includes("teilweise") || status.includes("klÃ¤r")) colorClass = "pin-partial";
+  else if (status.includes("auflage") || status.includes("teilweise") || status.includes("klär")) colorClass = "pin-partial";
   else if (status.includes("ok") || status.includes("fertig")) colorClass = "pin-ok";
   else if (status.includes("offen") || status.includes("hinweis")) colorClass = "pin-open";
   return `pin ${colorClass}`;
@@ -4168,16 +4168,16 @@ function renderPlanControls() {
   $("#pinModeBtn").disabled = !isRenderable;
   $("#pinModeBtn").title = isRenderable ? "" : "Bitte zuerst einen Plan laden.";
   $("#pinModeBtn").classList.toggle("pin-mode", state.pinMode);
-  $("#pinModeBtn").textContent = state.pinMode ? "NÃ¤chster Tipp setzt Pin" : "Pin setzen";
+  $("#pinModeBtn").textContent = state.pinMode ? "Nächster Tipp setzt Pin" : "Pin setzen";
   $(".plan-wrap").classList.toggle("pin-mode-active", state.pinMode || !!state.placementModePinId);
   $("#pinModeHint").classList.toggle("hidden", !state.pinMode && !state.placementModePinId);
   const placementPin = state.current.pins.find((pin) => pin.id === state.placementModePinId);
   $("#pinModeHint").textContent = placementPin
-    ? `${pinLabel(placementPin)} Platzierungsmodus aktiv â€“ auf Planstelle tippen`
-    : "Pin-Modus aktiv â€“ auf Planstelle tippen";
+    ? `${pinLabel(placementPin)} Platzierungsmodus aktiv – auf Planstelle tippen`
+    : "Pin-Modus aktiv – auf Planstelle tippen";
   $("#zoomLabel").textContent = `${Math.round((plan?.zoom || 1) * 100)} %`;
   const rotationLabel = $("#rotationLabel");
-  if (rotationLabel) rotationLabel.textContent = `${planRotation(plan)}Â°`;
+  if (rotationLabel) rotationLabel.textContent = `${planRotation(plan)}°`;
   renderPlanListStatus();
   renderPlanDebug();
   appendPlanSelectionDebug();
@@ -4193,7 +4193,7 @@ function renderPlanListStatus() {
   const plans = plansForCurrentProtocol();
   const plan = selectedPlan();
   $("#planStatus").textContent = plan
-    ? `${planStatusText(plan)} Â· ${selectedPlanSourceText(plan)}`
+    ? `${planStatusText(plan)} · ${selectedPlanSourceText(plan)}`
     : "Noch kein Plan im Projekt vorhanden.";
   $("#planList").innerHTML = plans.length ? plans.map((item) => {
     const projectPlan = isProjectPlan(item);
@@ -4201,18 +4201,18 @@ function renderPlanListStatus() {
     <div class="plan-row ${item.id === state.selectedPlanId ? "active" : ""} ${projectPlan ? "project-plan-row" : ""}">
       <button data-select-plan="${escapeAttr(item.id)}" type="button">
         <strong>${escapeHtml(planDisplayName(item))}</strong>
-        <span class="muted">${escapeHtml(planMetaLine(item))} Â· ${escapeHtml(selectedPlanSourceText(item))} Â· Datei: ${escapeHtml(item.fileName || item.dropboxFileName || "Datei")} Â· ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} Â· ${allPinsForPlan(item).length} Markierung(en)</span>
+        <span class="muted">${escapeHtml(planMetaLine(item))} · ${escapeHtml(selectedPlanSourceText(item))} · Datei: ${escapeHtml(item.fileName || item.dropboxFileName || "Datei")} · ${item.type === "application/pdf" ? `${item.pageCount || "?"} PDF-Seite(n)` : "Bildplan"} · ${allPinsForPlan(item).length} Markierung(en)</span>
       </button>
-      ${projectPlan ? `<span class="plan-source-chip">Projektplan</span>` : `<button class="project-delete-link" data-delete-plan="${escapeAttr(item.id)}" type="button">Plan lÃ¶schen</button>`}
+      ${projectPlan ? `<span class="plan-source-chip">Projektplan</span>` : `<button class="project-delete-link" data-delete-plan="${escapeAttr(item.id)}" type="button">Plan löschen</button>`}
     </div>`;
-  }).join("") : `<div class="plan-row"><span class="muted">Keine ProjektplÃ¤ne vorhanden. Bitte Plan hochladen.</span></div>`;
+  }).join("") : `<div class="plan-row"><span class="muted">Keine Projektpläne vorhanden. Bitte Plan hochladen.</span></div>`;
 }
 
 function planStatusText(plan) {
   if (plan.renderStatus === "loading") return "Plan wird geladen ...";
   if (plan.renderStatus === "loaded") return `Plan geladen - ${plan.pageCount || 1} Seite(n) - ${formatBytes(plan.fileSize || 0)}`;
   if (plan.renderError) return plan.renderError;
-  if (plan.type === "application/pdf") return `PDF gerendert Ã¼ber pdf.js Â· Seite ${plan.currentPage || 1} von ${plan.pageCount || "?"}`;
+  if (plan.type === "application/pdf") return `PDF gerendert über pdf.js · Seite ${plan.currentPage || 1} von ${plan.pageCount || "?"}`;
   if (plan.fileName) return "Bildplan geladen.";
   return "Plan wird geladen.";
 }
@@ -4236,7 +4236,7 @@ function renderPlanAutoHint(plan) {
   const parts = [];
   if (plan.autoMetaStatus) parts.push(plan.autoMetaStatus);
   if (plan.planDateCandidates?.length) parts.push(`Datumskandidaten: ${plan.planDateCandidates.join(", ")}`);
-  hint.textContent = parts.length ? parts.join(" Â· ") : "Keine automatische Plandaten-Erkennung vorhanden.";
+  hint.textContent = parts.length ? parts.join(" · ") : "Keine automatische Plandaten-Erkennung vorhanden.";
 }
 
 function renderPlanDebug() {
@@ -4245,20 +4245,20 @@ function renderPlanDebug() {
   const plan = selectedPlan();
   if (!plan) {
     target.innerHTML = `
-      <strong>Aktiver Plan:</strong> keiner Â·
-      selectedPlanId: ${escapeHtml(state.selectedPlanId || "-")} Â·
+      <strong>Aktiver Plan:</strong> keiner ·
+      selectedPlanId: ${escapeHtml(state.selectedPlanId || "-")} ·
       selectedPageNumber: -
     `;
     return;
   }
   target.innerHTML = `
     <strong>Aktiver Plan:</strong>
-    ${escapeHtml(plan.fileName || "ohne Dateiname")} Â·
-    Typ: ${escapeHtml(plan.type || "unbekannt")} Â·
-    GrÃ¶ÃŸe: ${escapeHtml(formatBytes(plan.fileSize || 0))} Â·
-    ID: ${escapeHtml(plan.id)} Â·
-    Seite: ${escapeHtml(String(plan.currentPage || 1))} Â·
-    PDF-Seiten: ${escapeHtml(String(plan.pageCount || (plan.type === "application/pdf" ? "?" : 1)))} Â·
+    ${escapeHtml(plan.fileName || "ohne Dateiname")} ·
+    Typ: ${escapeHtml(plan.type || "unbekannt")} ·
+    Größe: ${escapeHtml(formatBytes(plan.fileSize || 0))} ·
+    ID: ${escapeHtml(plan.id)} ·
+    Seite: ${escapeHtml(String(plan.currentPage || 1))} ·
+    PDF-Seiten: ${escapeHtml(String(plan.pageCount || (plan.type === "application/pdf" ? "?" : 1)))} ·
     Renderstatus: ${escapeHtml(plan.renderStatus || "leer")}
   `;
 }
@@ -4352,7 +4352,7 @@ async function renderPlan() {
     stage.style.minWidth = "100%";
     stage.style.transform = "translate3d(0, 0, 0)";
     empty.style.display = "grid";
-    empty.textContent = "Plan hinzufÃ¼gen, um die Planunterlage als Vorschau zu prÃ¼fen.";
+    empty.textContent = "Plan hinzufügen, um die Planunterlage als Vorschau zu prüfen.";
     renderPlanDebug();
     renderPinList();
     return;
@@ -4390,7 +4390,7 @@ async function renderPlan() {
       setPlanRenderError(plan, error.message || String(error));
     }
   } else {
-    setPlanRenderError(plan, "Dateityp wird nicht unterstÃ¼tzt.");
+    setPlanRenderError(plan, "Dateityp wird nicht unterstützt.");
   }
   if (isPlanRenderable(plan)) currentPins().forEach((pin) => renderPinButton(pin));
   renderPinList();
@@ -4436,7 +4436,7 @@ async function renderPdfPlan(plan, renderToken) {
       if (state.planRender.task === renderTask) state.planRender.task = null;
     }
     if (renderToken !== state.planRender.token) return;
-    if (!renderCanvas.width || !renderCanvas.height) throw new Error("PDF-Seite wurde ohne sichtbare Canvas-GrÃ¶ÃŸe gerendert.");
+    if (!renderCanvas.width || !renderCanvas.height) throw new Error("PDF-Seite wurde ohne sichtbare Canvas-Größe gerendert.");
     const dataUrl = renderCanvas.toDataURL("image/png");
     state.pdfPageCache.set(`${plan.id}:${plan.currentPage}`, dataUrl);
     await showRenderedPdfImage(image, dataUrl, plan, renderCanvas.width, renderToken);
@@ -4484,13 +4484,13 @@ function setPlanRenderError(plan, detail = "") {
     "Plan konnte nicht angezeigt werden.",
     `Datei: ${plan.fileName || "unbekannt"}`,
     `Dateityp: ${plan.type || "unbekannt"}`,
-    `DateigrÃ¶ÃŸe: ${formatBytes(plan.fileSize || 0)}`,
+    `Dateigröße: ${formatBytes(plan.fileSize || 0)}`,
     detail ? `Fehler: ${detail}` : "",
     plan.type === "application/pdf" ? "PDF konnte nicht gerendert werden. Bitte Planseite als JPG/PNG hochladen." : ""
   ].filter(Boolean).join("\n");
   const empty = $("#emptyPlan");
   empty.style.display = "grid";
-  empty.innerHTML = `<div><strong>Plan konnte nicht angezeigt werden.</strong><pre>${escapeHtml(plan.renderError)}</pre><div class="result-actions"><button class="secondary-btn" type="button" id="retryPlanRenderBtn">Plan erneut laden</button><button class="secondary-btn" type="button" id="chooseAnotherPlanBtn">Andere Datei wÃ¤hlen</button></div></div>`;
+  empty.innerHTML = `<div><strong>Plan konnte nicht angezeigt werden.</strong><pre>${escapeHtml(plan.renderError)}</pre><div class="result-actions"><button class="secondary-btn" type="button" id="retryPlanRenderBtn">Plan erneut laden</button><button class="secondary-btn" type="button" id="chooseAnotherPlanBtn">Andere Datei wählen</button></div></div>`;
   $("#planImage").style.display = "none";
   $("#pdfCanvas").style.display = "none";
   renderPlanDebug();
@@ -4684,7 +4684,7 @@ function renderPinList() {
   $("#pinList").innerHTML = pins.length ? pins.map((pin) => `
     <button class="pin-row ${pin.id === state.selectedPinId ? "active" : ""}" data-pin="${pin.id}" type="button">
       <strong>${pinLabel(pin)} ${escapeHtml(pin.title || "")}</strong>
-      <span class="muted">${escapeHtml(pin.status)} Â· ${escapeHtml(selectedPlan()?.planNumber || selectedPlan()?.fileName || "")} / Seite ${pinPlacementForCurrentPlan(pin)?.pageNumber || selectedPlan()?.currentPage || 1} Â· ${pinPlacements(pin).length} Platzierung(en)</span>
+      <span class="muted">${escapeHtml(pin.status)} · ${escapeHtml(selectedPlan()?.planNumber || selectedPlan()?.fileName || "")} / Seite ${pinPlacementForCurrentPlan(pin)?.pageNumber || selectedPlan()?.currentPage || 1} · ${pinPlacements(pin).length} Platzierung(en)</span>
     </button>
   `).join("") : `<div class="pin-row"><span class="muted">Keine Pins auf diesem Plan / dieser Seite.</span></div>`;
 }
@@ -4693,18 +4693,18 @@ function renderPinEditor() {
   const panel = $("#selectedPinPanel");
   const pin = selectedPin();
   if (!selectedPlan()) {
-    panel.innerHTML = `<p class="muted">Plan hinzufÃ¼gen, um Pins zu setzen.</p>`;
+    panel.innerHTML = `<p class="muted">Plan hinzufügen, um Pins zu setzen.</p>`;
     return;
   }
   if (!pin) {
-    panel.innerHTML = `<p class="muted">Pin auswÃ¤hlen oder â€žPin setzenâ€œ aktivieren.</p>`;
+    panel.innerHTML = `<p class="muted">Pin auswählen oder „Pin setzen“ aktivieren.</p>`;
     return;
   }
   panel.innerHTML = `
     <h3>${pinLabel(pin)} bearbeiten</h3>
     <p class="muted">${escapeHtml(pinPlacements(pin).map((placement) => {
       const plan = planById(placement.planId);
-      return `${plan ? planDisplayName(plan) : "Plan"} Â· Seite ${placement.pageNumber}`;
+      return `${plan ? planDisplayName(plan) : "Plan"} · Seite ${placement.pageNumber}`;
     }).join(" | "))}</p>
     <label>Titel / Bereich<input data-pin-field="title" value="${escapeAttr(pin.title)}"></label>
     ${statusButtons(pin.status, "pin-status")}
@@ -4723,8 +4723,8 @@ function renderPinEditor() {
     ${thumbs(pin.photos)}
     <div class="result-actions">
       <button class="secondary-btn" type="button" data-photo-pin-camera="${pin.id}">Foto aufnehmen</button>
-      <button class="secondary-btn" type="button" data-photo-pin-gallery="${pin.id}">Foto aus Galerie auswÃ¤hlen</button>
-      <button class="danger-btn" type="button" data-remove-pin="${pin.id}">Pin lÃ¶schen</button>
+      <button class="secondary-btn" type="button" data-photo-pin-gallery="${pin.id}">Foto aus Galerie auswählen</button>
+      <button class="danger-btn" type="button" data-remove-pin="${pin.id}">Pin löschen</button>
     </div>
   `;
   hydratePhotoThumbs(panel);
@@ -4736,7 +4736,7 @@ function pinPlacementList(pin) {
     const plan = planById(placement.planId);
     return `
       <div class="placement-row">
-        <span>${placement.isPrimary ? "<strong>Hauptplatzierung</strong> Â· " : ""}${escapeHtml(plan ? planDisplayName(plan) : "Plan")} Â· Seite ${placement.pageNumber} Â· x ${Math.round(placement.x * 100)} % / y ${Math.round(placement.y * 100)} %</span>
+        <span>${placement.isPrimary ? "<strong>Hauptplatzierung</strong> · " : ""}${escapeHtml(plan ? planDisplayName(plan) : "Plan")} · Seite ${placement.pageNumber} · x ${Math.round(placement.x * 100)} % / y ${Math.round(placement.y * 100)} %</span>
         <div class="placement-actions">
           ${!placement.isPrimary ? `<button class="small-btn" type="button" data-primary-placement="${pin.id}" data-placement-id="${placement.id}">Als Hauptplatzierung</button>` : ""}
           ${placements.length > 1 ? `<button class="danger-btn" type="button" data-remove-placement="${pin.id}" data-placement-id="${placement.id}">Entfernen</button>` : ""}
@@ -4751,7 +4751,7 @@ function selectedPin() {
 }
 
 function startPlacementMode(pinId) {
-  if (!selectedPlan()) return alert("Bitte zuerst einen Plan auswÃ¤hlen.");
+  if (!selectedPlan()) return alert("Bitte zuerst einen Plan auswählen.");
   const pin = state.current.pins.find((item) => item.id === pinId);
   if (!pin) return;
   state.selectedPinId = pin.id;
@@ -4964,7 +4964,7 @@ function checkTemplateKey(component = "") {
   if (value.includes("filigran")) return "filigrandecke";
   if (value.includes("decke") || value.includes("unterzug")) return "decke";
   if (value.includes("wand")) return "wand";
-  if (value.includes("stÃ¼tze") || value.includes("stuetze")) return "stuetze";
+  if (value.includes("stütze") || value.includes("stuetze")) return "stuetze";
   if (value.includes("rampe")) return "rampe";
   if (value.includes("bodenplatte") || value.includes("fundament")) return "bodenplatte";
   return "";
@@ -4987,7 +4987,7 @@ function checkTemplateOptions() {
     "Decke / Filigrandecke",
     "Wand",
     "Unterzug",
-    "StÃ¼tze",
+    "Stütze",
     "Fundament",
     "Treppenhauskern",
     "Rampe",
@@ -5003,7 +5003,7 @@ function checkTemplateLabel() {
 function applyCheckScopeTemplate({ confirmUser = true } = {}) {
   if (!state.current) return;
   const hasExistingEntries = state.current.checkpoints.some((check) => check.manuallyActivated || checkHasDocumentation(check));
-  if (confirmUser && hasExistingEntries && !confirm("Bauteil-Vorlage anwenden? Bestehende EintrÃ¤ge bleiben erhalten.")) return;
+  if (confirmUser && hasExistingEntries && !confirm("Bauteil-Vorlage anwenden? Bestehende Einträge bleiben erhalten.")) return;
   const selectedTemplate = $("#checkTemplateSelect")?.value || state.current.head.component || state.current.head.acceptanceTitle || "";
   const key = checkTemplateKey(selectedTemplate);
   const activeTitles = new Set((CHECK_SCOPE_TEMPLATES[key] || CHECK_ITEMS).map(normalizeCheckTitle));
@@ -5065,27 +5065,27 @@ function renderChecklist() {
     <section class="panel check-scope-panel">
       <div class="section-head">
         <div>
-          <h3>PrÃ¼fumfang</h3>
+          <h3>Prüfumfang</h3>
           <p class="muted">Aktive oder dokumentierte Bereiche erscheinen im PDF-Protokoll.</p>
         </div>
       </div>
       <div class="check-scope-compact">
-        <label>Vorlage fÃ¼r Bauteil
+        <label>Vorlage für Bauteil
           <input id="checkTemplateSelect" list="componentOptions" value="${escapeAttr(templateValue)}" placeholder="z. B. Bodenplatte">
         </label>
         <button class="secondary-btn" type="button" data-apply-check-template>Vorlage anwenden</button>
-        <div class="check-scope-status">${activeCount} PrÃ¼fpunkt(e) aktiv${documentedCount ? ` Â· ${documentedCount} dokumentiert` : ""}</div>
+        <div class="check-scope-status">${activeCount} Prüfpunkt(e) aktiv${documentedCount ? ` · ${documentedCount} dokumentiert` : ""}</div>
       </div>
       <details class="check-scope-details">
-        <summary>Aktive PrÃ¼fpunkte bearbeiten</summary>
+        <summary>Aktive Prüfpunkte bearbeiten</summary>
         <div class="check-scope-list">
           ${visibleChecks.map((item) => checkScopeRow(item)).join("")}
         </div>
       </details>
       <details class="check-scope-details">
-        <summary>Weitere PrÃ¼fpunkte hinzufÃ¼gen (${inactiveChecks.length})</summary>
+        <summary>Weitere Prüfpunkte hinzufügen (${inactiveChecks.length})</summary>
         <div class="check-scope-list">
-          ${inactiveChecks.length ? inactiveChecks.map((item) => checkScopeRow(item)).join("") : `<p class="muted">Alle PrÃ¼fpunkte sind aktiv oder dokumentiert.</p>`}
+          ${inactiveChecks.length ? inactiveChecks.map((item) => checkScopeRow(item)).join("") : `<p class="muted">Alle Prüfpunkte sind aktiv oder dokumentiert.</p>`}
         </div>
       </details>
     </section>
@@ -5115,8 +5115,8 @@ function checkAccordionCard(item, isOpen) {
       </div>
       <div class="check-body ${isOpen ? "" : "hidden"}">
         ${item.active
-          ? `${item.samples.length ? item.samples.map((sample) => sampleCard(item, sample)).join("") : `<p class="muted">Noch keine PrÃ¼fstelle angelegt. Mit â€ž+ Bereichâ€œ eine Stichprobe dokumentieren.</p>`}<button class="secondary-btn check-add-sample-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>`
-          : `<p class="muted">Nicht im Protokoll berÃ¼cksichtigt.</p>`}
+          ? `${item.samples.length ? item.samples.map((sample) => sampleCard(item, sample)).join("") : `<p class="muted">Noch keine Prüfstelle angelegt. Mit „+ Bereich“ eine Stichprobe dokumentieren.</p>`}<button class="secondary-btn check-add-sample-btn" type="button" data-add-sample="${item.id}">+ Bereich</button>`
+          : `<p class="muted">Nicht im Protokoll berücksichtigt.</p>`}
       </div>
     </article>
   `;
@@ -5142,7 +5142,7 @@ function sampleSummary(sample = {}, check = null, statusOverride = "") {
   if (sample.note || sample.followupNote) parts.push("Bemerkung vorhanden");
   if (sample.pinId) parts.push("Pin vorhanden");
   if (!sampleHasDocumentation(sample)) parts.push("noch nicht dokumentiert");
-  return parts.map(escapeHtml).join(" Â· ");
+  return parts.map(escapeHtml).join(" · ");
 }
 
 function checkSummary(check) {
@@ -5156,7 +5156,7 @@ function checkSummary(check) {
   if (hasNote) parts.push("Bemerkung vorhanden");
   if (hasPin) parts.push("Pin vorhanden");
   if (!checkHasDocumentation(check)) parts.push("noch nicht dokumentiert");
-  return parts.map(escapeHtml).join(" Â· ");
+  return parts.map(escapeHtml).join(" · ");
 }
 
 function checkScopeRow(item) {
@@ -5164,7 +5164,7 @@ function checkScopeRow(item) {
     <label class="check-scope-row ${item.active ? "active" : ""}">
       <input type="checkbox" data-check-active="${item.id}" ${item.active ? "checked" : ""}>
       <span>${escapeHtml(item.title)}</span>
-      <small>${item.active ? "aktiv" : "nicht im Protokoll berÃ¼cksichtigt"}</small>
+      <small>${item.active ? "aktiv" : "nicht im Protokoll berücksichtigt"}</small>
     </label>
   `;
 }
@@ -5177,7 +5177,7 @@ function pinFindingSearchPanel() {
       <div class="section-head">
         <div>
           <h3>Pins / Feststellungen suchen</h3>
-          <p class="muted">Pin-Nr., PrÃ¼fbereich, Plan, Status oder Bemerkung suchen.</p>
+          <p class="muted">Pin-Nr., Prüfbereich, Plan, Status oder Bemerkung suchen.</p>
         </div>
       </div>
       <label>Pin, Bereich oder Text suchen
@@ -5185,7 +5185,7 @@ function pinFindingSearchPanel() {
       </label>
       <div class="pin-search-results">
         ${query.trim()
-          ? (results.length ? results.map(pinFindingResultCard).join("") : `<p class="muted">Keine Treffer fÃ¼r â€ž${escapeHtml(query)}â€œ.</p>`)
+          ? (results.length ? results.map(pinFindingResultCard).join("") : `<p class="muted">Keine Treffer für „${escapeHtml(query)}“.</p>`)
           : `<p class="muted">Suchbegriff eingeben, um Pins und Feststellungen in dieser Abnahme zu finden.</p>`}
       </div>
     </section>
@@ -5278,13 +5278,13 @@ function pinFindingResultCard({ check, sample, pin, plan }) {
   return `
     <article class="pin-search-card">
       <div class="pin-search-main">
-        <strong>${escapeHtml(pinName)} Â· ${escapeHtml(check.title)}</strong>
+        <strong>${escapeHtml(pinName)} · ${escapeHtml(check.title)}</strong>
         <span class="status-badge ${statusClassName(status)}">${escapeHtml(statusLabel(status))}</span>
       </div>
-      <p class="muted">PrÃ¼fstelle ${escapeHtml(String(sample.number || ""))}${sample.location ? ` Â· ${escapeHtml(sample.location)}` : ""} Â· ${escapeHtml(planText)} Â· ${photos} Foto${photos === 1 ? "" : "s"}</p>
+      <p class="muted">Prüfstelle ${escapeHtml(String(sample.number || ""))}${sample.location ? ` · ${escapeHtml(sample.location)}` : ""} · ${escapeHtml(planText)} · ${photos} Foto${photos === 1 ? "" : "s"}</p>
       ${shortNote ? `<p>${escapeHtml(shortNote)}</p>` : `<p class="muted">Keine Bemerkung vorhanden.</p>`}
       <div class="card-actions compact-actions">
-        <button class="secondary-btn" type="button" data-open-pin-finding="${escapeAttr(sample.id)}">Ã–ffnen</button>
+        <button class="secondary-btn" type="button" data-open-pin-finding="${escapeAttr(sample.id)}">Öffnen</button>
         ${pin ? `<button class="secondary-btn" type="button" data-show-pin-finding="${escapeAttr(sample.id)}">Auf Plan anzeigen</button>` : ""}
         ${pin ? `<button class="secondary-btn" type="button" data-reassign-sample="${escapeAttr(sample.id)}">Verschieben / neu zuordnen</button>` : ""}
       </div>
@@ -5327,7 +5327,7 @@ function openReassignSampleDialog(sampleId) {
     <form method="dialog" class="reassign-dialog-card">
       <div class="dialog-head">
         <h3>Feststellung ${escapeHtml(pinLabel(pin))} neu zuordnen</h3>
-        <button class="icon-btn" value="cancel" type="submit" aria-label="SchlieÃŸen">Ã—</button>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="Schließen">×</button>
       </div>
       <div class="reassign-current">
         <p><strong>Aktueller Bereich:</strong> ${escapeHtml(sourceCheck.title)}</p>
@@ -5335,19 +5335,19 @@ function openReassignSampleDialog(sampleId) {
         <p><strong>Plan:</strong> ${escapeHtml(currentPlan?.planNumber || currentPlan?.appPlanName || currentPlan?.fileName || "ohne Plan")} / Seite ${escapeHtml(String(pin.pageNumber || 1))}</p>
         <p class="muted">Pinposition, Fotos und Bemerkung bleiben erhalten.</p>
       </div>
-      <label>Neuer PrÃ¼fbereich / PrÃ¼fumfang
+      <label>Neuer Prüfbereich / Prüfumfang
         <select id="reassignCheckSelect">
           ${(state.current.checkpoints || []).map((check) => `<option value="${escapeAttr(check.id)}" ${check.id === sourceCheck.id ? "selected" : ""}>${escapeHtml(check.title)}</option>`).join("")}
         </select>
       </label>
-      <label>Ziel-PrÃ¼fstelle
+      <label>Ziel-Prüfstelle
         <select id="reassignSampleSelect"></select>
       </label>
       <label>Titel / Bereich / Achse optional anpassen
         <input id="reassignLocationInput" value="${escapeAttr(sample.location || pin.title || "")}" placeholder="z. B. Achse B/3">
       </label>
       <label>Notiz zur Neuzuordnung optional
-        <textarea id="reassignNoteInput" rows="2" placeholder="z. B. versehentlich falschem PrÃ¼fbereich zugeordnet"></textarea>
+        <textarea id="reassignNoteInput" rows="2" placeholder="z. B. versehentlich falschem Prüfbereich zugeordnet"></textarea>
       </label>
       <div class="dialog-actions">
         <button class="secondary-btn" value="cancel" type="submit">Abbrechen</button>
@@ -5380,9 +5380,9 @@ function renderReassignTargetSamples() {
   const currentSampleId = state.reassignSampleId;
   const check = state.current?.checkpoints?.find((item) => item.id === checkId);
   if (!target || !check) return;
-  const options = [`<option value="__new__">neue PrÃ¼fstelle im Zielbereich anlegen</option>`].concat((check.samples || [])
+  const options = [`<option value="__new__">neue Prüfstelle im Zielbereich anlegen</option>`].concat((check.samples || [])
     .filter((sample) => sample.id !== currentSampleId)
-    .map((sample) => `<option value="${escapeAttr(sample.id)}">PrÃ¼fstelle ${escapeHtml(String(sample.number || ""))}${sample.location ? ` Â· ${escapeHtml(sample.location)}` : ""}${sample.pinId ? " Â· Pin vorhanden" : ""}</option>`));
+    .map((sample) => `<option value="${escapeAttr(sample.id)}">Prüfstelle ${escapeHtml(String(sample.number || ""))}${sample.location ? ` · ${escapeHtml(sample.location)}` : ""}${sample.pinId ? " · Pin vorhanden" : ""}</option>`));
   target.innerHTML = options.join("");
 }
 
@@ -5402,7 +5402,7 @@ function confirmSampleReassignment() {
   const moved = reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice, { location, note });
   if (!moved) return;
   dialog?.close();
-  showAppToast(`${pinLabel(pin)} wurde verschoben. Fotos, Pin und Bemerkung wurden Ã¼bernommen.`, { type: "success" });
+  showAppToast(`${pinLabel(pin)} wurde verschoben. Fotos, Pin und Bemerkung wurden übernommen.`, { type: "success" });
 }
 
 function reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice = "__new__", options = {}) {
@@ -5412,7 +5412,7 @@ function reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice = 
     moved_from_check_id: sourceCheck.id,
     moved_from_check_title: sourceCheck.title,
     moved_from_sample_id: sample.id,
-    moved_from_sample_title: `PrÃ¼fstelle ${sample.number || ""}`.trim(),
+    moved_from_sample_title: `Prüfstelle ${sample.number || ""}`.trim(),
     moved_to_check_id: targetCheck.id,
     moved_to_check_title: targetCheck.title,
     moved_at: timestamp,
@@ -5423,7 +5423,7 @@ function reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice = 
   if (targetChoice && targetChoice !== "__new__") {
     targetSample = targetCheck.samples.find((item) => item.id === targetChoice) || null;
     if (targetSample?.pinId && targetSample.pinId !== sample.pinId) {
-      alert("Die gewÃ¤hlte Ziel-PrÃ¼fstelle hat bereits einen anderen Pin. Bitte eine neue Ziel-PrÃ¼fstelle anlegen oder eine andere PrÃ¼fstelle wÃ¤hlen.");
+      alert("Die gewählte Ziel-Prüfstelle hat bereits einen anderen Pin. Bitte eine neue Ziel-Prüfstelle anlegen oder eine andere Prüfstelle wählen.");
       return false;
     }
   }
@@ -5436,7 +5436,7 @@ function reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice = 
     targetSample.location = options.location || sample.location || targetSample.location || "";
     targetSample.pinId = sample.pinId;
     targetSample.photos = mergePhotoRefs(targetSample.photos || [], sample.photos || []);
-    targetSample.reassign_history = [...(targetSample.reassign_history || []), ...(sample.reassign_history || []), { ...historyEntry, moved_to_sample_id: targetSample.id, moved_to_sample_title: `PrÃ¼fstelle ${targetSample.number || ""}`.trim() }];
+    targetSample.reassign_history = [...(targetSample.reassign_history || []), ...(sample.reassign_history || []), { ...historyEntry, moved_to_sample_id: targetSample.id, moved_to_sample_title: `Prüfstelle ${targetSample.number || ""}`.trim() }];
     targetSample.moved_from_check_id = sourceCheck.id;
     targetSample.moved_from_check_title = sourceCheck.title;
     targetSample.moved_to_check_id = targetCheck.id;
@@ -5449,7 +5449,7 @@ function reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice = 
     sample.checkItemId = targetCheck.id;
     sample.number = nextSampleNumber(targetCheck);
     sample.location = options.location || sample.location || "";
-    sample.reassign_history = [...(sample.reassign_history || []), { ...historyEntry, moved_to_sample_id: sample.id, moved_to_sample_title: `PrÃ¼fstelle ${sample.number || ""}`.trim() }];
+    sample.reassign_history = [...(sample.reassign_history || []), { ...historyEntry, moved_to_sample_id: sample.id, moved_to_sample_title: `Prüfstelle ${sample.number || ""}`.trim() }];
     sample.moved_from_check_id = sourceCheck.id;
     sample.moved_from_check_title = sourceCheck.title;
     sample.moved_to_check_id = targetCheck.id;
@@ -5463,14 +5463,14 @@ function reassignSampleToCheck(sample, sourceCheck, targetCheck, targetChoice = 
     pin.checkItemId = targetCheck.id;
     pin.sampleId = sample.id;
     pin.title = options.location || sample.location || pin.title || targetCheck.title;
-    pin.reassign_history = [...(pin.reassign_history || []), { ...historyEntry, moved_to_sample_id: sample.id, moved_to_sample_title: `PrÃ¼fstelle ${sample.number || ""}`.trim() }];
+    pin.reassign_history = [...(pin.reassign_history || []), { ...historyEntry, moved_to_sample_id: sample.id, moved_to_sample_title: `Prüfstelle ${sample.number || ""}`.trim() }];
     pin.moved_from_check_id = sourceCheck.id;
     pin.moved_from_check_title = sourceCheck.title;
     pin.moved_from_sample_id = historyEntry.moved_from_sample_id;
     pin.moved_to_check_id = targetCheck.id;
     pin.moved_to_check_title = targetCheck.title;
     pin.moved_to_sample_id = sample.id;
-    pin.moved_to_sample_title = `PrÃ¼fstelle ${sample.number || ""}`.trim();
+    pin.moved_to_sample_title = `Prüfstelle ${sample.number || ""}`.trim();
     pin.moved_at = timestamp;
     pin.moved_by = "user";
     pin.updatedAt = timestamp;
@@ -5506,12 +5506,12 @@ function sampleCard(check, sample) {
   return `
     <section class="sample-card ${isOpen ? "open" : "collapsed"} ${sampleVisualClass(sample)}" data-sample="${sample.id}">
       <button class="sample-toggle" type="button" data-toggle-sample-panel="${sample.id}" aria-expanded="${isOpen ? "true" : "false"}">
-        <span class="sample-toggle-title">${escapeHtml(check.title)} - PrÃ¼fstelle ${sample.number}</span>
+        <span class="sample-toggle-title">${escapeHtml(check.title)} - Prüfstelle ${sample.number}</span>
         <span class="sample-toggle-summary">${sampleSummary(sample, check)}</span>
       </button>
       ${isOpen ? `<div class="sample-detail">
         <div class="sample-title">
-          <h4>${escapeHtml(check.title)} - PrÃ¼fstelle ${sample.number}</h4>
+          <h4>${escapeHtml(check.title)} - Prüfstelle ${sample.number}</h4>
           <span class="sample-status ${statusClass(sample.status).replace("status ", "status-")}">${escapeHtml(sample.status)}</span>
         </div>
         ${comboField({ label: "Bereich / Achse / Bauteil", field: "location", list: "areaOptions", value: sample.location, placeholder: "z. B. Achse A/3, Bodenplatte Unterfahrt", dataAttr: "data-sample-field" })}
@@ -5529,9 +5529,9 @@ function sampleCard(check, sample) {
         ${samplePhotoGrid(sample)}
         <div class="sample-actions">
           <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
-          <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswÃ¤hlen</button>
-          <button class="small-btn" type="button" data-duplicate-sample="${sample.id}">PrÃ¼fstelle duplizieren</button>
-          <button class="danger-btn" type="button" data-delete-sample="${sample.id}">LÃ¶schen</button>
+          <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
+          <button class="small-btn" type="button" data-duplicate-sample="${sample.id}">Prüfstelle duplizieren</button>
+          <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
         </div>
       </div>` : ""}
     </section>
@@ -5554,9 +5554,9 @@ function followupSampleCard(check, sample) {
           <h4>${escapeHtml(check.title)} - ${isNew ? "Neu in dieser Nachbegehung" : `Nachkontrolle ${sample.number}`}</h4>
           ${statusBadge(currentStatus)}
         </div>
-        ${isNew ? `<div class="followup-new-note"><strong>Neu festgestellt in Nachbegehung</strong><p class="muted">Dieser PrÃ¼fpunkt wurde erst in dieser Nachbegehung ergÃ¤nzt.</p></div>` : `<div class="followup-reference">
+        ${isNew ? `<div class="followup-new-note"><strong>Neu festgestellt in Nachbegehung</strong><p class="muted">Dieser Prüfpunkt wurde erst in dieser Nachbegehung ergänzt.</p></div>` : `<div class="followup-reference">
           <strong>Referenz aus Erstabnahme</strong>
-          <p>${statusBadge(sourceStatus)} ${escapeHtml(sample.location || "ohne Bereich")}${sample.pinId ? " Â· " + escapeHtml(samplePinMeta(sample)) : ""}</p>
+          <p>${statusBadge(sourceStatus)} ${escapeHtml(sample.location || "ohne Bereich")}${sample.pinId ? " · " + escapeHtml(samplePinMeta(sample)) : ""}</p>
           ${sample.sourceNote ? `<p>${escapeHtml(sample.sourceNote)}</p>` : `<p class="muted">Keine Referenzbemerkung vorhanden.</p>`}
           ${sample.referencePhotos?.length ? `<p class="muted">Referenzfotos: ${sample.referencePhotos.length}</p>${thumbs(sample.referencePhotos)}` : ""}
         </div>`}
@@ -5576,8 +5576,8 @@ function followupSampleCard(check, sample) {
         ${samplePhotoGrid(sample)}
         <div class="sample-actions">
           <button class="secondary-btn" type="button" data-photo-sample-camera="${sample.id}">Foto aufnehmen</button>
-          <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswÃ¤hlen</button>
-          <button class="danger-btn" type="button" data-delete-sample="${sample.id}">LÃ¶schen</button>
+          <button class="secondary-btn" type="button" data-photo-sample-gallery="${sample.id}">Foto aus Galerie auswählen</button>
+          <button class="danger-btn" type="button" data-delete-sample="${sample.id}">Löschen</button>
         </div>
       </div>` : ""}
     </section>
@@ -5585,7 +5585,7 @@ function followupSampleCard(check, sample) {
 }
 
 function isOverlapCheckItem(check) {
-  return (check?.title || "").toLowerCase().includes("Ã¼bergreifung");
+  return (check?.title || "").toLowerCase().includes("übergreifung");
 }
 
 function overlapCheckBlock(sample) {
@@ -5593,7 +5593,7 @@ function overlapCheckBlock(sample) {
   const open = sample.overlapCheckOpen || !!check;
   return `
     <div class="overlap-box">
-      <button class="secondary-btn" type="button" data-toggle-overlap="${sample.id}">Ãœbergreifung prÃ¼fen/berechnen</button>
+      <button class="secondary-btn" type="button" data-toggle-overlap="${sample.id}">Übergreifung prüfen/berechnen</button>
       ${open ? overlapForm(sample, check || defaultOverlapCheck(sample)) : ""}
     </div>
   `;
@@ -5604,7 +5604,7 @@ function overlapForm(sample, check) {
   const diameter = getOverlapDiameter(check);
   return `
     <div class="overlap-form" data-overlap-form="${sample.id}">
-      <p class="overlap-warning">Hinweis: MaÃŸgebend bleiben freigegebene Statik, Bewehrungsplan und DIN EN 1992-1-1 mit Nationalem Anhang. Diese Berechnung dient nur der dokumentierten Kontrolle im Rahmen der Bewehrungsabnahme.</p>
+      <p class="overlap-warning">Hinweis: Maßgebend bleiben freigegebene Statik, Bewehrungsplan und DIN EN 1992-1-1 mit Nationalem Anhang. Diese Berechnung dient nur der dokumentierten Kontrolle im Rahmen der Bewehrungsabnahme.</p>
       ${overlapMessages(calc)}
       <label>Modus
         <select data-overlap-field="mode">
@@ -5633,7 +5633,7 @@ function overlapForm(sample, check) {
       </div>
       <div class="sample-actions">
         <button class="small-btn" type="button" data-calc-overlap="${sample.id}">Berechnen</button>
-        <button class="primary-btn" type="button" data-apply-overlap="${sample.id}">In PrÃ¼fstelle Ã¼bernehmen</button>
+        <button class="primary-btn" type="button" data-apply-overlap="${sample.id}">In Prüfstelle übernehmen</button>
       </div>
     </div>
   `;
@@ -5642,7 +5642,7 @@ function overlapForm(sample, check) {
 function overlapPlanFields(check) {
   return `
     <div class="grid compact-grid">
-      <label>Soll-Ãœbergreifung laut Plan
+      <label>Soll-Übergreifung laut Plan
         <input data-overlap-field="requiredFromPlanValue" type="number" min="0" inputmode="decimal" value="${escapeAttr(mmToUnitValue(check.requiredFromPlanMm, check.requiredFromPlanUnit || "cm"))}" placeholder="z. B. 80">
       </label>
       <label>Einheit Soll
@@ -5669,14 +5669,14 @@ function diameterField(check, diameter) {
   const selectedMode = check.diameterMode || (presets.includes(String(diameter)) ? String(diameter) : "custom");
   return `
     <div class="overlap-field-group">
-      <label>Stabdurchmesser Ã˜
+      <label>Stabdurchmesser Ø
         <select data-overlap-field="diameterMode">
-          ${presets.map((item) => `<option value="${item}" ${selectedMode === item ? "selected" : ""}>Ã˜ ${item} mm</option>`).join("")}
+          ${presets.map((item) => `<option value="${item}" ${selectedMode === item ? "selected" : ""}>Ø ${item} mm</option>`).join("")}
           <option value="custom" ${selectedMode === "custom" ? "selected" : ""}>freie Eingabe</option>
         </select>
       </label>
       ${selectedMode === "custom" ? `<label>Freier Stabdurchmesser mm<input data-overlap-field="diameterCustomMm" type="number" min="1" max="40" inputmode="decimal" value="${escapeAttr(check.diameterCustomMm || diameter || "")}" placeholder="z. B. 18"></label>` : ""}
-      <small>Standard Ã˜12. Erlaubt sind Werte grÃ¶ÃŸer 0 bis maximal 40 mm.</small>
+      <small>Standard Ø12. Erlaubt sind Werte größer 0 bis maximal 40 mm.</small>
     </div>
   `;
 }
@@ -5698,34 +5698,34 @@ function overlapEc2Fields(check) {
       <label>Verbundbedingungen
         <select data-overlap-field="bondCondition">
           <option value="good" ${check.bondCondition === "good" ? "selected" : ""}>gut</option>
-          <option value="moderate" ${check.bondCondition === "moderate" ? "selected" : ""}>mÃ¤ÃŸig</option>
+          <option value="moderate" ${check.bondCondition === "moderate" ? "selected" : ""}>mäßig</option>
           <option value="unknown" ${check.bondCondition === "unknown" ? "selected" : ""}>unbekannt</option>
         </select>
       </label>
       <label>Beanspruchung
         <select data-overlap-field="stressType">
-          <option value="tension" ${check.stressType === "tension" ? "selected" : ""}>ZugstoÃŸ</option>
-          <option value="compression" ${check.stressType === "compression" ? "selected" : ""}>DruckstoÃŸ</option>
+          <option value="tension" ${check.stressType === "tension" ? "selected" : ""}>Zugstoß</option>
+          <option value="compression" ${check.stressType === "compression" ? "selected" : ""}>Druckstoß</option>
           <option value="unknown" ${check.stressType === "unknown" ? "selected" : ""}>unbekannt</option>
         </select>
       </label>
-      <label>Anteil gestoÃŸener StÃ¤be
+      <label>Anteil gestoßener Stäbe
         <select data-overlap-field="spliceRatio">
-          <option value="le25" ${check.spliceRatio === "le25" ? "selected" : ""}>â‰¤25 %</option>
+          <option value="le25" ${check.spliceRatio === "le25" ? "selected" : ""}>≤25 %</option>
           <option value="p33" ${check.spliceRatio === "p33" ? "selected" : ""}>33 %</option>
           <option value="p50" ${check.spliceRatio === "p50" ? "selected" : ""}>50 %</option>
           <option value="gt50" ${check.spliceRatio === "gt50" ? "selected" : ""}>>50 %</option>
           <option value="unknown" ${check.spliceRatio === "unknown" ? "selected" : ""}>unbekannt</option>
         </select>
       </label>
-      <label>Ïƒsd
+      <label>σsd
         <select data-overlap-field="sigmaMode">
           <option value="fyd" ${check.sigmaMode === "fyd" ? "selected" : ""}>konservativ fyd verwenden</option>
           <option value="custom" ${check.sigmaMode === "custom" ? "selected" : ""}>reduzierte Stahlspannung manuell eingeben</option>
-          <option value="from_plan" ${check.sigmaMode === "from_plan" ? "selected" : ""}>aus Statik/Plan Ã¼bernommen</option>
+          <option value="from_plan" ${check.sigmaMode === "from_plan" ? "selected" : ""}>aus Statik/Plan übernommen</option>
         </select>
       </label>
-      ${check.sigmaMode !== "fyd" ? `<label>Ïƒsd N/mmÂ²<input data-overlap-field="sigmaSd" type="number" min="1" inputmode="decimal" value="${escapeAttr(check.sigmaSd)}" placeholder="z. B. 350"></label>` : ""}
+      ${check.sigmaMode !== "fyd" ? `<label>σsd N/mm²<input data-overlap-field="sigmaSd" type="number" min="1" inputmode="decimal" value="${escapeAttr(check.sigmaSd)}" placeholder="z. B. 350"></label>` : ""}
       <label>Vorhanden / gemessen
         <input data-overlap-field="measuredValue" type="number" min="0" inputmode="decimal" value="${escapeAttr(mmToUnitValue(check.measuredMm, check.measuredUnit || "cm"))}" placeholder="z. B. 75">
       </label>
@@ -5756,7 +5756,7 @@ function overlapAdvancedFields(check) {
           <option value="manual" ${check.asRatioMode === "manual" ? "selected" : ""}>manuell</option>
         </select>
       </label>
-      ${check.asRatioMode === "manual" ? `<label>As-VerhÃ¤ltnis manuell<input data-overlap-field="asReqAsProv" type="number" min="0.1" max="1" step="0.01" inputmode="decimal" value="${escapeAttr(check.asReqAsProv)}"></label>` : ""}
+      ${check.asRatioMode === "manual" ? `<label>As-Verhältnis manuell<input data-overlap-field="asReqAsProv" type="number" min="0.1" max="1" step="0.01" inputmode="decimal" value="${escapeAttr(check.asReqAsProv)}"></label>` : ""}
       ${alphaSelect("alpha1", "Stabform", check.alpha1Mode, check.alpha1, [["conservative", "gerader Stab / konservativ 1,0"], ["manual", "abweichend laut Statik/Plan"]])}
       ${alphaSelect("alpha2", "Betondeckung", check.alpha2Mode, check.alpha2, [["conservative", "konservativ 1,0"], ["manual", "abweichend laut Statik/Plan"]])}
       ${alphaSelect("alpha3", "Querbewehrung", check.alpha3Mode, check.alpha3, [["conservative", "konservativ 1,0"], ["manual", "abweichend laut Statik/Plan"]])}
@@ -5780,7 +5780,7 @@ function pinOptionsHtml() {
   return [`<option value="">kein Pin</option>`].concat(
     state.current.pins.map((pin) => {
       const plan = planById(pin.planId);
-      return `<option value="${pin.id}">${pinLabel(pin)} Â· ${escapeHtml(plan?.planNumber || plan?.fileName || "Plan")} / S.${pin.pageNumber} ${escapeHtml(pin.title || "")}</option>`;
+      return `<option value="${pin.id}">${pinLabel(pin)} · ${escapeHtml(plan?.planNumber || plan?.fileName || "Plan")} / S.${pin.pageNumber} ${escapeHtml(pin.title || "")}</option>`;
     })
   ).join("");
 }
@@ -5814,7 +5814,7 @@ function samplePinMeta(sample) {
   if (!sample.pinId) return "Kein Pin zugeordnet.";
   const pin = state.current.pins.find((item) => item.id === sample.pinId);
   const plan = pin ? planById(pin.planId) : null;
-  return pin && plan ? `${pinLabel(pin)} Â· ${plan.planNumber || plan.fileName} Â· Seite ${pin.pageNumber}` : "Zugeordneter Pin nicht gefunden.";
+  return pin && plan ? `${pinLabel(pin)} · ${plan.planNumber || plan.fileName} · Seite ${pin.pageNumber}` : "Zugeordneter Pin nicht gefunden.";
 }
 
 function photosForSampleOrPin(sample = {}) {
@@ -5829,16 +5829,16 @@ function photosForSampleOrPin(sample = {}) {
 
 function samplePhotoGrid(sample) {
   const photos = photosForSampleOrPin(sample);
-  if (!photos.length) return `<p class="muted">Noch keine Fotos in dieser PrÃ¼fstelle.</p>`;
+  if (!photos.length) return `<p class="muted">Noch keine Fotos in dieser Prüfstelle.</p>`;
   const hasPinPhotos = photos.some((photo) => photo._source === "pin");
-  return `${hasPinPhotos ? `<p class="muted">Fotos aus Pin-Zuordnung Ã¼bernommen.</p>` : ""}<div class="thumb-row">${photos.map((photo) => `
+  return `${hasPinPhotos ? `<p class="muted">Fotos aus Pin-Zuordnung übernommen.</p>` : ""}<div class="thumb-row">${photos.map((photo) => `
     <figure class="sample-photo">
       <img class="thumb" data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
       ${photo._source === "pin" ? `<small class="muted">Pin-Foto</small>` : ""}
       ${barCountSummary(photo)}
       ${photoBackupActions(photo)}
-      <button class="small-btn" type="button" data-bar-count-photo="${photo.id}">StÃ¤be zÃ¤hlen (Beta)</button>
-      ${photo._source === "sample" ? `<button class="danger-btn" type="button" data-delete-sample-photo="${sample.id}" data-photo-id="${photo.id}">Foto lÃ¶schen</button>` : ""}
+      <button class="small-btn" type="button" data-bar-count-photo="${photo.id}">Stäbe zählen (Beta)</button>
+      ${photo._source === "sample" ? `<button class="danger-btn" type="button" data-delete-sample-photo="${sample.id}" data-photo-id="${photo.id}">Foto löschen</button>` : ""}
     </figure>
   `).join("")}</div>`;
 }
@@ -5896,19 +5896,19 @@ function overlapValidation(check) {
   const diameter = getOverlapDiameter(check);
   const measured = asNumber(check.measuredMm);
   const requiredPlan = asNumber(check.requiredFromPlanMm);
-  if (!diameter || diameter <= 0 || diameter > 40) errors.push("Bitte gÃ¼ltigen Stabdurchmesser eingeben.");
-  if (measured !== "" && measured < 0) errors.push("Bitte gÃ¼ltige vorhandene/gemessene ÃœbergreifungslÃ¤nge eingeben.");
-  if (measured === 0) warnings.push("Vorhandene/gemessene LÃ¤nge ist 0: Bitte Eingabe prÃ¼fen.");
-  if (check.mode === OVERLAP_PLAN_MODE && requiredPlan !== "" && requiredPlan <= 0) errors.push("Bitte gÃ¼ltige Soll-Ãœbergreifung laut Plan eingeben.");
+  if (!diameter || diameter <= 0 || diameter > 40) errors.push("Bitte gültigen Stabdurchmesser eingeben.");
+  if (measured !== "" && measured < 0) errors.push("Bitte gültige vorhandene/gemessene Übergreifungslänge eingeben.");
+  if (measured === 0) warnings.push("Vorhandene/gemessene Länge ist 0: Bitte Eingabe prüfen.");
+  if (check.mode === OVERLAP_PLAN_MODE && requiredPlan !== "" && requiredPlan <= 0) errors.push("Bitte gültige Soll-Übergreifung laut Plan eingeben.");
   if (check.mode === OVERLAP_EC2_MODE) {
-    if (["custom", "from_plan"].includes(check.sigmaMode) && asNumber(check.sigmaSd) <= 0) errors.push("Bitte gÃ¼ltige Stahlspannung Ïƒsd eingeben oder konservativ fyd verwenden.");
-    if (asNumber(check.asReqAsProv) <= 0 || asNumber(check.asReqAsProv) > 1) errors.push("Bitte gÃ¼ltiges VerhÃ¤ltnis As,erf / As,vorh zwischen 0 und 1 eingeben.");
+    if (["custom", "from_plan"].includes(check.sigmaMode) && asNumber(check.sigmaSd) <= 0) errors.push("Bitte gültige Stahlspannung σsd eingeben oder konservativ fyd verwenden.");
+    if (asNumber(check.asReqAsProv) <= 0 || asNumber(check.asReqAsProv) > 1) errors.push("Bitte gültiges Verhältnis As,erf / As,vorh zwischen 0 und 1 eingeben.");
     ["alpha1", "alpha2", "alpha3", "alpha5"].forEach((field) => {
       const value = asNumber(check[field]);
-      if (value <= 0 || value > 1.5) errors.push(`Bitte gÃ¼ltigen Beiwert ${field.replace("alpha", "Î±")} eingeben.`);
+      if (value <= 0 || value > 1.5) errors.push(`Bitte gültigen Beiwert ${field.replace("alpha", "α")} eingeben.`);
     });
   }
-  if (measured === "") warnings.push("Keine gemessene LÃ¤nge eingetragen: Bewertung bleibt KlÃ¤rung.");
+  if (measured === "") warnings.push("Keine gemessene Länge eingetragen: Bewertung bleibt Klärung.");
   return { errors, warnings, diameter };
 }
 
@@ -5918,7 +5918,7 @@ function calculateOverlapPlanValue(check, sample) {
   const required = asNumber(check.requiredFromPlanMm);
   const measured = asNumber(check.measuredMm);
   let status = "teilweise / Auflage";
-  let title = "KlÃ¤rung erforderlich";
+  let title = "Klärung erforderlich";
   if (!validation.errors.length && required && measured !== "") {
     status = measured >= required ? "fertig / OK" : "nicht OK / Mangel";
     title = measured >= required ? "augenscheinlich ausreichend" : "nicht ausreichend";
@@ -5938,7 +5938,7 @@ function calculateOverlapPlanValue(check, sample) {
     calculationText: [
       "Modus: Sollwert laut Plan",
       `Planbezug: ${pinName(sample.pinId) || "ohne Pin"}`,
-      `Stabdurchmesser: Ã˜${diameter || "?"} mm`,
+      `Stabdurchmesser: Ø${diameter || "?"} mm`,
       `Sollwert: ${formatMmCm(required)}`,
       `Vorhanden/gemessen: ${formatMmCm(measured)}`,
       `Differenz: ${formatDifference(diff)}`,
@@ -6015,29 +6015,29 @@ function calculateOverlapEc2(check, sample) {
 }
 
 function planValueGeneratedText({ diameter, required, measured, status }) {
-  const prefix = `ÃœbergreifungslÃ¤nge Ã˜${diameter || "?"} geprÃ¼ft. Soll laut Bewehrungsplan: ${formatMmCm(required)}. Vor Ort vorhanden/gemessen: ${formatApproxMmCm(measured)}.`;
+  const prefix = `Übergreifungslänge Ø${diameter || "?"} geprüft. Soll laut Bewehrungsplan: ${formatMmCm(required)}. Vor Ort vorhanden/gemessen: ${formatApproxMmCm(measured)}.`;
   if (status === "fertig / OK") return `${prefix} Bewertung: augenscheinlich ausreichend.`;
-  if (status === "nicht OK / Mangel") return `${prefix} Bewertung: nicht ausreichend. Ãœbergreifung vor Betonage nachzuarbeiten bzw. mit Planer/PrÃ¼fingenieur zu klÃ¤ren.`;
-  return `${prefix} Bewertung: teilweise / KlÃ¤rung, da Sollwert oder vorhandener Wert fehlt.`;
+  if (status === "nicht OK / Mangel") return `${prefix} Bewertung: nicht ausreichend. Übergreifung vor Betonage nachzuarbeiten bzw. mit Planer/Prüfingenieur zu klären.`;
+  return `${prefix} Bewertung: teilweise / Klärung, da Sollwert oder vorhandener Wert fehlt.`;
 }
 
 function ec2GeneratedText(calc) {
-  return `ÃœbergreifungslÃ¤nge Ã˜${calc.diameterMm || "?"} nach EC2/NA berechnet. Beton ${calc.concreteClass}, ${calc.steelGrade || "B500B"}, ${bondLabel(calc.bondCondition)}, Ïƒsd = ${round(calc.sigmaSd)} N/mmÂ², As,erf/As,vorh = ${round(calc.asReqAsProv)}, Î±6 = ${round(calc.alpha6)}. Erforderlich l0,erf = ${formatMmCm(calc.requiredMm)}. Vorhanden/gemessen ca. ${formatApproxMmCm(calc.measuredMm)}. Bewertung: ${statusLabel(calc.resultStatus)}.`;
+  return `Übergreifungslänge Ø${calc.diameterMm || "?"} nach EC2/NA berechnet. Beton ${calc.concreteClass}, ${calc.steelGrade || "B500B"}, ${bondLabel(calc.bondCondition)}, σsd = ${round(calc.sigmaSd)} N/mm², As,erf/As,vorh = ${round(calc.asReqAsProv)}, α6 = ${round(calc.alpha6)}. Erforderlich l0,erf = ${formatMmCm(calc.requiredMm)}. Vorhanden/gemessen ca. ${formatApproxMmCm(calc.measuredMm)}. Bewertung: ${statusLabel(calc.resultStatus)}.`;
 }
 
 function ec2CalculationText(calc) {
   return [
     "Modus: Berechnung nach EC2/NA",
-    "Hinweis: Die Berechnung dient der dokumentierten Kontrolle im Rahmen der Bewehrungsabnahme. MaÃŸgebend bleiben freigegebene Statik, Bewehrungsplan sowie DIN EN 1992-1-1 mit Nationalem Anhang.",
+    "Hinweis: Die Berechnung dient der dokumentierten Kontrolle im Rahmen der Bewehrungsabnahme. Maßgebend bleiben freigegebene Statik, Bewehrungsplan sowie DIN EN 1992-1-1 mit Nationalem Anhang.",
     calc.validationErrors?.length ? `Validierung: ${calc.validationErrors.join(" ")}` : "",
     calc.validationWarnings?.length ? `Hinweis: ${calc.validationWarnings.join(" ")}` : "",
-    `Stabdurchmesser: Ã˜${calc.diameterMm || "?"} mm, Betonstahl: ${calc.steelGrade || "B500B"}, Ïƒsd-Modus: ${sigmaModeLabel(calc.sigmaMode)}`,
-    `fctk,0.05 = ${round(calc.fctk005)} N/mmÂ², Î³c = ${round(calc.gammaC)}, Î±ct = ${round(calc.alphaCt)}`,
-    `fctd = Î±ct * fctk,0.05 / Î³c = ${round(calc.fctd)} N/mmÂ²`,
-    `fbd = 2,25 * Î·1 * Î·2 * fctd = ${round(calc.fbd)} N/mmÂ² (Î·1=${round(calc.eta1)}, Î·2=${round(calc.eta2)})`,
-    `lb,rqd = (Ã˜ / 4) * (Ïƒsd / fbd) * (As,erf / As,vorh) = ${formatMmCm(calc.lbRqd)}`,
-    `l0 = Î±1 * Î±2 * Î±3 * Î±5 * Î±6 * lb,rqd = ${formatMmCm(calc.l0)}`,
-    `l0,min = max(0,3 * Î±6 * lb,rqd, 15 * Ã˜, 200 mm) = ${formatMmCm(calc.l0Min)}`,
+    `Stabdurchmesser: Ø${calc.diameterMm || "?"} mm, Betonstahl: ${calc.steelGrade || "B500B"}, σsd-Modus: ${sigmaModeLabel(calc.sigmaMode)}`,
+    `fctk,0.05 = ${round(calc.fctk005)} N/mm², γc = ${round(calc.gammaC)}, αct = ${round(calc.alphaCt)}`,
+    `fctd = αct * fctk,0.05 / γc = ${round(calc.fctd)} N/mm²`,
+    `fbd = 2,25 * Î·1 * Î·2 * fctd = ${round(calc.fbd)} N/mm² (Î·1=${round(calc.eta1)}, Î·2=${round(calc.eta2)})`,
+    `lb,rqd = (Ø / 4) * (σsd / fbd) * (As,erf / As,vorh) = ${formatMmCm(calc.lbRqd)}`,
+    `l0 = α1 * α2 * α3 * α5 * α6 * lb,rqd = ${formatMmCm(calc.l0)}`,
+    `l0,min = max(0,3 * α6 * lb,rqd, 15 * Ø, 200 mm) = ${formatMmCm(calc.l0Min)}`,
     `l0,erf = max(l0, l0,min) = ${formatMmCm(calc.requiredMm)}`,
     `Vorhanden/gemessen = ${formatApproxMmCm(calc.measuredMm)}, Differenz = ${formatDifference(calc.differenceMm)}`
   ].filter(Boolean).join("\n");
@@ -6215,7 +6215,7 @@ function updateCheckStatus(check) {
     return check.status;
   }
   if (check.samples.some((sample) => sample.followupStatus || FOLLOWUP_STATUSES.includes(sample.status))) {
-    if (check.samples.some((sample) => ["weiterhin offen", "teilweise erledigt", "nicht prÃ¼fbar", "neu hinzugekommen"].includes(sample.followupStatus || sample.status))) {
+    if (check.samples.some((sample) => ["weiterhin offen", "teilweise erledigt", "nicht prüfbar", "neu hinzugekommen"].includes(sample.followupStatus || sample.status))) {
       check.status = "teilweise / Auflage";
     } else if (check.samples.every((sample) => (sample.followupStatus || sample.status) === "erledigt")) {
       check.status = "fertig / OK";
@@ -6292,15 +6292,15 @@ function round(value, digits = 1) {
 }
 
 function bondLabel(value) {
-  return ({ good: "gute Verbundbedingungen", moderate: "mÃ¤ÃŸige Verbundbedingungen", unknown: "unbekannte/konservativ mÃ¤ÃŸige Verbundbedingungen" })[value] || value;
+  return ({ good: "gute Verbundbedingungen", moderate: "mäßige Verbundbedingungen", unknown: "unbekannte/konservativ mäßige Verbundbedingungen" })[value] || value;
 }
 
 function sigmaModeLabel(value) {
-  return ({ fyd: "konservativ fyd verwenden", custom: "reduzierte Stahlspannung manuell eingegeben", from_plan: "aus Statik/Plan Ã¼bernommen" })[value] || value;
+  return ({ fyd: "konservativ fyd verwenden", custom: "reduzierte Stahlspannung manuell eingegeben", from_plan: "aus Statik/Plan übernommen" })[value] || value;
 }
 
 function spliceRatioLabel(value) {
-  return ({ le25: "â‰¤25 %", p33: "33 %", p50: "50 %", gt50: ">50 %", unknown: "unbekannt" })[value] || value;
+  return ({ le25: "≤25 %", p33: "33 %", p50: "50 %", gt50: ">50 %", unknown: "unbekannt" })[value] || value;
 }
 
 function statusButtons(active, group) {
@@ -6324,7 +6324,7 @@ async function handlePlanFiles(files) {
   saveFromForm();
   for (const file of files) {
     if (!file || !file.size) {
-      showPlanImportMessage("Plan konnte nicht gelesen werden. Bitte Datei erneut auswÃ¤hlen.", true);
+      showPlanImportMessage("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", true);
       continue;
     }
     const meta = derivePlanMeta(file.name, state.current.head.planDate);
@@ -6398,7 +6398,7 @@ async function handlePlanFiles(files) {
     const saved = await idbGet("plans", plan.id);
     if (!saved?.blob || !saved.blob.size) {
       plan.renderStatus = "error";
-      plan.renderError = "Plan konnte nicht gelesen werden. Bitte Datei erneut auswÃ¤hlen.";
+      plan.renderError = "Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.";
       showPlanImportMessage(plan.renderError, true);
       continue;
     }
@@ -6421,7 +6421,7 @@ async function handlePlanFiles(files) {
 
 async function importProjectPlanFiles(files, projectId = state.currentProjectId) {
   const project = projectById(projectId);
-  if (!project) return showAppToast("Bitte zuerst ein Projekt Ã¶ffnen.", { type: "error" });
+  if (!project) return showAppToast("Bitte zuerst ein Projekt öffnen.", { type: "error" });
   state.currentProjectId = project.id;
   const protocol = ensureProjectPlanLibraryProtocol(project.id);
   if (!protocol) return showAppToast("Projektplanablage konnte nicht vorbereitet werden.", { type: "error" });
@@ -6430,7 +6430,7 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
   let imported = 0;
   for (const file of fileList) {
     if (!file || !file.size) {
-      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswÃ¤hlen.", { type: "error" });
+      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { type: "error" });
       continue;
     }
     const meta = derivePlanMeta(file.name, project.planDate || "");
@@ -6504,7 +6504,7 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
     });
     const saved = await idbGet("plans", plan.id);
     if (!saved?.blob || !saved.blob.size) {
-      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswÃ¤hlen.", { type: "error" });
+      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { type: "error" });
       continue;
     }
     plan.fileSize = saved.blob.size || plan.fileSize;
@@ -6522,7 +6522,7 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
   showView("projectPlansView");
   renderProjectPlansView();
   renderDatalists();
-  showAppToast(imported === 1 ? "Plan hochgeladen und im Projekt gespeichert." : `${imported} PlÃ¤ne hochgeladen und im Projekt gespeichert.`, { type: imported ? "success" : "info" });
+  showAppToast(imported === 1 ? "Plan hochgeladen und im Projekt gespeichert." : `${imported} Pläne hochgeladen und im Projekt gespeichert.`, { type: imported ? "success" : "info" });
 }
 
 function deleteProjectPlan(protocolId, planId) {
@@ -6530,7 +6530,7 @@ function deleteProjectPlan(protocolId, planId) {
   if (!entry) return showAppToast("Plan nicht gefunden.", { type: "error" });
   const referencedPins = state.protocols.reduce((sum, protocol) => sum + (protocol.pins || []).filter((pin) => pinPlacements(pin).some((placement) => placement.planId === planId) || pin.planId === planId).length, 0);
   const warning = referencedPins ? `\n\nAchtung: ${referencedPins} Pin-/Planbezug(e) verweisen auf diesen Plan.` : "";
-  if (!confirm(`Plan wirklich lÃ¶schen? Die gespeicherte Plan-Datei wird aus der lokalen Projektablage entfernt.${warning}`)) return;
+  if (!confirm(`Plan wirklich löschen? Die gespeicherte Plan-Datei wird aus der lokalen Projektablage entfernt.${warning}`)) return;
   entry.protocol.plans = (entry.protocol.plans || []).filter((plan) => plan.id !== planId);
   entry.protocol.updatedAt = new Date().toISOString();
   idbDelete("plans", planId);
@@ -6542,7 +6542,7 @@ function deleteProjectPlan(protocolId, planId) {
     renderPlanControls();
     renderPlan();
   }
-  showAppToast("Plan gelÃ¶scht.", { type: "success" });
+  showAppToast("Plan gelöscht.", { type: "success" });
 }
 
 async function extractPdfPlanMetadata(plan) {
@@ -6569,7 +6569,7 @@ async function extractPdfPlanMetadata(plan) {
     if (extracted.planIndex) plan.planIndex = extracted.planIndex;
     plan.planDateCandidates = extracted.dateCandidates;
     plan.autoMetaStatus = extracted.found
-      ? "Automatisch erkannt â€“ bitte prÃ¼fen."
+      ? "Automatisch erkannt – bitte prüfen."
       : "Planstand konnte nicht automatisch ausgelesen werden. Bitte manuell eintragen.";
     await syncPlanRecord(plan);
   } catch (error) {
@@ -6581,9 +6581,9 @@ async function extractPdfPlanMetadata(plan) {
 function parsePlanMetadataText(text) {
   const compact = text.replace(/\s+/g, " ").trim();
   const dateMatches = extractPlanDateCandidates(compact);
-  const indexMatch = compact.match(/\b(?:Index|Revision|Rev\.?|Ã„nderung)\s*[:\-]?\s*([A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼]|\d{1,3})\b/i);
-  const planNumberMatch = compact.match(/\b(?:Plan[-\s]?Nr\.?|Plan\s*Nr\.?|Plannummer)\s*[:\-]?\s*([A-ZÃ„Ã–Ãœ]{1,3}[-\s]\d{2,4}[A-Z]?)\b/i)
-    || compact.match(/\b([A-ZÃ„Ã–Ãœ]{1,4}[-\s]?\d{2,4}[A-Z]?)\b/i);
+  const indexMatch = compact.match(/\b(?:Index|Revision|Rev\.?|Änderung)\s*[:\-]?\s*([A-Za-zÄÖÜäöü]|\d{1,3})\b/i);
+  const planNumberMatch = compact.match(/\b(?:Plan[-\s]?Nr\.?|Plan\s*Nr\.?|Plannummer)\s*[:\-]?\s*([A-ZÄÖÜ]{1,3}[-\s]\d{2,4}[A-Z]?)\b/i)
+    || compact.match(/\b([A-ZÄÖÜ]{1,4}[-\s]?\d{2,4}[A-Z]?)\b/i);
   return {
     planNumber: planNumberMatch ? safePlanNumberCandidate(planNumberMatch[1]) : "",
     planDate: dateMatches[0]?.value || "",
@@ -6605,8 +6605,8 @@ function extractPlanDateCandidates(text) {
     let score = 0;
     if (/planstand|plandatum|stand|ausgabe/.test(context)) score += 6;
     if (/datum/.test(context)) score += 4;
-    if (/index|Ã¤nderung|revision|rev\./.test(context)) score += 3;
-    if (/freigegeben|geprÃ¼ft|gezeichnet|gez\./.test(context)) score += 1;
+    if (/index|änderung|revision|rev\./.test(context)) score += 3;
+    if (/freigegeben|geprüft|gezeichnet|gez\./.test(context)) score += 1;
     candidates.push({ value, score, index: match.index });
   }
   const unique = [];
@@ -6638,17 +6638,17 @@ function safePlanNumberCandidate(value) {
   if (!candidate) return "";
   const prefix = candidate.split("-")[0];
   if (["DIN", "EN", "ISO", "EC", "EC2"].includes(prefix)) return "";
-  return /^[A-ZÃ„Ã–Ãœ]{1,3}-\d{2,4}[A-Z]?$/.test(candidate) ? candidate : "";
+  return /^[A-ZÄÖÜ]{1,3}-\d{2,4}[A-Z]?$/.test(candidate) ? candidate : "";
 }
 function derivePlanMeta(fileName, defaultPlanDate = "") {
   const base = fileName.replace(/\.[^.]+$/, "");
   const normalized = base.replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
-  const planNumberMatch = normalized.match(/\b[A-ZÃ„Ã–Ãœ]{1,3}[-\s]\d{2,4}[A-Z]?\b/i);
+  const planNumberMatch = normalized.match(/\b[A-ZÄÖÜ]{1,3}[-\s]\d{2,4}[A-Z]?\b/i);
   const planNumber = planNumberMatch ? safePlanNumberCandidate(planNumberMatch[0]) : "";
   let title = normalized;
   if (planNumber) title = title.replace(planNumberMatch[0], "");
   title = title
-    .replace(/[-â€“â€”]+/g, " ")
+    .replace(/[-–—]+/g, " ")
     .replace(/\b(plan|bewehrungsplan|schalplan)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -6749,13 +6749,13 @@ function photoBackupSummaryHtml() {
   const list = [...unique.values()];
   const secured = list.filter((photo) => photoBackupStatus(photo) === "user_confirmed_external").length;
   const open = list.length - secured;
-  return `<section class="photo-backup-summary"><h3>Fotos dieser Abnahme</h3><p>${list.length} Foto(s) gesamt Â· ${open} externe Sicherung offen Â· ${secured} extern gesichert</p>${open ? `<p class="report-warning">Web-Apps speichern Kamerafotos nicht immer automatisch in der Galerie. Bitte offene Fotos zusÃ¤tzlich sichern.</p>` : `<p class="muted">Alle bekannten Fotos sind als extern gesichert markiert.</p>`}</section>`;
+  return `<section class="photo-backup-summary"><h3>Fotos dieser Abnahme</h3><p>${list.length} Foto(s) gesamt · ${open} externe Sicherung offen · ${secured} extern gesichert</p>${open ? `<p class="report-warning">Web-Apps speichern Kamerafotos nicht immer automatisch in der Galerie. Bitte offene Fotos zusätzlich sichern.</p>` : `<p class="muted">Alle bekannten Fotos sind als extern gesichert markiert.</p>`}</section>`;
 }
 
 function collectCurrentPhotoRefs() {
   if (!state.current) return [];
   const photos = [];
-  (state.current.overviewPhotos || []).forEach((item) => photos.push({ id: item.photoId, name: item.caption || "Ãœbersichtsfoto", type: "image/jpeg", external_backup_status: item.external_backup_status || "unknown", external_backup_method: item.external_backup_method || "", original_capture_source: item.original_capture_source || "" }));
+  (state.current.overviewPhotos || []).forEach((item) => photos.push({ id: item.photoId, name: item.caption || "Übersichtsfoto", type: "image/jpeg", external_backup_status: item.external_backup_status || "unknown", external_backup_method: item.external_backup_method || "", original_capture_source: item.original_capture_source || "" }));
   (state.current.pins || []).forEach((pin) => photos.push(...(pin.photos || [])));
   (state.current.checkpoints || []).forEach((check) => {
     photos.push(...(check.photos || []));
@@ -6779,7 +6779,7 @@ async function shareOrDownloadPhoto(photoId, mode = "share") {
   const refs = findCurrentPhotoRefs(photoId);
   const storedPhoto = refs.find((ref) => ref.photo)?.photo;
   const overviewItem = refs.find((ref) => ref.item)?.item;
-  const photo = storedPhoto || (overviewItem ? { ...overviewItem, id: photoId, name: overviewItem.caption || overviewItem.name || "Ãœbersichtsfoto", type: overviewItem.type || "image/jpeg" } : { id: photoId, name: "Foto", type: "image/jpeg" });
+  const photo = storedPhoto || (overviewItem ? { ...overviewItem, id: photoId, name: overviewItem.caption || overviewItem.name || "Übersichtsfoto", type: overviewItem.type || "image/jpeg" } : { id: photoId, name: "Foto", type: "image/jpeg" });
   const record = await idbGet("photos", photoId);
   if (!record?.blob) return showAppToast("Foto konnte nicht geladen werden.", { type: "error" });
   const type = record.fileType || photo.type || "image/jpeg";
@@ -6791,13 +6791,13 @@ async function shareOrDownloadPhoto(photoId, mode = "share") {
   };
   if (mode === "share" && navigator.share && file) {
     try {
-      await navigator.share({ title: "Foto sichern", text: "Baustellenfoto zusÃ¤tzlich sichern/teilen.", files: [file] });
+      await navigator.share({ title: "Foto sichern", text: "Baustellenfoto zusätzlich sichern/teilen.", files: [file] });
       await markStarted("share_started", "share");
-      showAppToast("Share-Dialog geÃ¶ffnet. Bitte anschlieÃŸend bestÃ¤tigen, wenn das Foto extern gesichert ist.", { type: "success" });
+      showAppToast("Share-Dialog geöffnet. Bitte anschließend bestätigen, wenn das Foto extern gesichert ist.", { type: "success" });
       return;
     } catch (error) {
       if (error?.name === "AbortError") return;
-      console.warn("Foto-Teilen nicht mÃ¶glich", error);
+      console.warn("Foto-Teilen nicht möglich", error);
     }
   }
   const url = URL.createObjectURL(record.blob);
@@ -6809,7 +6809,7 @@ async function shareOrDownloadPhoto(photoId, mode = "share") {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
   await markStarted("download_started", "download");
-  showAppToast("Download gestartet. Bitte anschlieÃŸend bestÃ¤tigen, wenn das Foto extern gesichert ist.", { type: "success" });
+  showAppToast("Download gestartet. Bitte anschließend bestätigen, wenn das Foto extern gesichert ist.", { type: "success" });
 }
 
 async function confirmPhotoExternalBackup(photoId) {
@@ -6984,13 +6984,13 @@ function triggerPhotoPicker(kind, id, source) {
 
 function triggerOverviewPhotoPicker(source) {
   if (!state.current) {
-    alert("Bitte zuerst eine Abnahme Ã¶ffnen.");
+    alert("Bitte zuerst eine Abnahme öffnen.");
     return;
   }
   state.photoTarget = { kind: "overview", id: state.current.id, source };
   const input = source === "gallery" ? $("#overviewGalleryInput") : $("#overviewCameraInput");
   if (!input) {
-    alert("Foto konnte nicht geÃ¶ffnet oder gespeichert werden.");
+    alert("Foto konnte nicht geöffnet oder gespeichert werden.");
     return;
   }
   input.value = "";
@@ -7037,7 +7037,7 @@ function renderPhotoDialog() {
   if (target?.kind === "sample") {
     const sample = findSample(target.id);
     const check = findCheckBySample(target.id);
-    title = `${check?.title || "PrÃ¼fstelle"} â€“ PrÃ¼fstelle ${sample?.number || ""}`;
+    title = `${check?.title || "Prüfstelle"} – Prüfstelle ${sample?.number || ""}`;
     photos = sample?.photos || [];
   }
   $("#photoDialogTitle").textContent = title;
@@ -7048,7 +7048,7 @@ function renderPhotoDialog() {
         <span>${escapeHtml(photo.name || "Foto")}</span>
         ${barCountSummary(photo)}
         ${photoBackupActions(photo)}
-        <button class="small-btn" type="button" data-bar-count-photo="${photo.id}">StÃ¤be zÃ¤hlen (Beta)</button>
+        <button class="small-btn" type="button" data-bar-count-photo="${photo.id}">Stäbe zählen (Beta)</button>
       </figcaption>
     </figure>
   `).join("");
@@ -7064,7 +7064,7 @@ function openPlanMarkDialog(sampleId) {
   if (!sample) return;
   const plans = markPlansForCurrentContext();
   if (!plans.length) {
-    alert("Keine ProjektplÃ¤ne vorhanden. Bitte in der Projektzentrale unter ProjektplÃ¤ne zuerst einen Plan hochladen.");
+    alert("Keine Projektpläne vorhanden. Bitte in der Projektzentrale unter Projektpläne zuerst einen Plan hochladen.");
     return;
   }
   if (isAndroidFirefox()) {
@@ -7075,7 +7075,7 @@ function openPlanMarkDialog(sampleId) {
   const preferredPlanId = pin?.planId || sample.planId || state.selectedPlanId || state.current.activePlanId || plans[0].id;
   const selectedMarkPlan = planById(preferredPlanId) || plans[0];
   if (!selectedMarkPlan) {
-    alert("Keine ProjektplÃ¤ne vorhanden. Bitte in der Projektzentrale unter ProjektplÃ¤ne zuerst einen Plan hochladen.");
+    alert("Keine Projektpläne vorhanden. Bitte in der Projektzentrale unter Projektpläne zuerst einen Plan hochladen.");
     return;
   }
   state.markTarget = { kind: "rebar", sampleId };
@@ -7163,17 +7163,17 @@ function renderMarkSelectors() {
   state.mark.pageNumber = Math.min(Math.max(1, Number(state.mark.pageNumber) || 1), pageCount);
   $("#markPageSelect").innerHTML = Array.from({ length: pageCount }, (_, index) => `<option value="${index + 1}">Seite ${index + 1}</option>`).join("");
   $("#markPageSelect").value = state.mark.pageNumber;
-  $("#markPlanTitle").textContent = plan ? `${planDisplayName(plan)} Â· Seite ${state.mark.pageNumber}` : "Plan markieren";
+  $("#markPlanTitle").textContent = plan ? `${planDisplayName(plan)} · Seite ${state.mark.pageNumber}` : "Plan markieren";
   $("#markZoomLabel").textContent = `${Math.round((state.mark.zoom || 1) * 100)} %`;
   const movePin = state.current?.pins?.find((pin) => pin.id === state.mark.movePinId);
   const resetPin = state.mark.active && state.selectedPinId ? state.current?.pins?.find((pin) => pin.id === state.selectedPinId) : null;
   $("#markHint").innerHTML = movePin
-    ? `Neue Position fÃ¼r ${escapeHtml(pinLabel(movePin))} antippen. <button class="small-btn" type="button" data-cancel-mark-pin-move>Abbrechen</button>`
+    ? `Neue Position für ${escapeHtml(pinLabel(movePin))} antippen. <button class="small-btn" type="button" data-cancel-mark-pin-move>Abbrechen</button>`
     : resetPin
-      ? `Neue Position fÃ¼r ${escapeHtml(pinLabel(resetPin))} antippen. <button class="small-btn" type="button" data-cancel-mark-pin-move>Abbrechen</button>`
+      ? `Neue Position für ${escapeHtml(pinLabel(resetPin))} antippen. <button class="small-btn" type="button" data-cancel-mark-pin-move>Abbrechen</button>`
     : state.mark.active
-      ? "Pin-Modus aktiv â€“ auf die Planstelle tippen."
-      : "Plan auswÃ¤hlen, dann â€žPin setzen / Punkt bestÃ¤tigenâ€œ antippen.";
+      ? "Pin-Modus aktiv – auf die Planstelle tippen."
+      : "Plan auswählen, dann „Pin setzen / Punkt bestätigen“ antippen.";
 }
 
 async function renderMarkPlan() {
@@ -7205,7 +7205,7 @@ async function renderMarkPlan() {
   state.mark.fitScale = 1;
   if (!plan) {
     empty.style.display = "grid";
-    empty.textContent = "Kein Plan gewÃ¤hlt.";
+    empty.textContent = "Kein Plan gewählt.";
     return;
   }
   empty.style.display = "grid";
@@ -7436,7 +7436,7 @@ function renderMarkPinSheet(pinId = state.selectedPinId) {
     : `${check?.title || "Allgemeine Feststellung"}${sample ? ` \u00b7 Pr\u00fcfstelle ${sample.number}${sample.location ? ` \u00b7 ${escapeHtml(sample.location)}` : ""}` : ""}`;
   if (siteItem) pin.status = siteControlPinStatus(siteItem.type || siteItem.status || pin.status);
   const statusControlHtml = siteItem
-    ? `<div class="readonly-field"><strong>Status</strong><span>${escapeHtml(pin.status)}</span><small>wird aus der Feststellung Ã¼bernommen</small></div>`
+    ? `<div class="readonly-field"><strong>Status</strong><span>${escapeHtml(pin.status)}</span><small>wird aus der Feststellung übernommen</small></div>`
     : `<label>Status
         <select data-mark-pin-field="status">
           ${STATUSES.map((status) => `<option value="${escapeAttr(status)}" ${pin.status === status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
@@ -7756,7 +7756,7 @@ function barCountSummary(photo) {
   const analysis = normalizeBarCountAnalysis(photo?.barCountAnalysis);
   if (!analysis) return `<small class="muted">Fotoanalyse noch nicht erfasst.</small>`;
   const detected = analysis.detectedCount === "" ? "kein KI-Vorschlag" : `${analysis.detectedCount} erkannt`;
-  const confirmed = analysis.confirmedCount === "" ? "nicht bestÃ¤tigt" : `${analysis.confirmedCount} bestÃ¤tigt`;
+  const confirmed = analysis.confirmedCount === "" ? "nicht bestätigt" : `${analysis.confirmedCount} bestätigt`;
   return `<small class="muted">Fotoanalyse: ${escapeHtml(detected)}, ${escapeHtml(confirmed)}.</small>`;
 }
 
@@ -7875,7 +7875,7 @@ async function prepareImageForReport(srcOrBlob, options = {}) {
   }
   ctx.drawImage(image, 0, 0, width, height);
   const safeBlob = await safeCanvasToBlob(canvas, mimeType, quality, "Reportbild");
-  if (!safeBlob) throw new Error("Bild konnte aus Browser-SicherheitsgrÃ¼nden nicht exportiert werden.");
+  if (!safeBlob) throw new Error("Bild konnte aus Browser-Sicherheitsgründen nicht exportiert werden.");
   return blobToDataUrl(safeBlob);
 }
 
@@ -7924,7 +7924,7 @@ function bindVoice() {
   if (!SpeechRecognition) {
     $$(".mic-btn").forEach((btn) => {
       btn.disabled = true;
-      btn.title = "Spracherkennung in diesem Browser nicht verfÃ¼gbar";
+      btn.title = "Spracherkennung in diesem Browser nicht verfügbar";
     });
     return;
   }
@@ -7991,7 +7991,7 @@ function bindVoice() {
       if (errorEvent.error !== "aborted" && errorEvent.error !== "no-speech") {
         state.voice.stoppedByUser = true;
         const isAlbanian = btn.dataset.voiceLang === "sq-AL";
-        alert(isAlbanian ? "Albanische Spracheingabe wird auf diesem GerÃ¤t/Browser nicht unterstÃ¼tzt. Bitte Text eintippen oder Deutsch verwenden." : "Spracherkennung konnte nicht gestartet werden.");
+        alert(isAlbanian ? "Albanische Spracheingabe wird auf diesem Gerät/Browser nicht unterstützt. Bitte Text eintippen oder Deutsch verwenden." : "Spracherkennung konnte nicht gestartet werden.");
       }
     };
     recognition.onend = () => {
@@ -8012,7 +8012,7 @@ function bindVoice() {
       resetVoiceButton(btn);
       state.voice = { active: false, recognition: null, button: null, baseText: "", finalText: "", finalResults: {} };
       const isAlbanian = btn.dataset.voiceLang === "sq-AL";
-      alert(isAlbanian ? "Albanische Spracheingabe wird auf diesem GerÃ¤t/Browser nicht unterstÃ¼tzt. Bitte Text eintippen oder Deutsch verwenden." : "Spracherkennung konnte nicht gestartet werden.");
+      alert(isAlbanian ? "Albanische Spracheingabe wird auf diesem Gerät/Browser nicht unterstützt. Bitte Text eintippen oder Deutsch verwenden." : "Spracherkennung konnte nicht gestartet werden.");
     }
   });
 }
@@ -8033,7 +8033,7 @@ function cleanDictationText(text = "") {
 function dictationWordKey(word = "") {
   return String(word || "")
     .toLowerCase()
-    .replace(/[.,;:!?"'â€žâ€œâ€]/g, "")
+    .replace(/[.,;:!?"'„“”]/g, "")
     .replace(/[\u2010-\u2015-]/g, "")
     .trim();
 }
@@ -8067,15 +8067,15 @@ function escapeRegExp(value = "") {
 }
 
 function capitalizeSentenceStarts(text = "") {
-  return String(text || "").replace(/(^|[.!?]\s+)([a-zÃ¤Ã¶Ã¼])/g, (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
+  return String(text || "").replace(/(^|[.!?]\s+)([a-zäöü])/g, (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
 }
 
 function dedupeDictationConstructionFragments(text = "") {
   let value = cleanDictationText(text);
   const patterns = [
-    [/\b(Die Anschlussbewehrung fÃ¼r die DoppelwÃ¤nde im Bereich des rechten Kranfundaments)\s+\1\s+fehlt noch\b/gi, "$1 fehlt noch"],
-    [/\b(Die Anschlussbewehrung fÃ¼r die DoppelwÃ¤nde ist teilweise nicht vertikal)\s+\1\s+eingebaut\b/gi, "$1 eingebaut"],
-    [/\b(Die Zulagen im Bereich der Vertiefung der Bodenplatte fÃ¼r die spÃ¤ter einzubauende Rinne sind zu tief eingebaut)\s+\1\b/gi, "$1"]
+    [/\b(Die Anschlussbewehrung für die Doppelwände im Bereich des rechten Kranfundaments)\s+\1\s+fehlt noch\b/gi, "$1 fehlt noch"],
+    [/\b(Die Anschlussbewehrung für die Doppelwände ist teilweise nicht vertikal)\s+\1\s+eingebaut\b/gi, "$1 eingebaut"],
+    [/\b(Die Zulagen im Bereich der Vertiefung der Bodenplatte für die später einzubauende Rinne sind zu tief eingebaut)\s+\1\b/gi, "$1"]
   ];
   patterns.forEach(([pattern, replacement]) => {
     value = value.replace(pattern, replacement);
@@ -8093,25 +8093,25 @@ function polishDictationText(text = "") {
     [/\banschlussBewehrung\b/g, "Anschlussbewehrung"],
     [/\bkranfundaments\b/gi, "Kranfundaments"],
     [/\bkranfundament\b/gi, "Kranfundament"],
-    [/\bdoppelwÃ¤nde\b/gi, "DoppelwÃ¤nde"],
+    [/\bdoppelwände\b/gi, "Doppelwände"],
     [/\bwu\s*-?\s*bodenplatte\b/gi, "WU-Bodenplatte"],
     [/\bmindestdicke\b/gi, "Mindestdicke"],
     [/\bquerbewehrung\b/gi, "Querbewehrung"],
     [/\bvertiefung\b/gi, "Vertiefung"],
     [/\brinne\b/gi, "Rinne"],
     [/\bfugenbleche\b/gi, "Fugenbleche"],
-    [/\bspÃ¤ter einzubauen der Rinne\b/gi, "spÃ¤ter einzubauende Rinne"],
+    [/\bspäter einzubauen der Rinne\b/gi, "später einzubauende Rinne"],
     [/\bmatten\s+lage\b/gi, "Mattenlage"],
     [/\buntergeschoss\s*[- ]\s*grundriss\b/gi, "Untergeschoss-Grundriss"],
     [/\bbeton\s+deckung\b/gi, "Betondeckung"],
-    [/\bist\s+zu\s+gering\s+ist\s+mÃ¼ssen\b/gi, "ist zu gering. Es mÃ¼ssen"],
-    [/\bist\s+zu\s+gering\s+es\s+mÃ¼ssen\b/gi, "ist zu gering. Es mÃ¼ssen"],
+    [/\bist\s+zu\s+gering\s+ist\s+müssen\b/gi, "ist zu gering. Es müssen"],
+    [/\bist\s+zu\s+gering\s+es\s+müssen\b/gi, "ist zu gering. Es müssen"],
     [/\bist\s+zu\s+niedrig\s+die\s+obere\b/gi, "ist zu niedrig. Die obere"],
     [/\bsind\s+zu\s+niedrig\s+die\s+obere\b/gi, "sind zu niedrig. Die obere"],
     [/\bsind\s+teilweise\s+zu\s+niedrig\s+die\s+obere\b/gi, "sind teilweise zu niedrig. Die obere"],
     [/,\s*sie\s+muss\b/gi, ". Sie muss"],
-    [/\bwerden\s+die\s+BÃ¼gel\b/gi, "werden. Die BÃ¼gel"],
-    [/\bwerden\s+die\s+UnterstÃ¼tzungskÃ¶rbe\b/gi, "werden. Die UnterstÃ¼tzungskÃ¶rbe"],
+    [/\bwerden\s+die\s+Bügel\b/gi, "werden. Die Bügel"],
+    [/\bwerden\s+die\s+Unterstützungskörbe\b/gi, "werden. Die Unterstützungskörbe"],
     [/\bbetoniert\s+die\b/gi, "betoniert. Die"],
     [/\bumgebaut\s+werden\s+die\b/gi, "umgebaut werden. Die"],
     [/\bmuss\s+umgebaut\s+werden\s+die\b/gi, "muss umgebaut werden. Die"]
@@ -8121,11 +8121,11 @@ function polishDictationText(text = "") {
   });
 
   const technicalTerms = [
-    ["Ã¼bergreifungslÃ¤ngen", "ÃœbergreifungslÃ¤ngen"],
-    ["Ã¼bergreifungslÃ¤nge", "ÃœbergreifungslÃ¤nge"],
+    ["übergreifungslängen", "Übergreifungslängen"],
+    ["übergreifungslänge", "Übergreifungslänge"],
     ["anschlussbewehrung", "Anschlussbewehrung"],
     ["mattenlage", "Mattenlage"],
-    ["unterstÃ¼tzungskÃ¶rbe", "UnterstÃ¼tzungskÃ¶rbe"],
+    ["unterstützungskörbe", "Unterstützungskörbe"],
     ["betondeckung", "Betondeckung"],
     ["bodenplatte", "Bodenplatte"],
     ["untergeschoss", "Untergeschoss"],
@@ -8140,10 +8140,10 @@ function polishDictationText(text = "") {
     ["fundamenterder", "Fundamenterder"],
     ["fugenbleche", "Fugenbleche"],
     ["einbauteile", "Einbauteile"],
-    ["bÃ¼gel", "BÃ¼gel"],
+    ["bügel", "Bügel"],
     ["abstandhalter", "Abstandhalter"],
     ["durchstanzbewehrung", "Durchstanzbewehrung"],
-    ["doppelwÃ¤nde", "DoppelwÃ¤nde"],
+    ["doppelwände", "Doppelwände"],
     ["kranfundament", "Kranfundament"],
     ["kranfundaments", "Kranfundaments"],
     ["wu-bodenplatte", "WU-Bodenplatte"],
@@ -8201,7 +8201,7 @@ function normalizeSpeechRecognitionTranscript(chunks = []) {
 }
 
 function normalizeDictationKey(text = "") {
-  return cleanDictationText(text).toLowerCase().replace(/[.,;:!?\-â€“â€”"'â€žâ€œâ€]/g, "").replace(/\s+/g, " ").trim();
+  return cleanDictationText(text).toLowerCase().replace(/[.,;:!?\-–—"'„“”]/g, "").replace(/\s+/g, " ").trim();
 }
 
 function appendVoiceText(existing, addition) {
@@ -8306,7 +8306,7 @@ function insertVoiceText(btn, text) {
       state.current.dailyReport.workOriginal = appendVoiceText(state.current.dailyReport.workOriginal || "", text);
       if (language === "de") state.current.dailyReport.workGerman = appendVoiceText(state.current.dailyReport.workGerman || "", text);
       if (language === "sq") state.current.dailyReport.workAlbanian = appendVoiceText(state.current.dailyReport.workAlbanian || "", text);
-      state.current.dailyReport.translationStatus = "nicht Ã¼bersetzt";
+      state.current.dailyReport.translationStatus = "nicht übersetzt";
     } else {
       if (fieldName === "voiceDraft") {
         state.current.dailyReport.inputLanguage = language;
@@ -8327,7 +8327,7 @@ function insertVoiceText(btn, text) {
 async function fetchWeather() {
   const status = $("#weatherStatus");
   if (!navigator.geolocation) {
-    status.textContent = "GPS nicht verfÃ¼gbar.";
+    status.textContent = "GPS nicht verfügbar.";
     return;
   }
   status.textContent = "Standort wird abgefragt...";
@@ -8339,7 +8339,7 @@ async function fetchWeather() {
       const response = await fetch(url);
       const data = await response.json();
       const current = data.current || {};
-      $('[name="temperature"]').value = current.temperature_2m ? `${current.temperature_2m} Â°C` : "";
+      $('[name="temperature"]').value = current.temperature_2m ? `${current.temperature_2m} °C` : "";
       $('[name="humidity"]').value = current.relative_humidity_2m ? `${current.relative_humidity_2m} %` : "";
       $('[name="wind"]').value = current.wind_speed_10m ? `${current.wind_speed_10m} km/h` : "";
       $('[name="precipitation"]').value = current.precipitation > 0 ? "ja" : "nein";
@@ -8351,7 +8351,7 @@ async function fetchWeather() {
       const inspectionTimeField = $('[name="inspectionDateTime"]');
       if (inspectionTimeField && !inspectionTimeField.value) inspectionTimeField.value = weatherStamp;
       saveFromForm();
-      status.textContent = "Wetter Ã¼bernommen, Baustellenzeit gesetzt und manuell Ã¤nderbar.";
+      status.textContent = "Wetter übernommen, Baustellenzeit gesetzt und manuell änderbar.";
     } catch {
       status.textContent = "Wetterabruf fehlgeschlagen.";
     }
@@ -8362,7 +8362,7 @@ async function fetchWeather() {
 
 function weatherCode(code) {
   const map = {
-    0: "klar", 1: "Ã¼berwiegend klar", 2: "teilweise bewÃ¶lkt", 3: "bedeckt",
+    0: "klar", 1: "überwiegend klar", 2: "teilweise bewölkt", 3: "bedeckt",
     45: "Nebel", 48: "Reifnebel", 51: "leichter Nieselregen", 61: "leichter Regen",
     63: "Regen", 65: "starker Regen", 71: "Schnee", 80: "Regenschauer", 95: "Gewitter"
   };
@@ -8374,7 +8374,7 @@ async function fillSiteControlWeatherFromLocation() {
   const form = $("#siteControlForm");
   if (!form) return;
   if (!navigator.geolocation) {
-    showAppToast("Standortabfrage ist in diesem Browser nicht verfÃ¼gbar.", { type: "error" });
+    showAppToast("Standortabfrage ist in diesem Browser nicht verfügbar.", { type: "error" });
     return;
   }
   showAppToast("Standort wird abgefragt ...", { type: "info" });
@@ -8391,14 +8391,14 @@ async function fillSiteControlWeatherFromLocation() {
       const wind = current.wind_speed_10m ?? "-";
       const condition = weatherCode(current.weather_code);
       const rain = Number(current.precipitation || 0) > 0 ? `, Niederschlag ${current.precipitation} mm` : "";
-      form.elements.siteWeather.value = `Wetter automatisch ermittelt am ${stamp}: ${temp} Â°C, ${condition}, Wind ${wind} km/h${rain}. Standort: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}.`;
+      form.elements.siteWeather.value = `Wetter automatisch ermittelt am ${stamp}: ${temp} °C, ${condition}, Wind ${wind} km/h${rain}. Standort: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}.`;
       saveSiteControlForm();
-      showAppToast("Wetterdaten Ã¼bernommen.", { type: "success" });
+      showAppToast("Wetterdaten übernommen.", { type: "success" });
     } catch (error) {
-      showAppToast("Wetterabruf fehlgeschlagen. Manuelle Eingabe bleibt mÃ¶glich.", { type: "error" });
+      showAppToast("Wetterabruf fehlgeschlagen. Manuelle Eingabe bleibt möglich.", { type: "error" });
     }
   }, () => {
-    showAppToast("Standortfreigabe abgelehnt. Manuelle Eingabe bleibt mÃ¶glich.", { type: "info" });
+    showAppToast("Standortfreigabe abgelehnt. Manuelle Eingabe bleibt möglich.", { type: "info" });
   }, { enableHighAccuracy: true, timeout: 12000 });
 }
 
@@ -8407,7 +8407,7 @@ async function fillSiteControlWeatherFromLocation() {
 function siteStatusClass(status = "") {
   const value = String(status || "").toLowerCase();
   if (value.includes("erledigt")) return "ok";
-  if (value.includes("klÃ¤r") || value.includes("bearbeitung")) return "partial";
+  if (value.includes("klär") || value.includes("bearbeitung")) return "partial";
   if (value.includes("offen") || value.includes("mangel") || value.includes("kritisch")) return "bad";
   return "neutral";
 }
@@ -8449,7 +8449,7 @@ function createBlankSiteControl(projectId) {
 
 function openSiteControlProtocol(protocol) {
   if (!protocol || siteControlProtocolIsDeleted(protocol)) {
-    showAppToast("Diese Baustellenkontrolle ist gelÃ¶scht und wird ausgeblendet.", { type: "info" });
+    showAppToast("Diese Baustellenkontrolle ist gelöscht und wird ausgeblendet.", { type: "info" });
     showView("siteControlView");
     renderSiteControlView();
     return;
@@ -8465,7 +8465,7 @@ function openSiteControlProtocol(protocol) {
 }
 
 function confirmSiteControlDelete() {
-  return confirm("Baustellenkontrolle wirklich lÃ¶schen?\n\nDer Vorgang wird ausgeblendet, kann aber spÃ¤ter wiederhergestellt werden.");
+  return confirm("Baustellenkontrolle wirklich löschen?\n\nDer Vorgang wird ausgeblendet, kann aber später wiederhergestellt werden.");
 }
 
 function softDeleteSiteControlProtocol(protocolId) {
@@ -8476,7 +8476,7 @@ function softDeleteSiteControlProtocol(protocolId) {
   }
   const activeProjectId = activeSiteControlProjectId();
   if (activeProjectId && protocol.projectId !== activeProjectId) {
-    showAppToast("Dieser Vorgang gehÃ¶rt nicht zum aktiven Projekt.", { type: "error" });
+    showAppToast("Dieser Vorgang gehört nicht zum aktiven Projekt.", { type: "error" });
     return;
   }
   const deletedAt = new Date().toISOString();
@@ -8488,7 +8488,7 @@ function softDeleteSiteControlProtocol(protocolId) {
   state.currentProjectId = protocol.projectId || state.currentProjectId || "";
   if (state.current?.id === protocol.id) state.current = null;
   persist();
-  showAppToast("Baustellenkontrolle gelÃ¶scht. Der Vorgang bleibt technisch erhalten.", { type: "success", timeout: 5500 });
+  showAppToast("Baustellenkontrolle gelöscht. Der Vorgang bleibt technisch erhalten.", { type: "success", timeout: 5500 });
   showView("siteControlView");
   renderSiteControlView();
 }
@@ -8509,7 +8509,7 @@ function renderSiteControlView() {
             <div>
               <h3>${escapeHtml(project.name || "Unbenanntes Projekt")}</h3>
               <div class="muted">${escapeHtml(projectAddressText(project, { multiline: false }) || "Adresse offen")}</div>
-              <div class="muted">${protocols.length} Baustellenkontrolle(n) Â· ${openCount} offene Punkte</div>
+              <div class="muted">${protocols.length} Baustellenkontrolle(n) · ${openCount} offene Punkte</div>
             </div>
             <button class="primary-btn" data-new-site-control="${project.id}" type="button">Baustellenkontrolle starten</button>
           </div>
@@ -8518,10 +8518,10 @@ function renderSiteControlView() {
               <article class="acceptance-card">
                 <div>
                   <strong>${escapeHtml(protocol.head.acceptanceTitle || "Baustellenkontrolle")}</strong>
-                  <div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} Â· ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div>
-                  <div class="muted">${(protocol.siteItems || []).length} Feststellung(en) Â· ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div>
+                  <div class="muted">${escapeHtml(formatDate(protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(protocol.siteControl?.reason || "Regelbegehung")}</div>
+                  <div class="muted">${(protocol.siteItems || []).length} Feststellung(en) · ${(protocol.siteItems || []).filter(siteControlItemIsOpen).length} offen</div>
                 </div>
-                <div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Ã–ffnen</button><button class="danger-btn small-btn" data-delete-site-control="${protocol.id}" type="button">LÃ¶schen</button></div>
+                <div class="card-actions"><button class="secondary-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button><button class="danger-btn small-btn" data-delete-site-control="${protocol.id}" type="button">Löschen</button></div>
               </article>`).join("") : `<div class="empty-card muted">Noch keine Baustellenkontrolle in diesem Projekt.</div>`}
           </div>
         </article>`;
@@ -8543,9 +8543,9 @@ function renderSiteControlOpenItems() {
       <div class="section-head"><h3>Offene Punkte Baustellenkontrolle</h3><span class="status-badge ${openItems.length ? "bad" : "ok"}">${openItems.length}</span></div>
       ${openItems.length ? openItems.slice(0, 12).map(({ protocol, item }) => `
         <div class="site-open-row">
-          <strong>${escapeHtml(item.type)} Â· ${escapeHtml(item.location || "ohne Bereich")}</strong>
+          <strong>${escapeHtml(item.type)} · ${escapeHtml(item.location || "ohne Bereich")}</strong>
           <span>${escapeHtml(projectById(protocol.projectId)?.name || protocol.head.projectName || "Projekt")}</span>
-          <button class="small-btn" data-open-site-control="${protocol.id}" type="button">Ã–ffnen</button>
+          <button class="small-btn" data-open-site-control="${protocol.id}" type="button">Öffnen</button>
         </div>`).join("") : `<p class="muted">Keine offenen Baustellenkontrollpunkte.</p>`}
     </section>`;
 }
@@ -8665,12 +8665,12 @@ function renderSiteControlPlanTab() {
   const itemsWithPins = (state.current.siteItems || []).map((item) => ({ item, pin: siteControlPinForItem(item) })).filter((entry) => entry.pin);
   target.innerHTML = `
     <div class="site-summary-grid">
-      <div class="mini-stat"><strong>${plans.length}</strong><span>ProjektplÃ¤ne</span></div>
+      <div class="mini-stat"><strong>${plans.length}</strong><span>Projektpläne</span></div>
       <div class="mini-stat"><strong>${itemsWithPins.length}</strong><span>Planmarkierungen</span></div>
       <div class="mini-stat"><strong>${(state.current.siteItems || []).length}</strong><span>Feststellungen</span></div>
     </div>
-    ${plans.length ? `<div class="site-plan-list">${plans.slice(0, 6).map((plan) => `<article class="site-plan-mini-card"><strong>${escapeHtml(planCompactTitle(plan))}</strong><span>${escapeHtml([plan.category, plan.level, plan.component].filter(Boolean).join(" Â· ") || plan.fileName || "Projektplan")}</span></article>`).join("")}</div>` : `<p class="muted">Noch keine ProjektplÃ¤ne vorhanden. Ã–ffne die ProjektplÃ¤ne, um Unterlagen hochzuladen.</p>`}
-    ${itemsWithPins.length ? `<div class="site-pin-list">${itemsWithPins.map(({ item, pin }) => `<div><strong>${escapeHtml(pinLabel(pin))}</strong><span>${escapeHtml(item.type || "Feststellung")} Â· ${escapeHtml(siteControlPlanReference(item, pin) || "Planbezug vorhanden")}</span></div>`).join("")}</div>` : `<p class="muted">Noch keine Feststellung ist auf einem Plan markiert.</p>`}
+    ${plans.length ? `<div class="site-plan-list">${plans.slice(0, 6).map((plan) => `<article class="site-plan-mini-card"><strong>${escapeHtml(planCompactTitle(plan))}</strong><span>${escapeHtml([plan.category, plan.level, plan.component].filter(Boolean).join(" · ") || plan.fileName || "Projektplan")}</span></article>`).join("")}</div>` : `<p class="muted">Noch keine Projektpläne vorhanden. Öffne die Projektpläne, um Unterlagen hochzuladen.</p>`}
+    ${itemsWithPins.length ? `<div class="site-pin-list">${itemsWithPins.map(({ item, pin }) => `<div><strong>${escapeHtml(pinLabel(pin))}</strong><span>${escapeHtml(item.type || "Feststellung")} · ${escapeHtml(siteControlPlanReference(item, pin) || "Planbezug vorhanden")}</span></div>`).join("")}</div>` : `<p class="muted">Noch keine Feststellung ist auf einem Plan markiert.</p>`}
   `;
 }
 
@@ -8697,8 +8697,8 @@ function siteControlItemSummary(item, pin, photos) {
   if (item.trade) parts.push(item.trade);
   parts.push(`${photos.length} Foto${photos.length === 1 ? "" : "s"}`);
   parts.push(pin ? `Pin ${pinLabel(pin)}` : "kein Pin");
-  if (item.responsible) parts.push(`ZustÃ¤ndig: ${item.responsible}`);
-  return parts.join(" Â· ");
+  if (item.responsible) parts.push(`Zuständig: ${item.responsible}`);
+  return parts.join(" · ");
 }
 
 function siteControlItemCard(item) {
@@ -8721,9 +8721,9 @@ function siteControlItemCard(item) {
           <label>Typ<select data-site-item-field="type">${siteControlOptions(state.masterData.siteControlTypes || SITE_CONTROL_TYPES, item.type)}</select></label>
           <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
           <label>Bereich / Ort<input data-site-item-field="location" list="siteControlAreaOptions" value="${escapeAttr(item.location)}"></label>
-          <label>ZustÃ¤ndig<input data-site-item-field="responsible" list="responsibleOptions" value="${escapeAttr(item.responsible)}"></label>
+          <label>Zuständig<input data-site-item-field="responsible" list="responsibleOptions" value="${escapeAttr(item.responsible)}"></label>
           <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
-          <label>PrioritÃ¤t<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
+          <label>Priorität<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
           <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
           <label>Planbezug / Pin<input data-site-item-field="planReference" value="${escapeAttr(item.planReference)}" placeholder="z. B. Plan B-002, P3"></label>
         </div>
@@ -8740,14 +8740,14 @@ function siteControlItemCard(item) {
         </label>
         <div class="result-actions site-photo-actions">
           <button class="secondary-btn" type="button" data-site-photo-camera="${item.id}">Foto aufnehmen</button>
-          <button class="secondary-btn" type="button" data-site-photo-gallery="${item.id}">Foto aus Galerie auswÃ¤hlen</button>
-          <button class="danger-btn" type="button" data-delete-site-item="${item.id}">Feststellung lÃ¶schen</button>
+          <button class="secondary-btn" type="button" data-site-photo-gallery="${item.id}">Foto aus Galerie auswählen</button>
+          <button class="danger-btn" type="button" data-delete-site-item="${item.id}">Feststellung löschen</button>
         </div>
         <div class="photo-grid compact-photo-grid">
           ${photos.map((photo) => `
             <figure class="photo-tool-card">
               <img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}">
-              <figcaption><span>${escapeHtml(photo.name || "Foto")}</span>${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto lÃ¶schen</button></figcaption>
+              <figcaption><span>${escapeHtml(photo.name || "Foto")}</span>${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-site-photo="${item.id}" data-photo-id="${photo.id}">Foto löschen</button></figcaption>
             </figure>`).join("")}
         </div>
       </div>` : ""}
@@ -8847,7 +8847,7 @@ function applyDailyReportProjectAddress() {
   state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
   state.current.updatedAt = new Date().toISOString();
   persist();
-  showAppToast("Adresse aus Projekt Ã¼bernommen.", { type: "success" });
+  showAppToast("Adresse aus Projekt übernommen.", { type: "success" });
 }
 
 function siteControlReportStatus(item = {}, pin = siteControlPinForItem(item)) {
@@ -8857,7 +8857,7 @@ function siteControlReportStatusClass(status = "") {
   const text = String(status || "").toLowerCase();
   if (text.includes("mangel")) return "bad";
   if (text.includes("dokument") || text.includes("doku") || text.includes("foto")) return "doc";
-  if (text.includes("aufgabe") || text.includes("auflage") || text.includes("klÃ¤r") || text.includes("klaer")) return "partial";
+  if (text.includes("aufgabe") || text.includes("auflage") || text.includes("klär") || text.includes("klaer")) return "partial";
   if (text.includes("erledigt")) return "ok";
   return "neutral";
 }
@@ -8871,7 +8871,7 @@ function siteControlReportMetaMap(items = []) {
     const pinText = pin ? pinLabel(pin) : "";
     const context = [item.trade, item.location].filter(Boolean).join(" / ") || item.location || item.trade || "ohne Zuordnung";
     const number = siteControlItemBkLabel(item, index);
-    map.set(item.id, { number, pin, pinText, status, context, title: [number, pinText, status, context].filter(Boolean).join(" Â· ") });
+    map.set(item.id, { number, pin, pinText, status, context, title: [number, pinText, status, context].filter(Boolean).join(" · ") });
   });
   return map;
 }
@@ -8948,19 +8948,19 @@ function siteControlCompactPlanTitle(plan) {
   name = name.replace(/\b(.{4,40}?)\s+\1\b/gi, "$1").trim();
   const prefix = number ? `Plan ${number}` : "Plan";
   if (!name || name.toLowerCase() === String(number).toLowerCase() || name.toLowerCase() === "plan") return prefix;
-  return `${prefix} â€“ ${name}`;
+  return `${prefix} – ${name}`;
 }
 
 function siteControlReportItemCard(item, meta = {}, photos = [], { pin = null } = {}) {
   const effectivePin = pin || meta.pin || siteControlPinForItem(item);
   const status = meta.status || siteControlReportStatus(item, effectivePin);
-  const title = meta.title || [meta.number, effectivePin ? pinLabel(effectivePin) : "", status, meta.context || siteControlItemContext(item)].filter(Boolean).join(" Â· ");
+  const title = meta.title || [meta.number, effectivePin ? pinLabel(effectivePin) : "", status, meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
   const planRef = siteControlPlanReference(item, effectivePin) || item.planReference || "";
   return `
     <article class="site-report-card ${photos.length ? "has-photos" : ""}">
       <div class="site-item-title"><div><strong>${escapeHtml(title)}</strong></div><span class="status-badge ${siteControlReportStatusClass(status)}">${escapeHtml(status)}</span></div>
       <div class="site-item-body">
-        ${infoRow("ZustÃ¤ndig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("PrioritÃ¤t", item.priority)}${infoRow("Planbezug / Pin", planRef)}
+        ${infoRow("Zuständig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("Priorität", item.priority)}${infoRow("Planbezug / Pin", planRef)}
         <p>${escapeHtml(siteControlItemDescription(item) || "Keine Beschreibung erfasst.")}</p>
         ${photos.length ? `<p class="muted">${photos.length} Foto${photos.length === 1 ? "" : "s"}</p>${siteControlReportPhotoGrid(photos)}` : ""}
       </div>
@@ -8972,8 +8972,8 @@ function siteControlCompactItemOverview(items = [], reportMeta = new Map()) {
   return `<div class="site-compact-list">${items.map((item) => {
     const meta = reportMeta.get(item.id) || {};
     const pin = meta.pin || siteControlPinForItem(item);
-    const title = [meta.number, pin ? pinLabel(pin) : "", meta.status || siteControlReportStatus(item, pin), meta.context || siteControlItemContext(item)].filter(Boolean).join(" Â· ");
-    const facts = [`ZustÃ¤ndig: ${item.responsible || "offen"}`, `Frist: ${item.dueDate || "offen"}`].join(" Â· ");
+    const title = [meta.number, pin ? pinLabel(pin) : "", meta.status || siteControlReportStatus(item, pin), meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
+    const facts = [`Zuständig: ${item.responsible || "offen"}`, `Frist: ${item.dueDate || "offen"}`].join(" · ");
     return `<article class="site-report-card compact"><div class="site-item-body"><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(facts)}</span></div></article>`;
   }).join("")}</div>`;
 }
@@ -9071,7 +9071,7 @@ async function buildSiteControlReportParts() {
   const openOverviewHtml = siteControlCompactItemOverview(openItems, reportMeta);
   const deletedHtml = siteControlDeletedItemsReport(deletedItems);
   const body = `    <div class="report-export"><main class="report-page">
-      <header class="report-header"><div><div class="brand">Kai BauSuite Â· Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
+      <header class="report-header"><div><div class="brand">Kai BauSuite · Baustellenkontrolle</div><h1>Baustellenkontrolle</h1><p class="muted">Allgemeine Baustellenbegehung mit Feststellungen, Aufgaben, Fotos und offenen Punkten.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(protocolInspectionDateTime(p)))}</strong></div><div><span>Protokoll</span><strong>${escapeHtml(p.id.slice(-8).toUpperCase())}</strong></div></aside></header>
       <section class="info-grid"><div class="info-card"><h3>Projekt</h3>${rows.slice(0,3).map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Kontrolle</h3>${rows.slice(3).map(([k,v]) => infoRow(k,v)).join("")}</div></section>
       <h2>Ergebnis / Zusammenfassung</h2><section class="info-card result-box">${infoRow("Feststellungen gesamt", String(items.length + deletedItems.length))}${infoRow("Offene Punkte", String(openItems.length))}${deletedItems.length ? infoRow("Gelöschte Punkte", String(deletedItems.length)) : ""}${infoRow("Schlussbemerkung", p.siteControl?.finalNote || p.result?.finalNote || "")}</section>
       <h2>Offene Punkte</h2>${openOverviewHtml}
@@ -9086,7 +9086,7 @@ async function buildSiteControlReportParts() {
 }
 function createBlankDailyReport(projectId) {
   const project = projectById(projectId || state.currentProjectId);
-  if (!project) { showAppToast("Bitte zuerst ein Projekt auswÃ¤hlen.", { type: "error" }); return; }
+  if (!project) { showAppToast("Bitte zuerst ein Projekt auswählen.", { type: "error" }); return; }
   const date = (nowLocalInput() || "").slice(0, 10);
   const protocol = blankProtocol(project, { kind: PROTOCOL_KIND_DAILY_REPORT, head: { acceptanceTitle: `Bautagesbericht ${date}`, acceptanceType: "Bautagesbericht", createdAt: `${date}T08:00` } });
   protocol.kind = PROTOCOL_KIND_DAILY_REPORT;
@@ -9116,9 +9116,9 @@ function openDailyReportProtocol(protocol) {
 function dailyReportListCard(protocol) {
   const report = normalizeDailyReportMeta(protocol.dailyReport || {}, protocol);
   const project = projectById(protocol.projectId);
-  const summary = report.workOriginal || report.workDescription || report.incidentsOriginal || "Noch keine TÃ¤tigkeiten dokumentiert.";
+  const summary = report.workOriginal || report.workDescription || report.incidentsOriginal || "Noch keine Tätigkeiten dokumentiert.";
   const time = [report.workStart, report.workEnd].filter(Boolean).join(" - ") || "Arbeitszeit offen";
-  return `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Bautagesbericht")}</h4><div class="muted">${escapeHtml(formatDate(report.date || protocol.head.createdAt || protocol.createdAt))} Â· ${escapeHtml(project?.name || protocol.head.projectName || "Projekt")}</div><div class="muted">${escapeHtml(time)} Â· ${escapeHtml(report.crew || "Kolonne offen")} Â· ${escapeHtml(report.status || "Entwurf")}</div><p class="muted">${escapeHtml(summary).slice(0, 180)}</p></div><div class="card-actions"><button class="secondary-btn" data-open-daily-report="${protocol.id}" type="button">Ã–ffnen</button><button class="danger-btn" data-delete-daily-report="${protocol.id}" type="button">LÃ¶schen</button></div></article>`;
+  return `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Bautagesbericht")}</h4><div class="muted">${escapeHtml(formatDate(report.date || protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(project?.name || protocol.head.projectName || "Projekt")}</div><div class="muted">${escapeHtml(time)} · ${escapeHtml(report.crew || "Kolonne offen")} · ${escapeHtml(report.status || "Entwurf")}</div><p class="muted">${escapeHtml(summary).slice(0, 180)}</p></div><div class="card-actions"><button class="secondary-btn" data-open-daily-report="${protocol.id}" type="button">Öffnen</button><button class="danger-btn" data-delete-daily-report="${protocol.id}" type="button">Löschen</button></div></article>`;
 }
 
 function renderDailyReportView() {
@@ -9136,8 +9136,8 @@ function normalizeMatchText(value = "") {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/ÃŸ/g, "ss")
-    .replace(/[^a-z0-9Ã¤Ã¶Ã¼Ã„Ã–Ãœ\s-]/gi, " ")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9äöüÄÖÜ\s-]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -9232,8 +9232,8 @@ function extractDailyReportFieldsFromSpeech(text = "") {
     result.sources.workStart = result.sources.workEnd = time[0];
     result.confidence.workStart = result.confidence.workEnd = "medium";
   }
-  const weather = text.match(/(wetter[^.]+|trocken[^.]*|regen[^.]*|sonnig[^.]*|bew[Ã¶o]lkt[^.]*)/i);
-  const temp = text.match(/(\d{1,2})\s*(grad|Â°c)/i);
+  const weather = text.match(/(wetter[^.]+|trocken[^.]*|regen[^.]*|sonnig[^.]*|bew[öo]lkt[^.]*)/i);
+  const temp = text.match(/(\d{1,2})\s*(grad|°c)/i);
   if (weather || temp) {
     result.fields.weather = [weather?.[0], temp?.[0]].filter(Boolean).join(", ");
     result.sources.weather = result.fields.weather;
@@ -9251,7 +9251,7 @@ function extractDailyReportFieldsFromSpeech(text = "") {
     result.sources.materials = material[0];
     result.confidence.materials = "medium";
   }
-  const equipment = text.match(/(?:gerÃ¤t|gerÃ¤te|maschine|maschinen)\s*:?\s*([^.;]+)/i);
+  const equipment = text.match(/(?:gerät|geräte|maschine|maschinen)\s*:?\s*([^.;]+)/i);
   if (equipment) {
     result.fields.equipment = equipment[1].trim();
     result.sources.equipment = equipment[0];
@@ -9263,7 +9263,7 @@ function extractDailyReportFieldsFromSpeech(text = "") {
     result.sources.delays = delay[0];
     result.confidence.delays = "medium";
   }
-  const defect = text.match(/(?:mangel|mÃ¤ngel|offene punkte|problem)\s*:?\s*([^.;]+)/i);
+  const defect = text.match(/(?:mangel|mängel|offene punkte|problem)\s*:?\s*([^.;]+)/i);
   if (defect) {
     result.fields.defects = defect[0].trim();
     result.sources.defects = defect[0];
@@ -9293,15 +9293,15 @@ function extractDailyEmployeesFromSpeech(text = "") {
     } else if (match.status === "ambiguous") {
       unmatched.push(rawName);
       sources.push({ name: rawName, confidence: "low", status: "ambiguous", candidates: match.matches.map((item) => item.name) });
-      workers.push(normalizeDailyWorker({ name: rawName, company: company?.name || "", source: "voice", confidence: "low", matchStatus: "ambiguous", sourceName: rawName, note: "Mehrere Stammdaten-Treffer â€“ bitte auswÃ¤hlen." }, workers.length));
+      workers.push(normalizeDailyWorker({ name: rawName, company: company?.name || "", source: "voice", confidence: "low", matchStatus: "ambiguous", sourceName: rawName, note: "Mehrere Stammdaten-Treffer – bitte auswählen." }, workers.length));
     } else {
       unmatched.push(rawName);
       sources.push({ name: rawName, confidence: "low", status: "unmatched" });
-      workers.push(normalizeDailyWorker({ name: rawName, company: company?.name || "", source: "voice", confidence: "low", matchStatus: "unmatched", sourceName: rawName, note: "Mitarbeiter nicht in Stammdaten gefunden â€“ bitte auswÃ¤hlen oder neu anlegen." }, workers.length));
+      workers.push(normalizeDailyWorker({ name: rawName, company: company?.name || "", source: "voice", confidence: "low", matchStatus: "unmatched", sourceName: rawName, note: "Mitarbeiter nicht in Stammdaten gefunden – bitte auswählen oder neu anlegen." }, workers.length));
     }
   }
   const targetCount = Math.max(Number(count) || 0, workers.length);
-  while (workers.length < targetCount) workers.push(normalizeDailyWorker({ company: company?.name || "", source: "voice", confidence: "medium", matchStatus: "empty", note: "Per Sprache angelegt â€“ bitte Mitarbeiter auswÃ¤hlen." }, workers.length));
+  while (workers.length < targetCount) workers.push(normalizeDailyWorker({ company: company?.name || "", source: "voice", confidence: "medium", matchStatus: "empty", note: "Per Sprache angelegt – bitte Mitarbeiter auswählen." }, workers.length));
   return { count: targetCount || "", spokenCount: count || "", company, workers, unmatched, selectedIds, sources, confidence: unmatched.length ? "medium" : (workers.length ? "high" : "") };
 }
 
@@ -9310,7 +9310,7 @@ function applyDailyVoiceExtraction(text = "") {
   saveDailyReportForm({ persistNow: false });
   const report = state.current.dailyReport = normalizeDailyReportMeta(state.current.dailyReport || {}, state.current);
   const raw = String(text || report.voiceDraft || report.raw_transcript || "").trim();
-  if (!raw) return showAppToast("Bitte zuerst einen Bautagesbericht einsprechen oder Text einfÃ¼gen.", { type: "info" });
+  if (!raw) return showAppToast("Bitte zuerst einen Bautagesbericht einsprechen oder Text einfügen.", { type: "info" });
   const fieldResult = extractDailyReportFieldsFromSpeech(raw);
   const employeeResult = extractDailyEmployeesFromSpeech(raw);
   report.voiceDraft = raw;
@@ -9332,11 +9332,11 @@ function applyDailyVoiceExtraction(text = "") {
   report.employee_field_sources = employeeResult.sources;
   report.employee_confidence = employeeResult.confidence;
   report.ai_employee_extraction_used = !!employeeResult.workers.length;
-  report.voice_warnings = employeeResult.unmatched.length ? ["Mitarbeiter nicht eindeutig in Stammdaten gefunden â€“ bitte prÃ¼fen."] : [];
+  report.voice_warnings = employeeResult.unmatched.length ? ["Mitarbeiter nicht eindeutig in Stammdaten gefunden – bitte prüfen."] : [];
   state.current.updatedAt = new Date().toISOString();
   persist();
   renderDailyReportEditor();
-  showAppToast("Diktat ausgewertet. Bitte Vorschau und Felder prÃ¼fen.", { type: "success" });
+  showAppToast("Diktat ausgewertet. Bitte Vorschau und Felder prüfen.", { type: "success" });
 }
 
 function renderDailyVoicePreview(report = state.current?.dailyReport || {}) {
@@ -9350,9 +9350,9 @@ function renderDailyVoicePreview(report = state.current?.dailyReport || {}) {
     <div class="voice-preview-card">
       <strong>Personal erkannt</strong>
       <p class="muted">Erkannt: ${escapeHtml(String(report.mitarbeiter_count_spoken || report.personCount || workers.length || 0))} Mitarbeiter vor Ort</p>
-      <ul>${workers.map((worker, index) => `<li>${escapeHtml(worker.name || `Mitarbeiter ${index + 1} auswÃ¤hlen`)} ${worker.matchStatus === "matched" ? "âœ“" : "â€“ bitte prÃ¼fen"}${worker.company ? ` Â· ${escapeHtml(worker.company)}` : ""}</li>`).join("")}</ul>
+      <ul>${workers.map((worker, index) => `<li>${escapeHtml(worker.name || `Mitarbeiter ${index + 1} auswählen`)} ${worker.matchStatus === "matched" ? "✓" : "– bitte prüfen"}${worker.company ? ` · ${escapeHtml(worker.company)}` : ""}</li>`).join("")}</ul>
       ${warnings.length ? `<p class="field-warning">${escapeHtml(warnings.join(" "))}</p>` : ""}
-      <p class="muted">Gefunden: ${matched.length} Â· offen: ${open.length}</p>
+      <p class="muted">Gefunden: ${matched.length} · offen: ${open.length}</p>
     </div>` : `<p class="muted">Noch kein Bautagesbericht-Diktat ausgewertet.</p>`;
 }
 function renderDailyReportEditor() {
@@ -9379,14 +9379,14 @@ function renderDailyReportEditor() {
   form.elements.dailyArea.value = report.area || "";
   form.elements.dailyTrade.value = report.trade || "";
   form.elements.dailyInputLanguage.value = report.inputLanguage || report.original_language || "de";
-  form.elements.dailyTranslationStatus.value = report.translationStatus || "nicht Ã¼bersetzt";
+  form.elements.dailyTranslationStatus.value = report.translationStatus || "nicht übersetzt";
   form.elements.dailyWorkOriginal.value = report.original_text || report.workOriginal || "";
   form.elements.dailyWorkGerman.value = report.translated_text_de || report.workGerman || report.cleaned_text_de || "";
   form.elements.dailyWorkAlbanian.value = report.workAlbanian || "";
   form.elements.dailyWorkDescription.value = report.workDescription || "";
   if (form.elements.dailyTranslationChecked) form.elements.dailyTranslationChecked.checked = !!report.translation_checked;
   const translationHint = $("#dailyTranslationHint");
-  if (translationHint) translationHint.textContent = report.translation_warning || (report.translation_provider ? `Ãœbersetzung: ${report.translation_provider} Â· bitte prÃ¼fen.` : "KI-Ãœbersetzung bitte prÃ¼fen. Ohne konfigurierten Dienst kann die deutsche Fassung manuell eingetragen werden.");
+  if (translationHint) translationHint.textContent = report.translation_warning || (report.translation_provider ? `Übersetzung: ${report.translation_provider} · bitte prüfen.` : "KI-Übersetzung bitte prüfen. Ohne konfigurierten Dienst kann die deutsche Fassung manuell eingetragen werden.");
   form.elements.dailyMaterials.value = report.materials || "";
   form.elements.dailyEquipment.value = report.equipment || "";
   form.elements.dailyIncidentsOriginal.value = report.incidentsOriginal || "";
@@ -9398,7 +9398,7 @@ function renderDailyReportEditor() {
   form.elements.dailyConfirmedBy.value = report.confirmedBy || "";
   form.elements.dailyTotal.value = dailyReportTotalHours(report);
   const banner = $("#dailyReportModeBanner");
-  if (banner) banner.innerHTML = `<strong>Bautagesbericht</strong><span>${escapeHtml(project?.name || protocol.head.projectName || "Projekt")} Â· ${escapeHtml(formatDate(report.date || protocol.head.createdAt))}</span>`;
+  if (banner) banner.innerHTML = `<strong>Bautagesbericht</strong><span>${escapeHtml(project?.name || protocol.head.projectName || "Projekt")} · ${escapeHtml(formatDate(report.date || protocol.head.createdAt))}</span>`;
   renderDailyVoicePreview(report);
   renderDailyWorkers();
   renderDailyReportPhotos();
@@ -9419,7 +9419,7 @@ function saveDailyReportForm({ persistNow = true } = {}) {
     reportNumber: form.elements.dailyReportNumber.value || "", status: form.elements.dailyStatus.value || "Entwurf", date,
     workStart: form.elements.dailyStart.value || "", workEnd: form.elements.dailyEnd.value || "", breakHours: form.elements.dailyBreak.value || "",
     crew: form.elements.dailyCrew.value || "", company: form.elements.dailyCompany.value || "", personCount: form.elements.dailyPersonCount.value || "", foreman: form.elements.dailyForeman.value || "",
-    area: form.elements.dailyArea.value || "", trade: form.elements.dailyTrade.value || "", inputLanguage: form.elements.dailyInputLanguage.value || "de", translationStatus: form.elements.dailyTranslationStatus.value || "nicht Ã¼bersetzt", workOriginal: form.elements.dailyWorkOriginal.value || "", workGerman: form.elements.dailyWorkGerman.value || "", workAlbanian: form.elements.dailyWorkAlbanian.value || "", workDescription: form.elements.dailyWorkDescription.value || "",
+    area: form.elements.dailyArea.value || "", trade: form.elements.dailyTrade.value || "", inputLanguage: form.elements.dailyInputLanguage.value || "de", translationStatus: form.elements.dailyTranslationStatus.value || "nicht übersetzt", workOriginal: form.elements.dailyWorkOriginal.value || "", workGerman: form.elements.dailyWorkGerman.value || "", workAlbanian: form.elements.dailyWorkAlbanian.value || "", workDescription: form.elements.dailyWorkDescription.value || "",
     materials: form.elements.dailyMaterials.value || "", equipment: form.elements.dailyEquipment.value || "", incidentsOriginal: form.elements.dailyIncidentsOriginal.value || "", incidentsGerman: form.elements.dailyIncidentsGerman.value || "", incidentsAlbanian: form.elements.dailyIncidentsAlbanian.value || "", delays: form.elements.dailyDelays.value || "", defects: form.elements.dailyDefects.value || "",
     weather: form.elements.dailyWeather.value || "", confirmedBy: form.elements.dailyConfirmedBy.value || "",
     voiceDraft: form.elements.dailyVoiceDraft?.value || p.dailyReport?.voiceDraft || "",
@@ -9448,13 +9448,13 @@ function renderDailyWorkers() {
       <div class="grid compact-grid">
         <label>Name<input data-daily-worker-field="name" list="personOptions" value="${escapeAttr(worker.name)}"></label>
         <label>Firma<input data-daily-worker-field="company" list="companyOptions" value="${escapeAttr(worker.company)}"></label>
-        <label>Rolle / TÃ¤tigkeit<input data-daily-worker-field="role" list="tradeOptions" value="${escapeAttr(worker.role)}"></label>
+        <label>Rolle / Tätigkeit<input data-daily-worker-field="role" list="tradeOptions" value="${escapeAttr(worker.role)}"></label>
         <label>Arbeitsbeginn<input data-daily-worker-field="start" type="time" step="60" value="${escapeAttr(worker.start)}"></label>
         <label>Arbeitsende<input data-daily-worker-field="end" type="time" step="60" value="${escapeAttr(worker.end)}"></label>
         <label>Pause (h)<input data-daily-worker-field="breakHours" type="number" min="0" step="0.25" value="${escapeAttr(worker.breakHours)}"></label>
         <label>Stunden<input data-daily-worker-field="hours" value="${escapeAttr(workerHours(worker))}" readonly></label>
       </div>
-      ${worker.matchStatus && worker.matchStatus !== "matched" ? `<p class="field-warning">${escapeHtml(worker.note || "Bitte Mitarbeiter prÃ¼fen oder auswÃ¤hlen.")}</p>` : ""}
+      ${worker.matchStatus && worker.matchStatus !== "matched" ? `<p class="field-warning">${escapeHtml(worker.note || "Bitte Mitarbeiter prüfen oder auswählen.")}</p>` : ""}
       <label>Bemerkung<textarea data-daily-worker-field="note" rows="2">${escapeHtml(worker.note)}</textarea></label>
       <div class="card-actions compact-actions"><button class="danger-btn" type="button" data-delete-daily-worker="${escapeAttr(worker.id)}">Mitarbeiter entfernen</button></div>
     </article>
@@ -9508,7 +9508,7 @@ function renderDailyReportPhotos() {
   const target = $("#dailyPhotoList");
   if (!target || !isDailyReportProtocol()) return;
   const photos = state.current.dailyReport?.photos || [];
-  target.innerHTML = photos.length ? photos.map((photo) => `<figure class="photo-tool-card"><img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><span>${escapeHtml(photo.name || "Foto")}</span><input data-daily-photo-caption="${photo.id}" value="${escapeAttr(photo.caption || "")}" placeholder="Bildbeschreibung">${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-daily-photo="${photo.id}">Foto lÃ¶schen</button></figcaption></figure>`).join("") : `<div class="empty-card muted">Noch keine Fotos im Bautagesbericht.</div>`;
+  target.innerHTML = photos.length ? photos.map((photo) => `<figure class="photo-tool-card"><img data-photo-thumb="${photo.id}" alt="${escapeAttr(photo.name || "Foto")}"><figcaption><span>${escapeHtml(photo.name || "Foto")}</span><input data-daily-photo-caption="${photo.id}" value="${escapeAttr(photo.caption || "")}" placeholder="Bildbeschreibung">${photoBackupActions(photo)}<button class="small-btn" type="button" data-delete-daily-photo="${photo.id}">Foto löschen</button></figcaption></figure>`).join("") : `<div class="empty-card muted">Noch keine Fotos im Bautagesbericht.</div>`;
   hydratePhotoThumbs(target);
 }
 
@@ -9547,14 +9547,14 @@ function deleteDailyReportProtocol(protocolId) {
   persist();
   renderDailyReportView();
   if ($("#projectHubView")?.classList.contains("active")) renderProjectHub();
-  showAppToast("Bautagesbericht gelÃ¶scht.");
+  showAppToast("Bautagesbericht gelöscht.");
 }
 
 async function fillDailyReportWeatherFromLocation() {
   if (!isDailyReportProtocol()) return;
   const form = $("#dailyReportForm");
   if (!form) return;
-  if (!navigator.geolocation) { showAppToast("GPS ist in diesem Browser nicht verfÃ¼gbar.", { type: "error" }); return; }
+  if (!navigator.geolocation) { showAppToast("GPS ist in diesem Browser nicht verfügbar.", { type: "error" }); return; }
   showAppToast("Wetter wird geladen ...", { type: "info", timeout: 1800 });
   navigator.geolocation.getCurrentPosition(async (pos) => {
     try {
@@ -9563,9 +9563,9 @@ async function fillDailyReportWeatherFromLocation() {
       const response = await fetch(url);
       const data = await response.json();
       const current = data.current || {};
-      form.elements.dailyWeather.value = `${current.temperature_2m ?? "?"} Â°C, Luftfeuchte ${current.relative_humidity_2m ?? "?"} %, Niederschlag ${current.precipitation ?? 0} mm, Wind ${current.wind_speed_10m ?? "?"} km/h`;
+      form.elements.dailyWeather.value = `${current.temperature_2m ?? "?"} °C, Luftfeuchte ${current.relative_humidity_2m ?? "?"} %, Niederschlag ${current.precipitation ?? 0} mm, Wind ${current.wind_speed_10m ?? "?"} km/h`;
       saveDailyReportForm();
-      showAppToast("Wetterdaten eingefÃ¼gt.");
+      showAppToast("Wetterdaten eingefügt.");
     } catch { showAppToast("Wetterdaten konnten nicht geladen werden.", { type: "error" }); }
   }, () => showAppToast("Standort konnte nicht ermittelt werden.", { type: "error" }), { enableHighAccuracy: false, timeout: 10000 });
 }
@@ -9574,7 +9574,7 @@ async function fillDailyReportWeatherFromLocation() {
 
 function detectDailyInputLanguage(text = "") {
   const value = String(text || "").toLowerCase();
-  const albanianHints = ["sot", "kemi", "punuar", "nesÃ«r", "neser", "janÃ«", "jane", "vendosur", "kontrolluar", "pllak", "betonit", "armatura", "distancat"];
+  const albanianHints = ["sot", "kemi", "punuar", "nesër", "neser", "janë", "jane", "vendosur", "kontrolluar", "pllak", "betonit", "armatura", "distancat"];
   const germanHints = ["heute", "morgen", "bodenplatte", "bewehrung", "betonage", "fertig", "vorbereitet"];
   const sq = albanianHints.some((word) => value.includes(word));
   const de = germanHints.some((word) => value.includes(word));
@@ -9588,25 +9588,25 @@ function localDailyGermanTranslation(text = "", sourceLang = "auto") {
   const raw = cleanDictationText(text);
   if (!raw) return "";
   const lower = raw.toLowerCase();
-  if (sourceLang === "de" || (!/(sot|kemi|punuar|nes[eÃ«]r|jan[Ã«e]|armatura|pllak)/i.test(raw) && /[a-zÃ¤Ã¶Ã¼ÃŸ]/i.test(raw))) {
+  if (sourceLang === "de" || (!/(sot|kemi|punuar|nes[eë]r|jan[ëe]|armatura|pllak)/i.test(raw) && /[a-zäöüß]/i.test(raw))) {
     return polishDictationText(raw);
   }
   if (lower.includes("sot") && lower.includes("pllak") && lower.includes("armatur") && lower.includes("distanc")) {
-    return "Heute haben wir an der Bodenplatte gearbeitet. Die Bewehrung wurde eingebaut und die AbstÃ¤nde wurden kontrolliert.";
+    return "Heute haben wir an der Bodenplatte gearbeitet. Die Bewehrung wurde eingebaut und die Abstände wurden kontrolliert.";
   }
-  if (lower.includes("heute") && lower.includes("bodenplatte") && lower.includes("armatura") && (lower.includes("nesÃ«r") || lower.includes("neser"))) {
+  if (lower.includes("heute") && lower.includes("bodenplatte") && lower.includes("armatura") && (lower.includes("nesër") || lower.includes("neser"))) {
     return "Heute wurde die Bodenplatte vorbereitet, die untere Bewehrung ist fertig. Morgen ist die Betonage vorgesehen.";
   }
   let value = raw
     .replace(/\bSot\b/gi, "Heute")
     .replace(/\bkemi punuar\b/gi, "haben wir gearbeitet")
-    .replace(/\bnes[Ã«e]r\b/gi, "morgen")
+    .replace(/\bnes[ëe]r\b/gi, "morgen")
     .replace(/\bbetonage\b/gi, "Betonage")
     .replace(/\barmatura\b/gi, "Bewehrung")
-    .replace(/\bpllak[Ã«e]n? e betonit\b/gi, "Bodenplatte")
-    .replace(/\bdistancat\b/gi, "AbstÃ¤nde");
+    .replace(/\bpllak[ëe]n? e betonit\b/gi, "Bodenplatte")
+    .replace(/\bdistancat\b/gi, "Abstände");
   value = polishDictationText(value);
-  return /[a-zÃ¤Ã¶Ã¼ÃŸ]/i.test(value) ? value : "[unklar]";
+  return /[a-zäöüß]/i.test(value) ? value : "[unklar]";
 }
 
 function dailyGermanDocumentationText(report = {}) {
@@ -9615,7 +9615,7 @@ function dailyGermanDocumentationText(report = {}) {
 
 async function translateText({ text, sourceLang, targetLang }) {
   const cleanText = (text || "").trim();
-  if (!cleanText) throw new Error("Kein Text fÃ¼r die Ãœbersetzung vorhanden.");
+  if (!cleanText) throw new Error("Kein Text für die Übersetzung vorhanden.");
   const endpointUrl = (state.settings.translationEndpointUrl || "").trim();
   if (!state.settings.translationEnabled || !endpointUrl) {
     return { translatedText: "", skipped: true };
@@ -9625,7 +9625,7 @@ async function translateText({ text, sourceLang, targetLang }) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: cleanText, sourceLang, targetLang, context: "construction_daily_report" })
   });
-  if (!response.ok) throw new Error(`Ãœbersetzungsdienst HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Übersetzungsdienst HTTP ${response.status}`);
   const data = await response.json();
   return { translatedText: data.translatedText || "", skipped: false };
 }
@@ -9648,24 +9648,24 @@ async function runDailyTranslation(direction = "auto") {
   report.inputLanguage = language;
   report.original_text = original;
   report.workOriginal = original;
-  report.translation_warning = "KI-Ãœbersetzung bitte prÃ¼fen.";
+  report.translation_warning = "KI-Übersetzung bitte prüfen.";
   try {
     let german = "";
     let provider = "lokal";
     if (language === "de") {
       german = polishDictationText(original);
-      provider = "lokale TextglÃ¤ttung";
+      provider = "lokale Textglättung";
     } else {
       const result = await translateText({ text: original, sourceLang: language === "mixed" ? "auto" : language, targetLang: "de" });
       if (!result.skipped && result.translatedText) {
         german = polishDictationText(result.translatedText);
-        provider = "konfigurierter Ãœbersetzungsdienst";
+        provider = "konfigurierter Übersetzungsdienst";
       } else {
         german = localDailyGermanTranslation(original, language);
         provider = german && german !== polishDictationText(original) ? "lokales MVP-Glossar" : "manuell erforderlich";
         report.translation_warning = provider === "manuell erforderlich"
-          ? "Automatische Ãœbersetzung ist nicht konfiguriert. Bitte deutsche Fassung manuell prÃ¼fen/eintragen."
-          : "Lokale MVP-Ãœbersetzung bitte besonders prÃ¼fen.";
+          ? "Automatische Übersetzung ist nicht konfiguriert. Bitte deutsche Fassung manuell prüfen/eintragen."
+          : "Lokale MVP-Übersetzung bitte besonders prüfen.";
       }
     }
     report.translated_text_de = german;
@@ -9675,12 +9675,12 @@ async function runDailyTranslation(direction = "auto") {
     report.translation_checked = false;
     report.translation_created_at = new Date().toISOString();
     report.translation_provider = provider;
-    report.translationStatus = provider === "manuell erforderlich" ? "manuell prÃ¼fen" : "deutsche Fassung erstellt";
-    showAppToast(provider === "manuell erforderlich" ? "Automatische Ãœbersetzung ist nicht konfiguriert. Deutsche Fassung bitte manuell eintragen." : "Deutsche Fassung erstellt. Bitte prÃ¼fen.", { type: provider === "manuell erforderlich" ? "info" : "success", timeout: 5500 });
+    report.translationStatus = provider === "manuell erforderlich" ? "manuell prüfen" : "deutsche Fassung erstellt";
+    showAppToast(provider === "manuell erforderlich" ? "Automatische Übersetzung ist nicht konfiguriert. Deutsche Fassung bitte manuell eintragen." : "Deutsche Fassung erstellt. Bitte prüfen.", { type: provider === "manuell erforderlich" ? "info" : "success", timeout: 5500 });
   } catch (error) {
     report.translationStatus = "Fehler";
-    report.translation_warning = "Ãœbersetzung fehlgeschlagen. Bitte deutsche Fassung manuell eintragen.";
-    showAppToast(`Ãœbersetzung fehlgeschlagen: ${error?.message || error}`, { type: "error", timeout: 6500 });
+    report.translation_warning = "Übersetzung fehlgeschlagen. Bitte deutsche Fassung manuell eintragen.";
+    showAppToast(`Übersetzung fehlgeschlagen: ${error?.message || error}`, { type: "error", timeout: 6500 });
   }
   persist();
   renderDailyReportEditor();
@@ -9698,18 +9698,18 @@ function applyDailyGermanTranslation() {
   report.workDescription = german;
   report.translation_used = true;
   report.translation_checked = true;
-  report.translationStatus = "geprÃ¼ft / Ã¼bernommen";
-  report.translation_warning = "Deutsche Fassung wurde fÃ¼r den Bautagesbericht Ã¼bernommen.";
+  report.translationStatus = "geprüft / übernommen";
+  report.translation_warning = "Deutsche Fassung wurde für den Bautagesbericht übernommen.";
   state.current.updatedAt = new Date().toISOString();
   persist();
   renderDailyReportEditor();
-  showAppToast("Deutsche Fassung Ã¼bernommen.", { type: "success" });
+  showAppToast("Deutsche Fassung übernommen.", { type: "success" });
 }
 
 function dailyTranslationPrompt(direction = "auto") {
   const report = state.current?.dailyReport || {};
   const text = report.original_text || report.workOriginal || report.voiceDraft || report.raw_transcript || "";
-  return `Ãœbersetze den folgenden Baustellenberichtstext ins Deutsche. Korrigiere nur offensichtliche Sprach- und Satzfehler. Ã„ndere keine fachliche Aussage. ErgÃ¤nze keine Inhalte. Erfinde keine Mengen, Zeiten, Personen, Firmen, Ursachen oder Bewertungen. Wenn etwas unklar ist, markiere es als [unklar].\n\nGlossar beachten: Bodenplatte, Bewehrung, Mattenlage, obere Lage, untere Lage, Schalung, Sauberkeitsschicht, Fundamenterder, Einbauteile, Betonage, Verbau, LTH Bau GmbH, Labi, UG, EG, OG, DG.\n\nOriginaltext:\n${text}`;
+  return `Übersetze den folgenden Baustellenberichtstext ins Deutsche. Korrigiere nur offensichtliche Sprach- und Satzfehler. Ändere keine fachliche Aussage. Ergänze keine Inhalte. Erfinde keine Mengen, Zeiten, Personen, Firmen, Ursachen oder Bewertungen. Wenn etwas unklar ist, markiere es als [unklar].\n\nGlossar beachten: Bodenplatte, Bewehrung, Mattenlage, obere Lage, untere Lage, Schalung, Sauberkeitsschicht, Fundamenterder, Einbauteile, Betonage, Verbau, LTH Bau GmbH, Labi, UG, EG, OG, DG.\n\nOriginaltext:\n${text}`;
 }
 
 async function copyDailyTranslationPrompt(direction = "auto") {
@@ -9718,9 +9718,9 @@ async function copyDailyTranslationPrompt(direction = "auto") {
   const prompt = dailyTranslationPrompt(direction);
   try {
     await navigator.clipboard.writeText(prompt);
-    showAppToast("Ãœbersetzungstext kopiert.");
+    showAppToast("Übersetzungstext kopiert.");
   } catch {
-    showAppToast("Zwischenablage nicht verfÃ¼gbar. Bitte Originaltext manuell kopieren.", { type: "error" });
+    showAppToast("Zwischenablage nicht verfügbar. Bitte Originaltext manuell kopieren.", { type: "error" });
   }
 }
 
@@ -9744,7 +9744,7 @@ async function buildDailyReportParts() {
   const workerHtml = workers.length ? `<table class="worker-table"><thead><tr><th>Name</th><th>Firma</th><th>Rolle</th><th>von</th><th>bis</th><th>Pause</th><th>Stunden</th><th>Bemerkung</th></tr></thead><tbody>${workers.map((worker) => `<tr><td>${escapeHtml(worker.name || "-")}</td><td>${escapeHtml(worker.company || "")}</td><td>${escapeHtml(worker.role || "")}</td><td>${escapeHtml(worker.start || "")}</td><td>${escapeHtml(worker.end || "")}</td><td>${escapeHtml(worker.breakHours || "")}</td><td>${escapeHtml(workerHours(worker) || worker.hours || "")}</td><td>${escapeHtml(worker.note || "")}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">Keine einzelnen Mitarbeiter erfasst.</p>`;
   const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", formatAddress(p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: true }) || "", { multiline: true }) || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
   const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" - ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
-  const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite Â· Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, TÃ¤tigkeiten, Wetter, Fotos und BestÃ¤tigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>TÃ¤tigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", originalLanguageLabel)}${infoRow("Ãœbersetzungsstatus", report.translationStatus || "nicht Ã¼bersetzt")}<p class="text-block">${escapeHtml(germanWorkText || "Keine TÃ¤tigkeiten dokumentiert.")}</p>${report.translation_provider ? `<p class="muted">Deutsche Fassung: ${escapeHtml(report.translation_provider)} Â· bitte geprÃ¼ft verwenden.</p>` : ""}${showOriginalText ? `<div class="info-card"><h3>Originaltext</h3><p class="text-block">${escapeHtml(originalWorkText)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("GerÃ¤te / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("MÃ¤ngel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>BestÃ¤tigung</h3>${infoRow("BestÃ¤tigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften kÃ¶nnen spÃ¤ter fÃ¼r Bautagesberichte ergÃ¤nzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
+  const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", originalLanguageLabel)}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(germanWorkText || "Keine Tätigkeiten dokumentiert.")}</p>${report.translation_provider ? `<p class="muted">Deutsche Fassung: ${escapeHtml(report.translation_provider)} · bitte geprüft verwenden.</p>` : ""}${showOriginalText ? `<div class="info-card"><h3>Originaltext</h3><p class="text-block">${escapeHtml(originalWorkText)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
   const title = sanitizeFileName(`Bautagesbericht_${project?.name || p.head.projectName || "Projekt"}_${report.date || (p.head.createdAt || "").slice(0,10)}`);
   return { css, body, title, fileName: `${title}.pdf` };
 }
@@ -9798,8 +9798,8 @@ async function buildReportParts() {
   const followup = isFollowupProtocol(p);
   const reportTitle = followup ? "Nachbegehung / Nachkontrolle" : "Bewehrungskontrolle / Bewehrungsabnahme";
   const reportSubtitle = followup
-    ? "Kurzer Nachbegehungsbericht zu den aus der Erstabnahme Ã¼bernommenen offenen Punkten, Auflagen und MÃ¤ngeln."
-    : "Ã–rtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden AusfÃ¼hrungs- und BewehrungsplÃ¤ne. Die Betonagefreigabe erfolgt unter BerÃ¼cksichtigung der dokumentierten Feststellungen und Auflagen.";
+    ? "Kurzer Nachbegehungsbericht zu den aus der Erstabnahme übernommenen offenen Punkten, Auflagen und Mängeln."
+    : "Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.";
   const css = `
     @page{size:A4;margin:18mm 15mm 20mm}
     *{box-sizing:border-box}
@@ -9854,7 +9854,7 @@ async function buildReportParts() {
       <main class="report-page">
         <header class="report-header">
           <div>
-            <div class="brand">Kai BewehrungsCheck Â· LTH Bau</div>
+            <div class="brand">Kai BewehrungsCheck · LTH Bau</div>
             <h1>${escapeHtml(reportTitle)}</h1>
             <p class="subtitle">${escapeHtml(reportSubtitle)}</p>
           </div>
@@ -9874,16 +9874,16 @@ async function buildReportParts() {
             ${followup ? infoRow("Bezug Erstabnahme", followupSourceLabel(p)) : ""}
             ${infoRow("Baustellenadresse", formatAddress(protocolHeadAddress(p, project)))}
             ${infoRow("Auftraggeber", companyReportText(clientCompany, project?.client || ""))}
-            ${infoRow("PrÃ¼fingenieur", inspectorReportText(projectInspector, project?.inspector || ""))}
+            ${infoRow("Prüfingenieur", inspectorReportText(projectInspector, project?.inspector || ""))}
             ${infoRow("Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim())}
             ${infoRow("Bereich / Achsen", p.head.areaAxes)}
           </div>
           <div class="info-card">
-            <h3>PrÃ¼fung</h3>
+            <h3>Prüfung</h3>
             ${infoRow("Datum / Uhrzeit", formatDate(protocolInspectionDateTime(p)))}
-            ${infoRow("PrÃ¼fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName))}
-            ${infoRow("AusfÃ¼hrende Firma", companyReportText(contractorCompany, p.head.contractor))}
-            ${infoRow("Allgemeiner Planstand / PrÃ¼fstand", p.head.planDate)}
+            ${infoRow("Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName))}
+            ${infoRow("Ausführende Firma", companyReportText(contractorCompany, p.head.contractor))}
+            ${infoRow("Allgemeiner Planstand / Prüfstand", p.head.planDate)}
           </div>
         </section>
 
@@ -9891,24 +9891,24 @@ async function buildReportParts() {
         ${weatherReport(p)}
 
         <section class="report-section">
-          <h2>Ãœbersichtsfotos Baustelle</h2>
+          <h2>Übersichtsfotos Baustelle</h2>
           ${overviewPhotosHtml}
         </section>
 
         <h2>${followup ? "Ergebnis der Nachbegehung" : "Ergebnis"}</h2>
         <section class="result-box ${resultClass(p.result.resultStatus)}">
           ${statusBadge(p.result.resultStatus)}
-          <p>${resultClause(p.result.resultStatus) || "Ergebnis gemÃ¤ÃŸ Auswahl dokumentiert."}</p>
+          <p>${resultClause(p.result.resultStatus) || "Ergebnis gemäß Auswahl dokumentiert."}</p>
           ${p.result.finalNote ? `<p><strong>Schlussbemerkung:</strong> ${escapeHtml(p.result.finalNote)}</p>` : ""}
         </section>
 
         <h2>Verwendete Planunterlagen</h2>
         ${planOverviewReport(p)}
 
-        <h2>${followup ? "Weiterhin offene Punkte" : "Auflagen / MÃ¤ngel"}</h2>
+        <h2>${followup ? "Weiterhin offene Punkte" : "Auflagen / Mängel"}</h2>
         ${issuesReport(issues)}
 
-        <h2>${followup ? "Nachkontrollierte Punkte" : "Checkliste und PrÃ¼fstellen"}</h2>
+        <h2>${followup ? "Nachkontrollierte Punkte" : "Checkliste und Prüfstellen"}</h2>
         ${checklistReport(p)}
 
         ${followup ? `<h2>Neu festgestellte Punkte in der Nachbegehung</h2>${followupNewPointsReport(p)}` : ""}
@@ -9918,7 +9918,7 @@ async function buildReportParts() {
 
         <h2>Schlussformulierung</h2>
         <section class="info-card avoid-break">
-          ${infoRow("PrÃ¼fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName))}
+          ${infoRow("Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName))}
           ${hasDrawnSignatures(p) ? "" : infoRow("Unterschrift als Text", p.result.signatureText)}
         </section>
 
@@ -9941,8 +9941,8 @@ function reportDocumentHtml(parts, { printButton = false, saveHint = false } = {
   return `
     <!doctype html><html lang="de"><head><meta charset="UTF-8"><title>${escapeHtml(parts.title)}</title><style>${parts.css}</style></head>
     <body>
-      ${saveHint ? `<div class="save-hint">Zum Speichern bitte im Druckdialog Ziel 'Als PDF speichern' wÃ¤hlen.</div>` : ""}
-      ${printButton ? `<button class="print-btn" onclick="window.print()">Als PDF speichern / Druckdialog Ã¶ffnen</button>` : ""}
+      ${saveHint ? `<div class="save-hint">Zum Speichern bitte im Druckdialog Ziel 'Als PDF speichern' wählen.</div>` : ""}
+      ${printButton ? `<button class="print-btn" onclick="window.print()">Als PDF speichern / Druckdialog öffnen</button>` : ""}
       ${parts.body}
     </body></html>
   `;
@@ -10040,21 +10040,21 @@ async function printReportA4() {
   const doc = frame.contentDocument;
   const reportElement = doc?.querySelector(".report-export");
   try {
-    if (!reportElement) throw new Error("Bericht enthÃ¤lt keine druckbaren Inhalte.");
+    if (!reportElement) throw new Error("Bericht enthält keine druckbaren Inhalte.");
     const textLength = (reportElement.innerText || "").trim().length;
     const hasReportStructure = reportElement.querySelector(".report-header") && (reportElement.querySelector(".result-box") || reportElement.querySelector(".site-report-card") || reportElement.querySelector(".info-card"));
     if (textLength < 100 || !hasReportStructure) {
       throw new Error("Bericht enth?lt keine druckbaren Inhalte.");
     }
   } catch (error) {
-    alert(error?.message || "Bericht enthÃ¤lt keine druckbaren Inhalte.");
+    alert(error?.message || "Bericht enthält keine druckbaren Inhalte.");
     return;
   }
   await waitForReportReady(reportElement);
   applyPrintPageMetadata(doc);
   const printTarget = frame.contentWindow;
   if (!printTarget?.print) {
-    alert("Druckdialog konnte nicht geÃ¶ffnet werden. Bitte Ã¼ber Browser-MenÃ¼ Drucken / Als PDF speichern verwenden.");
+    alert("Druckdialog konnte nicht geöffnet werden. Bitte über Browser-Menü Drucken / Als PDF speichern verwenden.");
     return;
   }
   printTarget.focus();
@@ -10140,8 +10140,8 @@ async function openReportDialog({ printHint = false } = {}) {
   state.reportView.parts = parts;
   updateReportPreviewModeButtons();
   $(".report-browser-hint").textContent = printHint
-    ? "Zum Speichern bitte auf â€žDruckdialog Ã¶ffnenâ€œ tippen und im Druckdialog als Ziel â€žAls PDF speichernâ€œ wÃ¤hlen."
-    : "Lesemodus ist fÃ¼r das Handy optimiert. Die A4-Ansicht dient zur Kontrolle des Ausdrucks.";
+    ? "Zum Speichern bitte auf „Druckdialog öffnen“ tippen und im Druckdialog als Ziel „Als PDF speichern“ wählen."
+    : "Lesemodus ist für das Handy optimiert. Die A4-Ansicht dient zur Kontrolle des Ausdrucks.";
   document.body.classList.add("report-open");
   $("#reportDialog").showModal();
   requestAnimationFrame(updateReportPreviewFrame);
@@ -10166,10 +10166,10 @@ async function shareReportFile() {
   const html = reportDocumentHtml(parts, { printButton: false, saveHint: false });
   const fileName = sanitizeFileName((parts.fileName || "bewehrungsbericht.pdf").replace(/\.pdf$/i, ".html"));
   try {
-    if (typeof File === "undefined") throw new Error("File API nicht verfÃ¼gbar");
+    if (typeof File === "undefined") throw new Error("File API nicht verfügbar");
     const file = new File([html], fileName, { type: "text/html" });
     if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) {
-      alert("Berichtsdatei kann auf diesem GerÃ¤t nicht direkt geteilt werden. Bitte 'Bericht als HTML speichern' verwenden oder den WhatsApp-Text kopieren.");
+      alert("Berichtsdatei kann auf diesem Gerät nicht direkt geteilt werden. Bitte 'Bericht als HTML speichern' verwenden oder den WhatsApp-Text kopieren.");
       return;
     }
     await navigator.share({ title, text, files: [file] });
@@ -10206,7 +10206,7 @@ function triggerSavedPdfSharePicker() {
       errorName: error?.name || "FilePickerError",
       errorMessage: error?.message || String(error || "")
     };
-    alert("PDF-Dateiauswahl konnte nicht geÃ¶ffnet werden. Bitte die PDF direkt aus dem Dateimanager teilen.");
+    alert("PDF-Dateiauswahl konnte nicht geöffnet werden. Bitte die PDF direkt aus dem Dateimanager teilen.");
   }
 }
 
@@ -10222,9 +10222,9 @@ async function shareSavedPdfFile(file) {
       hasNavigatorCanShare: !!navigator.canShare,
       canShareResult: null,
       errorName: "InvalidFileType",
-      errorMessage: "AusgewÃ¤hlte Datei ist keine PDF."
+      errorMessage: "Ausgewählte Datei ist keine PDF."
     };
-    alert("Bitte eine PDF-Datei auswÃ¤hlen.");
+    alert("Bitte eine PDF-Datei auswählen.");
     return;
   }
   const debug = {
@@ -10241,7 +10241,7 @@ async function shareSavedPdfFile(file) {
   if (!navigator.share) {
     debug.errorName = "ShareUnavailable";
     debug.errorMessage = "navigator.share fehlt";
-    alert("Direktes Teilen dieser PDF wird auf diesem GerÃ¤t/Browser nicht unterstÃ¼tzt. Bitte die PDF direkt aus dem Dateimanager teilen.");
+    alert("Direktes Teilen dieser PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF direkt aus dem Dateimanager teilen.");
     return;
   }
   const shareData = { title: "Bewehrungsbericht", text: buildReportShareText({ compact: true }), files: [file] };
@@ -10261,7 +10261,7 @@ async function shareSavedPdfFile(file) {
     debug.errorName = error?.name || "ShareError";
     debug.errorMessage = error?.message || String(error || "");
     console.error("Gespeicherte PDF konnte nicht geteilt werden", { error, debug });
-    alert("Direktes Teilen dieser PDF wird auf diesem GerÃ¤t/Browser nicht unterstÃ¼tzt. Bitte die PDF direkt aus dem Dateimanager teilen.");
+    alert("Direktes Teilen dieser PDF wird auf diesem Gerät/Browser nicht unterstützt. Bitte die PDF direkt aus dem Dateimanager teilen.");
   }
 }
 
@@ -10274,12 +10274,12 @@ async function shareReportText() {
       return;
     }
     await copyTextToClipboard(text);
-    alert("Berichtstext wurde kopiert. Bitte in WhatsApp, Mail oder eine andere App einfÃ¼gen.");
+    alert("Berichtstext wurde kopiert. Bitte in WhatsApp, Mail oder eine andere App einfügen.");
   } catch (error) {
     if (error?.name === "AbortError") return;
     try {
       await copyTextToClipboard(text);
-      alert("Berichtstext wurde kopiert. Bitte in WhatsApp, Mail oder eine andere App einfÃ¼gen.");
+      alert("Berichtstext wurde kopiert. Bitte in WhatsApp, Mail oder eine andere App einfügen.");
     } catch (copyError) {
       console.error(copyError);
       alert("Berichtstext konnte nicht geteilt oder kopiert werden.");
@@ -10331,7 +10331,7 @@ function shareMessageSender(protocol) {
   return { name, company };
 }
 
-// Core ShareMessage Generator â€“ spÃ¤ter modulÃ¼bergreifend nutzbar
+// Core ShareMessage Generator – später modulübergreifend nutzbar
 function buildShareMessage(protocol = state.current, options = {}) {
   const channel = options.channel || "whatsapp";
   const includeCompletionRequest = options.includeCompletionRequest !== false;
@@ -10351,19 +10351,19 @@ function buildShareMessage(protocol = state.current, options = {}) {
   const issueCount = Array.isArray(protocol.checkpoints) ? sampleIssues(protocol).length : 0;
   const pinExamples = includeFindingNumbers ? shareMessagePinExamples(protocol, 5) : "";
   const completionTarget = pinExamples ? `zur Positionsnummer, z. B. ${pinExamples}` : "zur jeweiligen Feststellung";
-  const completionRequest = includeCompletionRequest ? `Bitte die Erledigung der aufgefÃ¼hrten MÃ¤ngel und Auflagen vor Betonage jeweils mit aussagekrÃ¤ftigem Foto und kurzer Zuordnung ${completionTarget} bestÃ¤tigen.` : "";
+  const completionRequest = includeCompletionRequest ? `Bitte die Erledigung der aufgeführten Mängel und Auflagen vor Betonage jeweils mit aussagekräftigem Foto und kurzer Zuordnung ${completionTarget} bestätigen.` : "";
   const titleParts = ["Bewehrungsabnahme", project, component || area, date].filter(Boolean);
-  const subject = titleParts.join(" â€“ ");
+  const subject = titleParts.join(" – ");
   const introDate = date ? ` vom ${date}` : "";
   const scope = [component, area].filter(Boolean).join(" / ");
 
   if (channel === "email") {
     const sender = shareMessageSender(protocol);
-    const closing = ["Mit freundlichen GrÃ¼ÃŸen", sender.name, sender.company].filter(Boolean).join("\n");
+    const closing = ["Mit freundlichen Grüßen", sender.name, sender.company].filter(Boolean).join("\n");
     const body = [
       "Hallo,",
       "",
-      `anbei erhalten Sie das Protokoll zur Bewehrungskontrolle / Bewehrungsabnahme${introDate} fÃ¼r das Bauvorhaben ${project}.`,
+      `anbei erhalten Sie das Protokoll zur Bewehrungskontrolle / Bewehrungsabnahme${introDate} für das Bauvorhaben ${project}.`,
       scope ? `Bereich: ${scope}.` : "",
       "",
       "Ergebnis:",
@@ -10378,7 +10378,7 @@ function buildShareMessage(protocol = state.current, options = {}) {
   }
 
   const body = [
-    `Anbei das Protokoll zur Bewehrungskontrolle / Bewehrungsabnahme${introDate} fÃ¼r das Bauvorhaben ${project}.`,
+    `Anbei das Protokoll zur Bewehrungskontrolle / Bewehrungsabnahme${introDate} für das Bauvorhaben ${project}.`,
     scope ? `Bereich: ${scope}.` : "",
     "",
     `Ergebnis: ${result}.`,
@@ -10409,7 +10409,7 @@ function currentShareMessage() {
   const channel = document.getElementById("shareMessageChannel")?.value || "whatsapp";
   const message = buildShareMessage(state.current, { channel, includeCompletionRequest: true, includeFindingNumbers: true });
   const text = message.body || message.text || "";
-  const title = channel === "email" ? (message.subject || reportShareTitle()) : (message.subject || reportShareTitle()).replace(/\s+â€“\s+.*$/, "");
+  const title = channel === "email" ? (message.subject || reportShareTitle()) : (message.subject || reportShareTitle()).replace(/\s+–\s+.*$/, "");
   return { channel, message, text, title };
 }
 
@@ -10463,7 +10463,7 @@ function updatePreparedSharePdfStatus() {
   if (sharePdfPreparing) {
     setSharePdfStatus("PDF wird vorbereitet ...", "loading");
   } else if (preparedSharePdfIsFresh()) {
-    setSharePdfStatus("PDF vorbereitet. Teilen ist jetzt mÃ¶glich.", "success");
+    setSharePdfStatus("PDF vorbereitet. Teilen ist jetzt möglich.", "success");
   } else {
     preparedSharePdfCache = null;
     setSharePdfStatus("PDF noch nicht vorbereitet.", "info");
@@ -10520,8 +10520,8 @@ async function prepareSharePdfForCurrentProtocol({ force = false } = {}) {
     const created = await createSharePdfFile();
     const preparedKey = currentSharePdfCacheKey();
     preparedSharePdfCache = { ...created, key: preparedKey, preparedAt: Date.now() };
-    setSharePdfStatus("PDF vorbereitet. Teilen ist jetzt mÃ¶glich.", "success");
-    showAppToast("PDF vorbereitet. Teilen ist jetzt mÃ¶glich.", { type: "success" });
+    setSharePdfStatus("PDF vorbereitet. Teilen ist jetzt möglich.", "success");
+    showAppToast("PDF vorbereitet. Teilen ist jetzt möglich.", { type: "success" });
     return preparedSharePdfCache;
   } catch (error) {
     console.error("PDF vorbereiten fehlgeschlagen", error);
@@ -10559,8 +10559,8 @@ async function sharePdfWithCurrentMessage() {
   };
   state.lastPdfMessageShareDebug = debug;
   if (!navigator.share || !file) {
-    setSharePdfStatus("Direktes Teilen nicht mÃ¶glich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
-    setSharePdfNotice("Direktes Teilen mit PDF-Anhang wird auf diesem GerÃ¤t/Browser nicht unterstÃ¼tzt.", { type: "warning", showActions: true });
+    setSharePdfStatus("Direktes Teilen nicht möglich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
+    setSharePdfNotice("Direktes Teilen mit PDF-Anhang wird auf diesem Gerät/Browser nicht unterstützt.", { type: "warning", showActions: true });
     return;
   }
   const shareData = { title, text, files: [file] };
@@ -10573,16 +10573,16 @@ async function sharePdfWithCurrentMessage() {
       debug.errorMessage = error?.message || String(error);
     }
     if (!debug.canShareResult) {
-      setSharePdfStatus("Direktes Teilen nicht mÃ¶glich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
-      setSharePdfNotice("Dateiteilen wird auf diesem GerÃ¤t/Browser nicht unterstÃ¼tzt.", { type: "warning", showActions: true });
+      setSharePdfStatus("Direktes Teilen nicht möglich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
+      setSharePdfNotice("Dateiteilen wird auf diesem Gerät/Browser nicht unterstützt.", { type: "warning", showActions: true });
       return;
     }
   }
   try {
     clearSharePdfNotice();
     await navigator.share(shareData);
-    setSharePdfStatus("Teilen wurde geÃ¶ffnet.", "success");
-    if (warnings?.length) showAppToast("Share-Dialog geÃ¶ffnet. Hinweis: einzelne Bilder konnten eventuell nicht eingebettet werden.", { type: "info", timeout: 6500 });
+    setSharePdfStatus("Teilen wurde geöffnet.", "success");
+    if (warnings?.length) showAppToast("Share-Dialog geöffnet. Hinweis: einzelne Bilder konnten eventuell nicht eingebettet werden.", { type: "info", timeout: 6500 });
   } catch (error) {
     debug.errorName = error?.name || "ShareError";
     debug.errorMessage = error?.message || String(error);
@@ -10592,12 +10592,12 @@ async function sharePdfWithCurrentMessage() {
       return;
     }
     if (error?.name === "NotAllowedError") {
-      setSharePdfStatus("Bitte erneut auf Teilen drÃ¼cken.", "info");
-      setSharePdfNotice("PDF wurde vorbereitet. Bitte erneut auf Teilen drÃ¼cken.", { type: "info", showActions: true });
+      setSharePdfStatus("Bitte erneut auf Teilen drücken.", "info");
+      setSharePdfNotice("PDF wurde vorbereitet. Bitte erneut auf Teilen drücken.", { type: "info", showActions: true });
       return;
     }
     console.warn("PDF + Begleittext teilen fehlgeschlagen", error);
-    setSharePdfStatus("Direktes Teilen nicht mÃ¶glich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
+    setSharePdfStatus("Direktes Teilen nicht möglich. Bitte PDF herunterladen und Begleittext kopieren.", "warning");
     setSharePdfNotice("Direktes Teilen wurde von Chrome/Android nicht abgeschlossen.", { type: "warning", showActions: true });
   }
 }
@@ -10613,7 +10613,7 @@ async function downloadCurrentSharePdf() {
 function openMailWithoutAttachment() {
   const message = buildShareMessage(state.current, { channel: "email", includeCompletionRequest: true, includeFindingNumbers: true });
   const subject = encodeURIComponent(message.subject || reportShareTitle());
-  const body = encodeURIComponent(`${message.body || message.text || ""}\n\nHinweis: PDF bitte manuell anhÃ¤ngen.`);
+  const body = encodeURIComponent(`${message.body || message.text || ""}\n\nHinweis: PDF bitte manuell anhängen.`);
   window.location.href = `mailto:?subject=${subject}&body=${body}`;
 }
 function updateReportPreviewFrame() {
@@ -10746,7 +10746,7 @@ async function prepareSignatureImageForPdf(source) {
     const blob = await safeCanvasToBlob(out, "image/jpeg", 0.86, "Unterschrift");
     return blob ? blobToDataUrl(blob) : "";
   } catch (error) {
-    console.warn("Unterschrift konnte nicht fÃ¼r PDF vorbereitet werden", error);
+    console.warn("Unterschrift konnte nicht für PDF vorbereitet werden", error);
     return prepareReportImageSafe(source, { maxWidth: 1000, maxHeight: 420, quality: 0.86, mimeType: "image/jpeg" }, "Unterschrift");
   }
 }
@@ -10827,7 +10827,7 @@ function collectReportPhotoGroups(p) {
       sample.photos?.forEach((photo, index) => {
         let group = groups.find((item) => item.key === `sample:${sample.id}`);
         if (!group) {
-          group = { key: `sample:${sample.id}`, title: `${check.title} - PrÃ¼fstelle ${sample.number}${sample.location ? " - " + sample.location : ""}`, status: sample.status, note: sample.note, meta: sample.pinId ? pinName(sample.pinId) : "", photos: [] };
+          group = { key: `sample:${sample.id}`, title: `${check.title} - Prüfstelle ${sample.number}${sample.location ? " - " + sample.location : ""}`, status: sample.status, note: sample.note, meta: sample.pinId ? pinName(sample.pinId) : "", photos: [] };
           groups.push(group);
         }
         if (!usedPhotoIds.has(photo.id)) {
@@ -11111,7 +11111,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const info = await pdfImageInfo(dataUrl, caption || "Bild");
     if (!info) {
       warnings.push(caption || "Bild");
-      addText("Bild konnte aus Browser-SicherheitsgrÃ¼nden nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
+      addText("Bild konnte aus Browser-Sicherheitsgründen nicht eingebettet werden.", { size: 9, color: "#9f2a25" });
       return null;
     }
     const imageIndex = images.push(info) - 1;
@@ -11225,9 +11225,9 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   addOp({ type: "text", text: formatDate(protocolInspectionDateTime(p)) || "-", x: metaX + 54, y: headerTop + 15, size: 8, font: "F1", color: "#17212b" });
   addOp({ type: "text", text: "Protokoll", x: metaX + 10, y: headerTop + 33, size: 7.8, font: "F2", color: "#52606d" });
   addOp({ type: "text", text: p.id.slice(-8).toUpperCase(), x: metaX + 54, y: headerTop + 33, size: 8, font: "F1", color: "#17212b" });
-  addTextLine("Kai BewehrungsCheck Â· LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
+  addTextLine("Kai BewehrungsCheck · LTH Bau", margin, 9.5, { bold: true, color: "#5b6773", gap: 6 });
   addTextLine("Bewehrungskontrolle / Bewehrungsabnahme", margin, 21.5, { bold: true, color: "#17212b", gap: 8 });
-  addText("Ã–rtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden AusfÃ¼hrungs- und BewehrungsplÃ¤ne. Die Betonagefreigabe erfolgt unter BerÃ¼cksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 9.6, color: "#52606d", maxWidth: contentWidth - 174 });
+  addText("Örtliche, stichprobenartige Kontrolle der Bewehrung auf Grundlage der vorliegenden Ausführungs- und Bewehrungspläne. Die Betonagefreigabe erfolgt unter Berücksichtigung der dokumentierten Feststellungen und Auflagen.", { size: 9.6, color: "#52606d", maxWidth: contentWidth - 174 });
   y = Math.max(y, headerTop + 70);
   addRule(y + 4, "#1f4e79", 2.2);
   y += 18;
@@ -11237,14 +11237,14 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     ["Art der Abnahme", p.head.acceptanceType],
     ["Baustellenadresse", formatAddress(protocolHeadAddress(p, project))],
     ["Auftraggeber", companyReportText(clientCompany, project?.client || "")],
-    ["PrÃ¼fingenieur", inspectorReportText(projectInspector, project?.inspector || "")],
+    ["Prüfingenieur", inspectorReportText(projectInspector, project?.inspector || "")],
     ["Bauteil / Geschoss", `${p.head.component || ""} ${p.head.floor || ""}`.trim()],
     ["Bereich / Achsen", p.head.areaAxes]
-  ], "PrÃ¼fung", [
+  ], "Prüfung", [
     ["Datum / Uhrzeit", formatDate(protocolInspectionDateTime(p))],
-    ["PrÃ¼fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
-    ["AusfÃ¼hrende Firma", companyReportText(contractorCompany, p.head.contractor)],
-    ["Allgemeiner Planstand / PrÃ¼fstand", p.head.planDate],
+    ["Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
+    ["Ausführende Firma", companyReportText(contractorCompany, p.head.contractor)],
+    ["Allgemeiner Planstand / Prüfstand", p.head.planDate],
     ["Protokoll", p.id.slice(-8).toUpperCase()]
   ]);
 
@@ -11263,9 +11263,9 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     const item = overview[index];
     try {
       const src = await reportPhotoDataUrl(item.photoId, { maxWidth: 1400, maxHeight: 1400, quality: 0.75, mimeType: "image/jpeg" });
-      overviewItems.push({ src, caption: `${item.isCover ? "Titelbild Â· " : ""}Ãœbersichtsfoto ${index + 1}${item.caption ? " Â· " + item.caption : ""}`, boldCaption: true });
+      overviewItems.push({ src, caption: `${item.isCover ? "Titelbild · " : ""}Übersichtsfoto ${index + 1}${item.caption ? " · " + item.caption : ""}`, boldCaption: true });
     } catch (error) {
-      const message = `Ãœbersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
+      const message = `Übersichtsfoto ${index + 1} konnte nicht eingebettet werden: ${error?.message || error}`;
       warnings.push(message);
       imageDebug.errors.push({ type: "overview", index: index + 1, photoId: item.photoId, message });
       logPdfStep("section:overview:image-error", { index: index + 1, photoId: item.photoId, message });
@@ -11275,8 +11275,8 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const overviewFirstRowHeight = overviewItems.length ? await estimateImageGridFirstRowHeight(overviewItems, overviewGridOptions) : 58;
   const overviewSectionNeed = 44 + overviewFirstRowHeight;
   if (y + overviewSectionNeed > pageHeight - bottom) newPage();
-  addHeading("Ãœbersichtsfotos Baustelle", { keepWith: overviewSectionNeed });
-  if (!overview.length) addTextCard("Ãœbersichtsfotos Baustelle", "Keine Ãœbersichtsfotos zur Baustelle hinterlegt.", { minHeight: 58 });
+  addHeading("Übersichtsfotos Baustelle", { keepWith: overviewSectionNeed });
+  if (!overview.length) addTextCard("Übersichtsfotos Baustelle", "Keine Übersichtsfotos zur Baustelle hinterlegt.", { minHeight: 58 });
   if (overviewItems.length) await addImageGrid(overviewItems, overviewGridOptions);
 
   ensure(88);
@@ -11285,7 +11285,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
   const resultOpStart = page.ops.length;
   y = resultStart + 42;
   addBadge(p.result.resultStatus || "offen", margin + 16, resultStart + 19, resultStyle);
-  addText(resultClause(p.result.resultStatus) || "Ergebnis gemÃ¤ÃŸ Auswahl dokumentiert.", { x: margin + 16, maxWidth: contentWidth - 32, size: 9.7, bold: true, blank: false });
+  addText(resultClause(p.result.resultStatus) || "Ergebnis gemäß Auswahl dokumentiert.", { x: margin + 16, maxWidth: contentWidth - 32, size: 9.7, bold: true, blank: false });
   if (p.result.finalNote) addText(`Schlussbemerkung: ${polishedReportText(p.result.finalNote)}`, { x: margin + 16, maxWidth: contentWidth - 32, size: 8.9, blank: false });
   const resultEnd = Math.max(y + 14, resultStart + 84);
   addCardShell("Ergebnis", resultStart, resultEnd, { opStart: resultOpStart, accent: resultStyle.color || "#12663e", fill: resultStyle.fill, headerFill: "#f0faf4", stroke: resultStyle.stroke });
@@ -11301,9 +11301,9 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     { key: "file", title: "Datei", weight: 1.5 }
   ], reportPlans.map((plan) => ({ number: displayPlanNumber(plan) || "-", name: plan.appPlanName || plan.planName || plan.fileName || "Plan", status: plan.documentStatus || plan.planStatus || plan.status || "verwendet", date: plan.planDate || "-", index: plan.planIndex || "-", pages: String(plan.pageCount || 1), file: plan.fileName || plan.dropboxFileName || "" })), { emptyText: "Es wurden keine Planunterlagen hochgeladen.", size: 7.3, minHeight: 86 });
 
-  addHeading("Auflagen / MÃ¤ngel", { keepWith: issues.length ? 150 : 95 });
+  addHeading("Auflagen / Mängel", { keepWith: issues.length ? 150 : 95 });
   if (!issues.length) {
-    addTextCard("Auflagen / MÃ¤ngel", "Keine Auflagen / MÃ¤ngel dokumentiert.", { minHeight: 58 });
+    addTextCard("Auflagen / Mängel", "Keine Auflagen / Mängel dokumentiert.", { minHeight: 58 });
   } else {
     issues.forEach((issue, index) => {
       const sample = issue.sample || {};
@@ -11315,12 +11315,12 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       ensure(98);
       const issueY = y;
       const opStart = page.ops.length;
-      const issueTitle = `${index + 1}. ${issue.check?.title || "PrÃ¼fstelle"}${sample.number ? " Â· PrÃ¼fstelle " + sample.number : ""}${sample.location ? " Â· " + sample.location : ""}`;
+      const issueTitle = `${index + 1}. ${issue.check?.title || "Prüfstelle"}${sample.number ? " · Prüfstelle " + sample.number : ""}${sample.location ? " · " + sample.location : ""}`;
       const issueTitleLines = splitLines(issueTitle, contentWidth - 28, 8.9).slice(0, 3);
       const issueHeaderHeight = Math.max(32, issueTitleLines.length * lineHeight(8.9) + 13);
       y = issueY + issueHeaderHeight + 8;
       addKeyValue("Status", status, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.2, rowFill: "#fbfcfd" });
-      const pinText = pin ? `${pinLabel(pin)}${plan ? " Â· " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-";
+      const pinText = pin ? `${pinLabel(pin)}${plan ? " · " + (displayPlanNumber(plan) || plan.fileName || "Plan") : ""}${placement?.pageNumber ? " / S." + placement.pageNumber : ""}` : "-";
       addKeyValue("Pin / Plan", pinText, { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.1 });
       addKeyValue("Bemerkung", polishedReportText(sample.note || sample.overlapCheck?.generatedText || "") || "-", { x: margin + 14, width: contentWidth - 28, keyWidth: 72, size: 8.2, stack: true, rowFill: "#fbfcfd" });
       const issueEnd = Math.max(y + 12, issueY + issueHeaderHeight + 70);
@@ -11333,7 +11333,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     });
   }
 
-  addHeading("Checkliste und PrÃ¼fstellen", { keepWith: 155 });
+  addHeading("Checkliste und Prüfstellen", { keepWith: 155 });
   p.checkpoints.forEach((check) => {
     const samples = check.samples || [];
     const statusClass = resultClass(check.status);
@@ -11357,7 +11357,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     y = checkStart + checkHeaderHeight + 8;
     addKeyValue("Gesamtstatus", check.status || "offen / nicht bewertet", { x: margin + 14, width: contentWidth - 28, keyWidth: 88, size: 8.2, rowFill: "#fbfcfd" });
     if (!samples.length) {
-      addText("Keine einzelnen PrÃ¼fstellen angelegt.", { size: 8.4, color: pdfTheme.muted, x: margin + 14, maxWidth: contentWidth - 28, blank: false });
+      addText("Keine einzelnen Prüfstellen angelegt.", { size: 8.4, color: pdfTheme.muted, x: margin + 14, maxWidth: contentWidth - 28, blank: false });
     }
     const checkEnd = Math.max(y + 12, checkStart + checkHeaderHeight + 40);
     page.ops.splice(checkOpStart, 0,
@@ -11371,7 +11371,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       ensure(104);
       const sampleStart = y;
       const sampleOpStart = page.ops.length;
-      const sampleTitle = `PrÃ¼fstelle ${sample.number || ""}${sample.location ? " Â· " + sample.location : ""}`.trim();
+      const sampleTitle = `Prüfstelle ${sample.number || ""}${sample.location ? " · " + sample.location : ""}`.trim();
       const sampleTitleLines = splitLines(sampleTitle, contentWidth - 52, 8.8).slice(0, 3);
       const sampleHeaderHeight = Math.max(30, sampleTitleLines.length * lineHeight(8.8) + 12);
       y = sampleStart + sampleHeaderHeight + 8;
@@ -11380,7 +11380,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
       if (sample.pinId) addKeyValue("Pin", pinName(sample.pinId), { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, rowFill: "#fbfcfd" });
       if (sample.photos?.length) addKeyValue("Fotos", `${sample.photos.length} Foto(s)`, { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1 });
       addKeyValue("Bemerkung", polishedReportText(sample.note) || "-", { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 8.1, stack: true, rowFill: "#fbfcfd" });
-      if (sample.overlapCheck?.generatedText) addKeyValue("Ãœbergreifung", sample.overlapCheck.generatedText, { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 7.9, stack: true });
+      if (sample.overlapCheck?.generatedText) addKeyValue("Übergreifung", sample.overlapCheck.generatedText, { x: margin + 22, width: contentWidth - 44, keyWidth: 78, size: 7.9, stack: true });
       const sampleEnd = Math.max(y + 10, sampleStart + sampleHeaderHeight + 66);
       page.ops.splice(sampleOpStart, 0,
         { type: "rect", x: margin + 10, y: sampleStart, width: contentWidth - 20, height: sampleEnd - sampleStart, fill: "#ffffff", stroke: "#e2e7ed", lineWidth: 0.65 },
@@ -11455,7 +11455,7 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
     for (const item of group.photos) {
       try {
         const src = await reportPhotoDataUrl(item.photo.id, { maxWidth: 1600, maxHeight: 1600, quality: 0.78, mimeType: "image/jpeg" });
-        photoItems.push({ src, caption: `${item.label} Â· ${item.photo.name || "Foto"}` });
+        photoItems.push({ src, caption: `${item.label} · ${item.photo.name || "Foto"}` });
       } catch (error) {
         const message = `${group.title} / ${item.label} konnte nicht eingebettet werden: ${error?.message || error}`;
         warnings.push(message);
@@ -11468,14 +11468,14 @@ async function buildStructuredReportPdfModel(parts, logStep = null) {
 
   addHeading("Schlussformulierung", { keepWith: 90 });
   const closingRows = [
-    ["PrÃ¼fer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
+    ["Prüfer / Abnehmender", ownPersonReportText(defaultInspectorPerson, p.result.inspectorName)],
     ...(hasDrawnSignatures(p) ? [] : [["Unterschrift als Text", p.result.signatureText]])
   ];
   const closingEnd = addInfoCard("Abschluss", closingRows, margin, y, contentWidth);
   y = closingEnd + pdfTheme.cardGap;
 
   addHeading("Unterschriften / Kenntnisnahme", { keepWith: 190 });
-  addText("Die Unterschrift bestÃ¤tigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder Ã¶ffentlich-rechtlichen ErklÃ¤rungen.", { size: 8.5, color: "#52606d" });
+  addText("Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.", { size: 8.5, color: "#52606d" });
   const signatures = p.signatures || [];
   imageDebug.signaturesFound = signatures.filter((signature) => !!signatureSource(signature)).length;
   imageDebug.signatureFields = signatures.map((signature) => ({ name: signature.name || "", field: signatureFieldName(signature) || "none" }));
@@ -11618,7 +11618,7 @@ async function createReportPdfBlob() {
     console.info("PDF-Export", entry);
   };
   try {
-    if (!state.current) throw new Error("Keine Abnahme geÃ¶ffnet.");
+    if (!state.current) throw new Error("Keine Abnahme geöffnet.");
     logStep("start", { protocolId: state.current.id });
     saveFromForm();
     logStep("plan-images:start");
@@ -11628,9 +11628,9 @@ async function createReportPdfBlob() {
     const model = await buildStructuredReportPdfModel(parts, logStep);
     state.lastPdfImageDebug = model.imageDebug || null;
     logStep("model:done", { pages: model.pages.length, images: model.images.length, warnings: model.warnings.length, imageDebug: model.imageDebug || null });
-    if (!model.pages.length) throw new Error("PDF konnte nicht erzeugt werden, Bericht enthÃ¤lt keine Seiten.");
+    if (!model.pages.length) throw new Error("PDF konnte nicht erzeugt werden, Bericht enthält keine Seiten.");
     const blob = buildPdfBlobFromModel(model);
-    if (!blob || blob.type !== "application/pdf" || blob.size < 1000) throw new Error("PDF-Blob ist leer oder ungÃ¼ltig.");
+    if (!blob || blob.type !== "application/pdf" || blob.size < 1000) throw new Error("PDF-Blob ist leer oder ungültig.");
     logStep("blob:done", { size: blob.size, type: blob.type });
     return { blob, fileName: sanitizeFileName(parts.fileName || reportFileName(state.current)), totalPages: model.totalPages, warnings: model.warnings, debug, parts };
   } catch (error) {
@@ -11685,12 +11685,12 @@ async function shareReportPdf() {
   const fallbackDownload = (message) => {
     addDebug("fallback:download", { message });
     triggerPdfDownload(blob, fileName);
-    alert(message || "Direktes Teilen wird auf diesem GerÃ¤t nicht unterstÃ¼tzt. Die PDF wurde heruntergeladen.");
+    alert(message || "Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
   };
   try {
-    if (!blob || blob.type !== "application/pdf") throw new Error(`UngÃ¼ltiger PDF-Blob: ${blob?.type || "kein Typ"}`);
+    if (!blob || blob.type !== "application/pdf") throw new Error(`Ungültiger PDF-Blob: ${blob?.type || "kein Typ"}`);
     if (typeof File === "undefined") {
-      fallbackDownload("Direktes Teilen wird auf diesem GerÃ¤t nicht unterstÃ¼tzt. Die PDF wurde heruntergeladen.");
+      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
       return;
     }
     const safeName = sanitizeFileName(fileName || reportFileName(state.current));
@@ -11702,7 +11702,7 @@ async function shareReportPdf() {
     const canShareFiles = hasShare && hasCanShare ? navigator.canShare({ files: [file] }) : false;
     addDebug("share:capabilities", { hasShare, hasCanShare, canShareFiles, fileName: safeName, fileType: file.type, fileSize: file.size });
     if (!canShareFiles) {
-      fallbackDownload("Direktes Teilen wird auf diesem GerÃ¤t nicht unterstÃ¼tzt. Die PDF wurde heruntergeladen.");
+      fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
       return;
     }
     addDebug("share:start");
@@ -11716,7 +11716,7 @@ async function shareReportPdf() {
     }
     addDebug("share:error", { name: error?.name || "Error", message: error?.message || String(error) });
     console.error("Direkt-PDF-Share fehlgeschlagen", { error, debug });
-    fallbackDownload("Direktes Teilen wird auf diesem GerÃ¤t nicht unterstÃ¼tzt. Die PDF wurde heruntergeladen.");
+    fallbackDownload("Direktes Teilen wird auf diesem Gerät nicht unterstützt. Die PDF wurde heruntergeladen.");
   }
 }
 async function saveReportPdfDirectExperimental() {
@@ -11740,11 +11740,11 @@ function masterDataWarnings(masterData) {
   });
   [
     ...masterData.companies.map((item) => ["Firma", item.name, item.address]),
-    ...masterData.inspectors.map((item) => ["PrÃ¼fer", item.office ? `${item.name || ""} / Sachbearbeiter ${item.office}` : (item.name || item.office), item.address]),
+    ...masterData.inspectors.map((item) => ["Prüfer", item.office ? `${item.name || ""} / Sachbearbeiter ${item.office}` : (item.name || item.office), item.address]),
     ...masterData.ownPersons.map((item) => ["Abnehmender", item.name || item.company, item.address])
   ].forEach(([type, label, address]) => {
     const zip = normalizeAddress(address).zip;
-    if (zip && !/^\d{5}$/.test(zip)) warnings.push(`${type} ${label || ""}: PLZ "${zip}" prÃ¼fen.`);
+    if (zip && !/^\d{5}$/.test(zip)) warnings.push(`${type} ${label || ""}: PLZ "${zip}" prüfen.`);
   });
   return warnings;
 }
@@ -11818,7 +11818,7 @@ async function saveMasterData({ alertSuccess = true } = {}) {
     setMasterDataDirty(false);
     renderMasterData();
     updateMasterDataSaveStatus("Alle Stammdaten gespeichert");
-    showStorageWarning(warnings.length ? `Stammdaten gespeichert, bitte prÃ¼fen: ${warnings.join(" ")}` : "");
+    showStorageWarning(warnings.length ? `Stammdaten gespeichert, bitte prüfen: ${warnings.join(" ")}` : "");
     if (alertSuccess) alert(`Alle Stammdaten gespeichert${warnings.length ? `\n\nHinweis: ${warnings.join(" ")}` : ""}`);
     return true;
   } catch (error) {
@@ -11898,11 +11898,11 @@ async function waitForReportReady(reportElement) {
 
 function validateReportElement(reportElement) {
   if (!reportElement || !reportElement.matches(".report-export")) {
-    throw new Error("PDF konnte nicht erzeugt werden, Bericht enthÃ¤lt keine exportierbaren Inhalte.");
+    throw new Error("PDF konnte nicht erzeugt werden, Bericht enthält keine exportierbaren Inhalte.");
   }
   const textLength = (reportElement.innerText || "").trim().length;
   if (textLength < 100 || !reportElement.querySelector(".report-header") || !reportElement.querySelector(".result-box")) {
-    throw new Error("PDF konnte nicht erzeugt werden, Bericht enthÃ¤lt keine exportierbaren Inhalte.");
+    throw new Error("PDF konnte nicht erzeugt werden, Bericht enthält keine exportierbaren Inhalte.");
   }
 }
 
@@ -11915,10 +11915,10 @@ function reportFileName(p) {
     (p.head.createdAt || new Date().toISOString()).slice(0, 10)
   ].filter(Boolean);
   const name = parts.join("_")
-    .replace(/[Ã¤Ã„]/g, "ae")
-    .replace(/[Ã¶Ã–]/g, "oe")
-    .replace(/[Ã¼Ãœ]/g, "ue")
-    .replace(/[ÃŸ]/g, "ss")
+    .replace(/[äÄ]/g, "ae")
+    .replace(/[öÖ]/g, "oe")
+    .replace(/[üÜ]/g, "ue")
+    .replace(/[ß]/g, "ss")
     .replace(/[\\/:*?"<>|]+/g, "")
     .replace(/\s+/g, "_")
     .replace(/_+/g, "_")
@@ -11950,7 +11950,7 @@ function isInitialOpenStatus(status = "") {
     value.includes("auflage") ||
     value.includes("teilweise") ||
     value.includes("offen") ||
-    value.includes("nicht prÃ¼fbar") ||
+    value.includes("nicht prüfbar") ||
     value.includes("nicht pr")
   ) && !value.includes("nicht relevant");
 }
@@ -11962,7 +11962,7 @@ function isInitialOpenSample(sample = {}) {
 
 function isOpenFollowupStatus(status = "") {
   const value = String(status).toLowerCase();
-  return value.includes("teilweise") || value.includes("weiterhin") || value.includes("offen") || value.includes("nicht prÃ¼fbar") || value.includes("nicht pr") || value.includes("neu hinzugekommen");
+  return value.includes("teilweise") || value.includes("weiterhin") || value.includes("offen") || value.includes("nicht prüfbar") || value.includes("nicht pr") || value.includes("neu hinzugekommen");
 }
 
 function followupSourceLabel(protocol) {
@@ -11972,7 +11972,7 @@ function followupSourceLabel(protocol) {
 }
 
 function issuesReport(issues) {
-  if (!issues.length) return `<p>Keine Auflagen / MÃ¤ngel dokumentiert.</p>`;
+  if (!issues.length) return `<p>Keine Auflagen / Mängel dokumentiert.</p>`;
   const issueCounts = issues.reduce((acc, issue) => {
     const followup = !!(issue.sample.sourceStatus || issue.sample.followupStatus);
     const status = String(followup ? (issue.sample.followupStatus || issue.sample.status) : (issue.sample.overlapCheck?.resultStatus || issue.sample.status) || "").toLowerCase();
@@ -11981,8 +11981,8 @@ function issuesReport(issues) {
     else acc.other += 1;
     return acc;
   }, { bad: 0, partial: 0, other: 0 });
-  const countText = `${issues.length} relevante Feststellung${issues.length === 1 ? "" : "en"}, davon ${issueCounts.bad} MÃ¤ngel und ${issueCounts.partial} Auflagen${issueCounts.other ? `, ${issueCounts.other} weitere offene Punkte` : ""}.`;
-  return `<section class="compact-summary"><p class="muted"><strong>KurzÃ¼bersicht der relevanten Feststellungen:</strong><br>${escapeHtml(countText)}</p><ol class="issues-list">
+  const countText = `${issues.length} relevante Feststellung${issues.length === 1 ? "" : "en"}, davon ${issueCounts.bad} Mängel und ${issueCounts.partial} Auflagen${issueCounts.other ? `, ${issueCounts.other} weitere offene Punkte` : ""}.`;
+  return `<section class="compact-summary"><p class="muted"><strong>Kurzübersicht der relevanten Feststellungen:</strong><br>${escapeHtml(countText)}</p><ol class="issues-list">
     ${issues.map((issue) => {
       const followup = !!(issue.sample.sourceStatus || issue.sample.followupStatus);
       const status = followup ? (issue.sample.followupStatus || issue.sample.status) : (issue.sample.overlapCheck?.resultStatus || issue.sample.status);
@@ -11997,12 +11997,12 @@ function checklistReport(protocol) {
   const checks = protocol.checkpoints.filter(shouldIncludeCheckInReport);
   if (!checks.length) {
     return followup
-      ? `<p>Keine Ã¼bernommenen offenen Punkte dokumentiert.</p>`
-      : `<p>Keine Checkbereiche aktiviert oder dokumentiert.</p><p class="small">Nicht aufgefÃ¼hrte PrÃ¼fpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
+      ? `<p>Keine übernommenen offenen Punkte dokumentiert.</p>`
+      : `<p>Keine Checkbereiche aktiviert oder dokumentiert.</p><p class="small">Nicht aufgeführte Prüfpunkte waren im Rahmen dieser Abnahme nicht aktiviert bzw. nicht dokumentiert.</p>`;
   }
   const documentedSamples = checks.reduce((sum, check) => sum + (check.samples || []).length, 0);
   return `<section class="compact-summary compact-check-summary">
-    <p><strong>${documentedSamples} PrÃ¼fstellen wurden im Rahmen der Bewehrungskontrolle erfasst.</strong><br>Die fÃ¼r die Betonage relevanten Feststellungen sind oben als MÃ¤ngel und Auflagen zusammengefasst.<br>Weitere Dokumentationspunkte dienen der Fotodokumentation und werden nicht als Mangel oder Auflage gezÃ¤hlt.</p>
+    <p><strong>${documentedSamples} Prüfstellen wurden im Rahmen der Bewehrungskontrolle erfasst.</strong><br>Die für die Betonage relevanten Feststellungen sind oben als Mängel und Auflagen zusammengefasst.<br>Weitere Dokumentationspunkte dienen der Fotodokumentation und werden nicht als Mangel oder Auflage gezählt.</p>
   </section>`;
 }
 
@@ -12037,7 +12037,7 @@ function sampleReport(sample, check = null) {
   return `
     <article class="sample-card">
       <div class="sample-title">
-        <span>PrÃ¼fstelle ${sample.number}${sample.location ? " Â· " + escapeHtml(sample.location) : ""}</span>
+        <span>Prüfstelle ${sample.number}${sample.location ? " · " + escapeHtml(sample.location) : ""}</span>
         ${statusBadge(sample.status)}
       </div>
       <div class="sample-grid">
@@ -12057,13 +12057,13 @@ function followupSampleReport(sample, check = null) {
   return `
     <article class="sample-card">
       <div class="sample-title">
-        <span>${isNew ? "Neu festgestellt" : "Nachkontrolle"} ${sample.number}${sample.location ? " Â· " + escapeHtml(sample.location) : ""}</span>
+        <span>${isNew ? "Neu festgestellt" : "Nachkontrolle"} ${sample.number}${sample.location ? " · " + escapeHtml(sample.location) : ""}</span>
         ${statusBadge(sample.followupStatus || sample.status || (isNew ? "neu hinzugekommen" : "weiterhin offen"))}
       </div>
       <div class="sample-grid">
         <div>Bereich</div><div>${escapeHtml(sample.location || "ohne Angabe")}</div>
-        ${isNew ? `<div>Einordnung</div><div>Neu festgestellt in Nachbegehung</div>` : `<div>UrsprÃ¼nglicher Status</div><div>${statusBadge(sample.sourceStatus || "offen")}</div>
-        <div>UrsprÃ¼ngliche Bemerkung</div><div>${escapeHtml(polishedReportText(sample.sourceNote) || "keine")}</div>`}
+        ${isNew ? `<div>Einordnung</div><div>Neu festgestellt in Nachbegehung</div>` : `<div>Ursprünglicher Status</div><div>${statusBadge(sample.sourceStatus || "offen")}</div>
+        <div>Ursprüngliche Bemerkung</div><div>${escapeHtml(polishedReportText(sample.sourceNote) || "keine")}</div>`}
         <div>Plan / Pin</div><div>${escapeHtml(pinName(sample.pinId) || pinName(sample.sourcePinId) || "kein Pin")}</div>
         <div>Status Nachbegehung</div><div>${statusBadge(sample.followupStatus || sample.status || "weiterhin offen")}</div>
         <div>Bemerkung Nachbegehung</div><div>${escapeHtml(polishedReportText(newNote))}</div>
@@ -12080,18 +12080,18 @@ function overlapPdfRows(sample) {
   if (calc.mode === OVERLAP_PLAN_MODE) {
     return `
       <div class="calc-note">
-        <strong>ÃœbergreifungslÃ¤ngen-PrÃ¼fung Â· Sollwert laut Plan</strong><br>
-        Planbezug: ${escapeHtml(pinName(sample.pinId) || "ohne Pin")} Â· Ã˜${escapeHtml(calc.diameterMm || "")} mm Â· Soll: ${escapeHtml(formatMmCm(calc.requiredFromPlanMm))} Â· Vorhanden: ${escapeHtml(formatMmCm(calc.measuredMm))} Â· Differenz: ${escapeHtml(formatDifference(calc.differenceMm))}<br>
+        <strong>Übergreifungslängen-Prüfung · Sollwert laut Plan</strong><br>
+        Planbezug: ${escapeHtml(pinName(sample.pinId) || "ohne Pin")} · Ø${escapeHtml(calc.diameterMm || "")} mm · Soll: ${escapeHtml(formatMmCm(calc.requiredFromPlanMm))} · Vorhanden: ${escapeHtml(formatMmCm(calc.measuredMm))} · Differenz: ${escapeHtml(formatDifference(calc.differenceMm))}<br>
         ${statusBadge(calc.resultStatus)} ${escapeHtml(calc.generatedText)}
       </div>
     `;
   }
   return `
     <div class="calc-note">
-      <strong>ÃœbergreifungslÃ¤ngen-PrÃ¼fung Â· Berechnung nach EC2/NA</strong><br>
-      Ã˜${escapeHtml(calc.diameterMm)} mm Â· Beton ${escapeHtml(calc.concreteClass)} Â· ${escapeHtml(calc.steelGrade)} Â· ${escapeHtml(bondLabel(calc.bondCondition))} Â· StoÃŸanteil ${escapeHtml(spliceRatioLabel(calc.spliceRatio))}<br>
-      Erforderlich: ${escapeHtml(formatMmCm(calc.requiredMm))} Â· Vorhanden: ${escapeHtml(formatMmCm(calc.measuredMm))} Â· Differenz: ${escapeHtml(formatDifference(calc.differenceMm))} ${statusBadge(calc.resultStatus)}<br>
-      <span class="small">Hinweis: MaÃŸgebend bleiben freigegebene Statik, Bewehrungsplan sowie DIN EN 1992-1-1 mit Nationalem Anhang.</span><br>
+      <strong>Übergreifungslängen-Prüfung · Berechnung nach EC2/NA</strong><br>
+      Ø${escapeHtml(calc.diameterMm)} mm · Beton ${escapeHtml(calc.concreteClass)} · ${escapeHtml(calc.steelGrade)} · ${escapeHtml(bondLabel(calc.bondCondition))} · Stoßanteil ${escapeHtml(spliceRatioLabel(calc.spliceRatio))}<br>
+      Erforderlich: ${escapeHtml(formatMmCm(calc.requiredMm))} · Vorhanden: ${escapeHtml(formatMmCm(calc.measuredMm))} · Differenz: ${escapeHtml(formatDifference(calc.differenceMm))} ${statusBadge(calc.resultStatus)}<br>
+      <span class="small">Hinweis: Maßgebend bleiben freigegebene Statik, Bewehrungsplan sowie DIN EN 1992-1-1 mit Nationalem Anhang.</span><br>
       ${escapeHtml(calc.generatedText)}
     </div>
   `;
@@ -12104,7 +12104,7 @@ async function ensureReportPlanImages() {
   for (const plan of reportPlansForProtocol(state.current)) {
     const pages = reportPlanPagesForProtocol(state.current, plan);
     if (plan.type === "missing" || plan.reportOnly) {
-      pages.forEach((pageNumber) => state.reportPlanErrors.set(`${plan.id}:${pageNumber}`, plan.renderError || "Plan zum Pin konnte nicht aufgelÃ¶st werden."));
+      pages.forEach((pageNumber) => state.reportPlanErrors.set(`${plan.id}:${pageNumber}`, plan.renderError || "Plan zum Pin konnte nicht aufgelöst werden."));
       continue;
     }
     if (plan.type === "application/pdf") {
@@ -12209,7 +12209,7 @@ async function reportFindingPhotosHtml(photos = []) {
   }
   if (!items.length) return "";
   const gridClass = items.length === 1 ? "pin-photo-grid single" : "pin-photo-grid";
-  return `<div class="${gridClass}">${items.map((item, index) => `<figure class="pin-photo"><img src="${item.src}" alt="${escapeAttr(item.photo.name || "Foto")}"><figcaption>Foto ${index + 1}${item.photo.name ? " Â· " + escapeHtml(item.photo.name) : ""}</figcaption>${barCountReportHtml(item.photo)}</figure>`).join("")}</div>`;
+  return `<div class="${gridClass}">${items.map((item, index) => `<figure class="pin-photo"><img src="${item.src}" alt="${escapeAttr(item.photo.name || "Foto")}"><figcaption>Foto ${index + 1}${item.photo.name ? " · " + escapeHtml(item.photo.name) : ""}</figcaption>${barCountReportHtml(item.photo)}</figure>`).join("")}</div>`;
 }
 
 async function planFindingCardHtml(entry) {
@@ -12237,7 +12237,7 @@ async function planAppendixReport(p) {
   if (!plansWithPins.length) {
     const pinsWithPlanReference = (p.pins || []).filter((pin) => pinPlacements(pin).some((placement) => placement.planId));
     if (pinsWithPlanReference.length) {
-      return `<section class="report-section"><h2>Planmarkierungen und Feststellungen</h2><p class="report-warning">Planmarkierungen sind vorhanden, aber die zugehÃ¶rigen Planunterlagen konnten nicht aufgelÃ¶st werden.</p></section>`;
+      return `<section class="report-section"><h2>Planmarkierungen und Feststellungen</h2><p class="report-warning">Planmarkierungen sind vorhanden, aber die zugehörigen Planunterlagen konnten nicht aufgelöst werden.</p></section>`;
     }
     return `<section class="report-section"><h2>Planmarkierungen und Feststellungen</h2><p>Keine Planmarkierungen mit Pins dokumentiert.</p></section>`;
   }
@@ -12247,7 +12247,7 @@ async function planAppendixReport(p) {
       const pins = (p.pins || []).filter((pin) => pinHasReportPlacement(pin, plan, pageNumber)).sort((a, b) => (a.number || 0) - (b.number || 0));
       if (!pins.length) continue;
       const image = state.reportPlanImages.get(`${plan.id}:${pageNumber}`);
-      const imageError = state.reportPlanErrors?.get(`${plan.id}:${pageNumber}`) || plan.renderError || "Planbild nicht verfÃ¼gbar.";
+      const imageError = state.reportPlanErrors?.get(`${plan.id}:${pageNumber}`) || plan.renderError || "Planbild nicht verfügbar.";
       const findingCards = [];
       for (const pin of pins) {
         const entries = reportFindingEntriesForPin(p, pin);
@@ -12276,30 +12276,30 @@ async function unplacedFindingsReport(p) {
   if (!entries.length) return "";
   const cards = [];
   for (const entry of entries) cards.push(await planFindingCardHtml(entry));
-  return `<section class="report-section unplaced-findings"><h2>Dokumentierte Punkte ohne Planmarkierung</h2><p class="muted">Diese Punkte haben keinen Pin und werden deshalb separat aufgefÃ¼hrt.</p><div class="pin-finding-list">${cards.join("")}</div></section>`;
+  return `<section class="report-section unplaced-findings"><h2>Dokumentierte Punkte ohne Planmarkierung</h2><p class="muted">Diese Punkte haben keinen Pin und werden deshalb separat aufgeführt.</p><div class="pin-finding-list">${cards.join("")}</div></section>`;
 }
 
 async function overviewPhotoReport(p) {
   const photos = normalizeOverviewPhotos(p.overviewPhotos || [], p.id);
-  if (!photos.length) return "<p>Keine Ãœbersichtsfotos zur Baustelle hinterlegt.</p>";
+  if (!photos.length) return "<p>Keine Übersichtsfotos zur Baustelle hinterlegt.</p>";
   const items = [];
   for (const item of photos) {
     const record = await idbGet("photos", item.photoId);
     if (!record?.blob) continue;
     items.push({
       ...item,
-      fileName: record.fileName || record.name || "Ãœbersichtsfoto",
+      fileName: record.fileName || record.name || "Übersichtsfoto",
       src: await reportPhotoDataUrl(item.photoId, { maxWidth: 1400, maxHeight: 1400, quality: 0.75, mimeType: "image/jpeg" })
     });
   }
-  if (!items.length) return "<p>Ãœbersichtsfotos konnten nicht geladen werden.</p>";
+  if (!items.length) return "<p>Übersichtsfotos konnten nicht geladen werden.</p>";
   return `
     <div class="overview-report-grid">
       ${items.map((item, index) => `
         <figure class="overview-report-photo">
           <img src="${item.src}" alt="${escapeAttr(item.caption || item.fileName)}">
           <figcaption>
-            <strong>${item.isCover ? "Titelbild Â· " : ""}Ãœbersichtsfoto ${index + 1}</strong>
+            <strong>${item.isCover ? "Titelbild · " : ""}Übersichtsfoto ${index + 1}</strong>
             ${escapeHtml(item.caption || item.fileName)}
           </figcaption>
         </figure>
@@ -12315,12 +12315,12 @@ async function photoReport(p) {
 function barCountReportHtml(photo) {
   const analysis = normalizeBarCountAnalysis(photo?.barCountAnalysis);
   if (!analysis) return "";
-  const detected = analysis.detectedCount === "" ? "kein KI-Vorschlag erfasst" : `${analysis.detectedCount} StÃ¤be erkannt`;
-  const confirmed = analysis.confirmedCount === "" ? "keine manuelle BestÃ¤tigung" : `${analysis.confirmedCount} StÃ¤be manuell bestÃ¤tigt`;
+  const detected = analysis.detectedCount === "" ? "kein KI-Vorschlag erfasst" : `${analysis.detectedCount} Stäbe erkannt`;
+  const confirmed = analysis.confirmedCount === "" ? "keine manuelle Bestätigung" : `${analysis.confirmedCount} Stäbe manuell bestätigt`;
   return `
     <p class="photo-analysis">
       Fotoanalyse: ${escapeHtml(detected)}, ${escapeHtml(confirmed)}.
-      Die automatische Fotoauswertung dient als Assistenzfunktion und ersetzt keine fachliche PrÃ¼fung.
+      Die automatische Fotoauswertung dient als Assistenzfunktion und ersetzt keine fachliche Prüfung.
       ${analysis.note ? `<br>${escapeHtml(polishedReportText(analysis.note))}` : ""}
     </p>
   `;
@@ -12332,7 +12332,7 @@ function hasDrawnSignatures(p) {
 
 function signatureReport(p) {
   const signatures = p.signatures || [];
-  const notice = "Die Unterschrift bestÃ¤tigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder Ã¶ffentlich-rechtlichen ErklÃ¤rungen.";
+  const notice = "Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses der Bewehrungskontrolle. Sie ersetzt keine gesonderten vertraglichen oder öffentlich-rechtlichen Erklärungen.";
   if (!signatures.length) {
     return `<p>${escapeHtml(notice)}</p><p>Keine digitale Unterschrift erfasst.</p>`;
   }
@@ -12345,7 +12345,7 @@ function signatureReport(p) {
             <tr><td>Name</td><td>${escapeHtml(signature.name || "")}</td></tr>
             <tr><td>Firma</td><td>${escapeHtml(signature.company || "")}</td></tr>
             <tr><td>Funktion</td><td>${escapeHtml(signature.role || "")}</td></tr>
-            ${signature.category && signature.category !== signature.role ? `<tr><td>Unterschrift fÃ¼r</td><td>${escapeHtml(signature.category || "")}</td></tr>` : ""}
+            ${signature.category && signature.category !== signature.role ? `<tr><td>Unterschrift für</td><td>${escapeHtml(signature.category || "")}</td></tr>` : ""}
             <tr><td>Datum / Uhrzeit</td><td>${escapeHtml(formatDate(signature.signedAt))}</td></tr>
             ${signature.note ? `<tr><td>Bemerkung</td><td>${escapeHtml(polishedReportText(signature.note))}</td></tr>` : ""}
           </tbody>
@@ -12376,7 +12376,7 @@ function companyReportText(company, fallback = "") {
 
 function inspectorReportText(inspector, fallback = "") {
   if (!inspector) return fallback || "";
-  const firstLine = inspector.office ? `${inspector.name || "PrÃ¼fingenieur"} / Sachbearbeiter ${inspector.office}` : (inspector.name || "");
+  const firstLine = inspector.office ? `${inspector.name || "Prüfingenieur"} / Sachbearbeiter ${inspector.office}` : (inspector.name || "");
   return [firstLine, formatAddress(inspector.address)].filter(Boolean).join("\n");
 }
 
@@ -12410,15 +12410,15 @@ function statusBadge(status = "offen / nicht bewertet") {
 
 function statusClassName(status = "") {
   if (status.includes("nicht OK") || status.includes("Nicht zur Betonage")) return "bad";
-  if (status.includes("teilweise") || status.includes("Auflage") || status.includes("Nachkontrolle") || status.includes("weiterhin offen") || status.includes("nicht prÃ¼fbar")) return "partial";
+  if (status.includes("teilweise") || status.includes("Auflage") || status.includes("Nachkontrolle") || status.includes("weiterhin offen") || status.includes("nicht prüfbar")) return "partial";
   if (status.includes("OK") || status.includes("freigegeben") || status.includes("erledigt")) return "ok";
   if (status.includes("Dokumentation")) return "doc";
   return "neutral";
 }
 
 function resultClass(status = "") {
-  if (status === "Nicht zur Betonage freigegeben" || status === "weiterhin wesentliche MÃ¤ngel offen") return "bad";
-  if (status === "Zur Betonage freigegeben unter Auflagen" || status === "Nachkontrolle erforderlich" || status === "teilweise erledigt, Rest offen" || status === "Nachkontrolle nicht abschlieÃŸend mÃ¶glich") return "partial";
+  if (status === "Nicht zur Betonage freigegeben" || status === "weiterhin wesentliche Mängel offen") return "bad";
+  if (status === "Zur Betonage freigegeben unter Auflagen" || status === "Nachkontrolle erforderlich" || status === "teilweise erledigt, Rest offen" || status === "Nachkontrolle nicht abschließend möglich") return "partial";
   if (status === "Zur Betonage freigegeben" || status === "alle offenen Punkte erledigt") return "ok";
   return "neutral";
 }
@@ -12432,18 +12432,18 @@ function resultClause(status) {
     return "Aus Sicht der dokumentierten Bewehrungskontrolle bestehen gegen die Betonage keine Bedenken.";
   }
   if (status === "Zur Betonage freigegeben unter Auflagen") {
-    return "Aus Sicht der Bewehrungskontrolle bestehen gegen die Betonage keine Bedenken, sofern die genannten Auflagen vor Betonage vollstÃ¤ndig umgesetzt werden.";
+    return "Aus Sicht der Bewehrungskontrolle bestehen gegen die Betonage keine Bedenken, sofern die genannten Auflagen vor Betonage vollständig umgesetzt werden.";
   }
   if (status === "Nicht zur Betonage freigegeben") {
-    return "Eine Betonagefreigabe kann derzeit nicht erfolgen. Die nachfolgend genannten Punkte sind vor einer erneuten Kontrolle vollstÃ¤ndig nachzuarbeiten.";
+    return "Eine Betonagefreigabe kann derzeit nicht erfolgen. Die nachfolgend genannten Punkte sind vor einer erneuten Kontrolle vollständig nachzuarbeiten.";
   }
   if (status === "Nachkontrolle erforderlich") {
-    return "Vor einer abschlieÃŸenden Bewertung ist eine Nachkontrolle der dokumentierten Punkte erforderlich.";
+    return "Vor einer abschließenden Bewertung ist eine Nachkontrolle der dokumentierten Punkte erforderlich.";
   }
   if (status === "alle offenen Punkte erledigt") return "Die nachkontrollierten Punkte wurden als erledigt dokumentiert.";
   if (status === "teilweise erledigt, Rest offen") return "Ein Teil der offenen Punkte wurde erledigt; Restpunkte bleiben dokumentiert offen.";
-  if (status === "weiterhin wesentliche MÃ¤ngel offen") return "Wesentliche MÃ¤ngel sind weiterhin offen und erfordern weitere MaÃŸnahmen.";
-  if (status === "Nachkontrolle nicht abschlieÃŸend mÃ¶glich") return "Die Nachkontrolle konnte nicht abschlieÃŸend bewertet werden.";
+  if (status === "weiterhin wesentliche Mängel offen") return "Wesentliche Mängel sind weiterhin offen und erfordern weitere Maßnahmen.";
+  if (status === "Nachkontrolle nicht abschließend möglich") return "Die Nachkontrolle konnte nicht abschließend bewertet werden.";
   return "";
 }
 
@@ -12452,14 +12452,14 @@ function pinName(id) {
   if (!pin) return "";
   const placement = pinPlacements(pin).find((item) => item.isPrimary) || pinPlacements(pin)[0];
   const plan = planById(placement?.planId || pin.planId);
-  return `${pinLabel(pin)} Â· ${displayPlanNumber(plan) || plan?.fileName || "Plan"} / S.${placement?.pageNumber || pin.pageNumber || 1}`;
+  return `${pinLabel(pin)} · ${displayPlanNumber(plan) || plan?.fileName || "Plan"} / S.${placement?.pageNumber || pin.pageNumber || 1}`;
 }
 
 function pinContextLabel(pin) {
   if (!pin) return "Allgemeine Feststellung";
   const check = state.current?.checkpoints?.find((item) => item.id === pin.checkItemId || item.samples?.some((sample) => sample.id === pin.sampleId));
   const sample = check?.samples?.find((item) => item.id === pin.sampleId);
-  if (check && sample) return `${check.title} â€“ PrÃ¼fstelle ${sample.number}${sample.location ? " â€“ " + sample.location : ""}`;
+  if (check && sample) return `${check.title} – Prüfstelle ${sample.number}${sample.location ? " – " + sample.location : ""}`;
   if (check) return check.title;
   return "Allgemeine Feststellung";
 }
@@ -12552,10 +12552,10 @@ async function importFullBackup(file) {
   if (!file) return;
   try {
     const data = JSON.parse(await file.text());
-    if (data.type !== "kai-bewehrungscheck-full-backup") throw new Error("Keine vollstÃ¤ndige Kai BewehrungsCheck Backup-Datei.");
+    if (data.type !== "kai-bewehrungscheck-full-backup") throw new Error("Keine vollständige Kai BewehrungsCheck Backup-Datei.");
     const projectCount = data.projects?.length || 0;
     const protocolCount = data.protocols?.length || 0;
-    if (!confirm(`Backup importieren?\n\nAktuelle lokale Daten auf diesem GerÃ¤t werden ersetzt.\n\nBackup enthÃ¤lt:\n${projectCount} Projekt(e)\n${protocolCount} Abnahme(n)`)) return;
+    if (!confirm(`Backup importieren?\n\nAktuelle lokale Daten auf diesem Gerät werden ersetzt.\n\nBackup enthält:\n${projectCount} Projekt(e)\n${protocolCount} Abnahme(n)`)) return;
     await Promise.all([
       idbClear("projects"),
       idbClear("protocols"),
@@ -12636,7 +12636,7 @@ function escapeAttr(value) {
 function bindOptional(selector, eventName, handler, options) {
   const element = $(selector);
   if (!element) {
-    console.warn(`UI-Element nicht gefunden, Listener Ã¼bersprungen: ${selector}`);
+    console.warn(`UI-Element nicht gefunden, Listener übersprungen: ${selector}`);
     return null;
   }
   element.addEventListener(eventName, handler, options);
@@ -12957,13 +12957,13 @@ function bindEvents() {
     const openDailyReport = event.target.closest("[data-open-daily-report]");
     if (openDailyReport) openDailyReportProtocol(state.protocols.find((p) => p.id === openDailyReport.dataset.openDailyReport));
     const deleteDailyReport = event.target.closest("[data-delete-daily-report]");
-    if (deleteDailyReport && confirm("Diesen Bautagesbericht lÃ¶schen?")) deleteDailyReportProtocol(deleteDailyReport.dataset.deleteDailyReport);
+    if (deleteDailyReport && confirm("Diesen Bautagesbericht löschen?")) deleteDailyReportProtocol(deleteDailyReport.dataset.deleteDailyReport);
     const dailyPhotoCamera = event.target.closest("#dailyPhotoCameraBtn");
     if (dailyPhotoCamera) triggerDailyPhotoPicker("camera");
     const dailyPhotoGallery = event.target.closest("#dailyPhotoGalleryBtn");
     if (dailyPhotoGallery) triggerDailyPhotoPicker("gallery");
     const deleteDailyPhoto = event.target.closest("[data-delete-daily-photo]");
-    if (deleteDailyPhoto && confirm("Dieses Foto lÃ¶schen?")) deleteDailyPhotoRef(deleteDailyPhoto.dataset.deleteDailyPhoto);
+    if (deleteDailyPhoto && confirm("Dieses Foto löschen?")) deleteDailyPhotoRef(deleteDailyPhoto.dataset.deleteDailyPhoto);
     const addDailyWorkerButton = event.target.closest("#addDailyWorkerBtn");
     if (addDailyWorkerButton) addDailyWorker();
     const deleteDailyWorkerButton = event.target.closest("[data-delete-daily-worker]");
@@ -13012,7 +13012,7 @@ function bindEvents() {
     const sitePhotoGallery = event.target.closest("[data-site-photo-gallery]");
     if (sitePhotoGallery) triggerSiteControlPhotoPicker(sitePhotoGallery.dataset.sitePhotoGallery, "gallery");
     const deleteSitePhoto = event.target.closest("[data-delete-site-photo]");
-    if (deleteSitePhoto && confirm("Dieses Foto lÃ¶schen?")) {
+    if (deleteSitePhoto && confirm("Dieses Foto löschen?")) {
       const item = findSiteControlItem(deleteSitePhoto.dataset.deleteSitePhoto);
       if (item) {
         item.photos = item.photos.filter((photo) => photo.id !== deleteSitePhoto.dataset.photoId);
@@ -13102,11 +13102,11 @@ function bindEvents() {
     const addMaster = event.target.closest("[data-add-master]");
     if (addMaster) addMasterItem(addMaster.dataset.addMaster);
     const deleteMaster = event.target.closest("[data-delete-master]");
-    if (deleteMaster && confirm("Diesen Stammdatensatz lÃ¶schen?")) deleteMasterItem(deleteMaster.dataset.deleteMaster, deleteMaster.dataset.masterId);
+    if (deleteMaster && confirm("Diesen Stammdatensatz löschen?")) deleteMasterItem(deleteMaster.dataset.deleteMaster, deleteMaster.dataset.masterId);
     const addLookup = event.target.closest("[data-add-lookup]");
     if (addLookup) addLookupValue(addLookup.dataset.addLookup);
     const deleteLookup = event.target.closest("[data-delete-lookup]");
-    if (deleteLookup && confirm("Diesen Wert lÃ¶schen?")) {
+    if (deleteLookup && confirm("Diesen Wert löschen?")) {
       const key = deleteLookup.dataset.deleteLookup;
       state.masterData[key].splice(Number(deleteLookup.dataset.lookupIndex), 1);
       setMasterDataDirty(true);
@@ -13137,7 +13137,7 @@ function bindEvents() {
     const open = event.target.closest("[data-open]");
     if (open) openProtocol(state.protocols.find((p) => p.id === open.dataset.open));
     const del = event.target.closest("[data-delete]");
-    if (del && confirm("Diese Abnahme lokal lÃ¶schen?")) {
+    if (del && confirm("Diese Abnahme lokal löschen?")) {
       deleteProtocol(del.dataset.delete);
       renderList();
     }
@@ -13250,7 +13250,7 @@ function bindEvents() {
     const duplicateSampleButton = event.target.closest("[data-duplicate-sample]");
     if (duplicateSampleButton) duplicateSample(duplicateSampleButton.dataset.duplicateSample);
     const deleteSampleButton = event.target.closest("[data-delete-sample]");
-    if (deleteSampleButton && confirm("Diese PrÃ¼fstelle wirklich lÃ¶schen?")) {
+    if (deleteSampleButton && confirm("Diese Prüfstelle wirklich löschen?")) {
       deleteSample(deleteSampleButton.dataset.deleteSample);
     }
     const toggleOverlap = event.target.closest("[data-toggle-overlap]");
@@ -13346,9 +13346,9 @@ function bindEvents() {
     const overviewCover = event.target.closest("[data-overview-cover]");
     if (overviewCover) toggleOverviewCover(overviewCover.dataset.overviewCover);
     const overviewDelete = event.target.closest("[data-overview-delete]");
-    if (overviewDelete && confirm("Dieses Ãœbersichtsfoto lÃ¶schen?")) deleteOverviewPhoto(overviewDelete.dataset.overviewDelete);
+    if (overviewDelete && confirm("Dieses Übersichtsfoto löschen?")) deleteOverviewPhoto(overviewDelete.dataset.overviewDelete);
     const deleteSamplePhoto = event.target.closest("[data-delete-sample-photo]");
-    if (deleteSamplePhoto && confirm("Dieses Foto aus der PrÃ¼fstelle lÃ¶schen?")) {
+    if (deleteSamplePhoto && confirm("Dieses Foto aus der Prüfstelle löschen?")) {
       const sample = findSample(deleteSamplePhoto.dataset.deleteSamplePhoto);
       if (sample) {
         sample.photos = sample.photos.filter((photo) => photo.id !== deleteSamplePhoto.dataset.photoId);
@@ -13366,9 +13366,9 @@ function bindEvents() {
       if (sample?.pinId) openPlanMarkDialog(sample.id);
     }
     const removeSamplePin = event.target.closest("[data-remove-sample-pin]");
-    if (removeSamplePin && confirm("Planmarkierung von dieser PrÃ¼fstelle entfernen?")) removePinFromSample(removeSamplePin.dataset.removeSamplePin);
+    if (removeSamplePin && confirm("Planmarkierung von dieser Prüfstelle entfernen?")) removePinFromSample(removeSamplePin.dataset.removeSamplePin);
     const removePin = event.target.closest("[data-remove-pin]");
-    if (removePin && confirm("Pin lÃ¶schen?")) {
+    if (removePin && confirm("Pin löschen?")) {
       state.current.pins = state.current.pins.filter((pin) => pin.id !== removePin.dataset.removePin);
       state.current.checkpoints.forEach((check) => { if (check.pinId === removePin.dataset.removePin) check.pinId = ""; });
       state.current.checkpoints.forEach((check) => check.samples.forEach((sample) => {
@@ -13398,7 +13398,7 @@ function bindEvents() {
     const saveSig = event.target.closest("[data-save-signature]");
     if (saveSig) saveSignature(saveSig.dataset.saveSignature, event);
     const deleteSig = event.target.closest("[data-delete-signature]");
-    if (deleteSig && confirm("Diese Unterschrift wirklich lÃ¶schen?")) deleteSignature(deleteSig.dataset.deleteSignature);
+    if (deleteSig && confirm("Diese Unterschrift wirklich löschen?")) deleteSignature(deleteSig.dataset.deleteSignature);
     const pdfSave = event.target.closest("#pdfSaveBtn");
     if (pdfSave) savePdfFromA4ReportWithPhotoWarning();
     const pdfShare = event.target.closest("#pdfShareBtn");
@@ -13422,7 +13422,7 @@ function bindEvents() {
     const pdfPreview = event.target.closest("#pdfPreviewBtn");
     if (pdfPreview) openReportDialogWithPhotoWarning({ printHint: false }).then((opened) => { if (opened !== false) setReportPreviewMode("a4"); });
     const deletePlanButton = event.target.closest("[data-delete-plan]");
-    if (deletePlanButton && confirm("Plan wirklich lÃ¶schen? Zugeordnete Pins auf diesem Plan werden ebenfalls entfernt.")) deletePlanById(deletePlanButton.dataset.deletePlan);
+    if (deletePlanButton && confirm("Plan wirklich löschen? Zugeordnete Pins auf diesem Plan werden ebenfalls entfernt.")) deletePlanById(deletePlanButton.dataset.deletePlan);
   });
   bindOptional("#addPlanBtn", "click", () => $("#planInput").click());
   bindOptional("#importPlansBtn", "click", openPlanImportDialog);
@@ -13453,8 +13453,8 @@ function bindEvents() {
   bindOptional("#createDuplicateBtn", "click", () => duplicateProtocol($("#duplicateSourceInput").value));
   bindOptional("#duplicateTypeInput", "change", (event) => {
     $("#duplicateHint").textContent = event.target.value === "Nachkontrolle"
-      ? "FÃ¼r Nachkontrollen kÃ¶nnen Planunterlagen oder offene Auflagen bewusst per Checkbox Ã¼bernommen werden. Automatisch wird nichts Planbezogenes Ã¼bernommen."
-      : "Planunterlagen, Pins, Fotos, Ergebnis und Unterschriften werden standardmÃ¤ÃŸig nicht Ã¼bernommen.";
+      ? "Für Nachkontrollen können Planunterlagen oder offene Auflagen bewusst per Checkbox übernommen werden. Automatisch wird nichts Planbezogenes übernommen."
+      : "Planunterlagen, Pins, Fotos, Ergebnis und Unterschriften werden standardmäßig nicht übernommen.";
   });
   bindOptional("#cancelPlanImportBtn", "click", () => $("#planImportDialog").close());
   bindOptional("#confirmPlanImportBtn", "click", importSelectedPlans);
@@ -13488,7 +13488,7 @@ function bindEvents() {
     }
   });
   bindOptional("#pinModeBtn", "click", () => {
-    if (!selectedPlan()) return alert("Bitte zuerst einen Plan hinzufÃ¼gen.");
+    if (!selectedPlan()) return alert("Bitte zuerst einen Plan hinzufügen.");
     if (!isPlanRenderable(selectedPlan())) return alert("Bitte zuerst einen Plan laden.");
     state.pinMode = !state.pinMode;
     if (state.pinMode) state.placementModePinId = "";
@@ -13551,7 +13551,7 @@ function bindEvents() {
     if (typeof window.print === "function") {
       savePdfFromA4Report();
     } else {
-      alert("Bitte Ã¼ber Browser-MenÃ¼ Drucken / Als PDF speichern verwenden.");
+      alert("Bitte über Browser-Menü Drucken / Als PDF speichern verwenden.");
     }
   });
   bindOptional("#planSelect", "change", (event) => switchPlan(event.target.value));
@@ -13596,7 +13596,7 @@ function bindEvents() {
       await addPhotos(Array.from(event.target.files || []));
     } catch (error) {
       console.error(error);
-      alert("Foto konnte nicht geÃ¶ffnet oder gespeichert werden.");
+      alert("Foto konnte nicht geöffnet oder gespeichert werden.");
     } finally {
       event.target.value = "";
     }
@@ -13607,7 +13607,7 @@ function bindEvents() {
       await addPhotos(Array.from(event.target.files || []));
     } catch (error) {
       console.error(error);
-      alert("Foto konnte nicht geÃ¶ffnet oder gespeichert werden.");
+      alert("Foto konnte nicht geöffnet oder gespeichert werden.");
     } finally {
       event.target.value = "";
     }
@@ -13633,7 +13633,7 @@ function bindEvents() {
   bindOptional("#defaultInspector", "input", (event) => { state.settings.defaultInspector = event.target.value; persist(); });
   bindOptional("#defaultCompany", "input", (event) => { state.settings.defaultCompany = event.target.value; persist(); });
   bindOptional("#dropboxBaseFolder", "input", (event) => { state.settings.dropboxBaseFolder = event.target.value; persist(); });
-  bindOptional("#dropboxPlanFolder", "input", (event) => { state.settings.dropboxPlanFolder = event.target.value || "PlÃ¤ne"; persist(); });
+  bindOptional("#dropboxPlanFolder", "input", (event) => { state.settings.dropboxPlanFolder = event.target.value || "Pläne"; persist(); });
   bindOptional("#dropboxPhotoFolder", "input", (event) => { state.settings.dropboxPhotoFolder = event.target.value || "Fotos"; persist(); });
   bindOptional("#dropboxReportFolder", "input", (event) => { state.settings.dropboxReportFolder = event.target.value || "Berichte"; persist(); });
   bindOptional("#translationEnabled", "change", (event) => { state.settings.translationEnabled = !!event.target.checked; persist(); });
@@ -13643,7 +13643,7 @@ function bindEvents() {
   bindOptional("#reloadAppBtn", "click", reloadAppSafely);
   bindOptional("#reloadDataInventoryBtn", "click", reloadDataInventoryFromDb);
   bindOptional("#clearAllBtn", "click", () => {
-    if (confirm("Wirklich alle lokalen Testdaten lÃ¶schen?")) {
+    if (confirm("Wirklich alle lokalen Testdaten löschen?")) {
       state.protocols = [];
       state.projects = [];
       state.masterData = normalizeMasterData();
@@ -13674,7 +13674,7 @@ async function deleteProtocol(protocolId) {
 async function deletePlanById(planId) {
   if (!state.current || !planId) return;
   if (!state.current.plans.some((plan) => plan.id === planId)) {
-    showAppToast("Zentrale ProjektplÃ¤ne bitte in der Projektzentrale verwalten.", { type: "info" });
+    showAppToast("Zentrale Projektpläne bitte in der Projektzentrale verwalten.", { type: "info" });
     return;
   }
   state.current.plans = state.current.plans.filter((plan) => plan.id !== planId);
@@ -13745,7 +13745,7 @@ function openDuplicateDialog(protocolId) {
   $("#duplicateAreaInput").value = source.head.areaAxes || "";
   ["dupHeadInput", "dupChecklistInput"].forEach((id) => $(`#${id}`).checked = true);
   ["dupPlansInput", "dupSamplesInput", "dupPinsInput", "dupPhotosInput", "dupResultInput", "dupSignaturesInput"].forEach((id) => $(`#${id}`).checked = false);
-  $("#duplicateHint").textContent = "Planunterlagen, Pins, Fotos, Ergebnis und Unterschriften werden standardmÃ¤ÃŸig nicht Ã¼bernommen.";
+  $("#duplicateHint").textContent = "Planunterlagen, Pins, Fotos, Ergebnis und Unterschriften werden standardmäßig nicht übernommen.";
   $("#duplicateDialog").showModal();
 }
 
@@ -13818,7 +13818,7 @@ function cloneChecklistStructure(source, options, maps) {
   return sourceChecks.map((check, index) => {
     const newCheck = {
       id: uid(`check-${index}`),
-      title: check.title || CHECK_ITEMS[index] || `PrÃ¼fpunkt ${index + 1}`,
+      title: check.title || CHECK_ITEMS[index] || `Prüfpunkt ${index + 1}`,
       status: "offen / nicht bewertet",
       note: "",
       pinId: "",
@@ -13939,12 +13939,12 @@ async function createFollowupFromOpenPoints(protocolId) {
   const source = state.protocols.find((protocol) => protocol.id === protocolId);
   if (!source) return;
   if (isFollowupProtocol(source)) {
-    alert("Aus einer Nachbegehung wird keine weitere Nachbegehung erstellt. Bitte die ursprÃ¼ngliche Abnahme verwenden.");
+    alert("Aus einer Nachbegehung wird keine weitere Nachbegehung erstellt. Bitte die ursprüngliche Abnahme verwenden.");
     return;
   }
   const items = sampleIssues(source);
   if (!items.length) {
-    alert("Keine offenen Punkte, Auflagen oder MÃ¤ngel fÃ¼r eine Nachbegehung gefunden.");
+    alert("Keine offenen Punkte, Auflagen oder Mängel für eine Nachbegehung gefunden.");
     return;
   }
   const project = projectById(source.projectId);
@@ -13965,7 +13965,7 @@ async function createFollowupFromOpenPoints(protocolId) {
   copy.head.createdAt = createdAt;
   copy.weather.weatherDateTime = createdAt;
   copy.result = {
-    resultStatus: "Nachkontrolle nicht abschlieÃŸend mÃ¶glich",
+    resultStatus: "Nachkontrolle nicht abschließend möglich",
     finalNote: `Nachbegehung zu Abnahme vom ${formatDate(source.head?.createdAt || source.createdAt)}.`,
     inspectorName: source.result?.inspectorName || state.settings.defaultInspector || "",
     signatureText: ""
@@ -14056,7 +14056,7 @@ async function createFollowupFromOpenPoints(protocolId) {
       if (newPin) {
         newPin.checkItemId = newCheck.id;
         newPin.sampleId = newSample.id;
-        newPin.title = newPin.title || `${sourceCheck.title} Â· ${sample.location || `PrÃ¼fstelle ${sample.number}`}`;
+        newPin.title = newPin.title || `${sourceCheck.title} · ${sample.location || `Prüfstelle ${sample.number}`}`;
       }
     });
     updateCheckStatus(newCheck);
@@ -14069,7 +14069,7 @@ async function createFollowupFromOpenPoints(protocolId) {
   state.currentProjectId = copy.projectId;
   await persist();
   openProtocol(copy);
-  showAppToast("Nachbegehung erstellt. Die ursprÃ¼ngliche Abnahme bleibt unverÃ¤ndert.");
+  showAppToast("Nachbegehung erstellt. Die ursprüngliche Abnahme bleibt unverändert.");
 }
 
 function openPlanImportDialog() {
@@ -14077,7 +14077,7 @@ function openPlanImportDialog() {
   const sources = protocolsForProject(state.current.projectId).filter((protocol) => protocol.id !== state.current.id && protocol.plans?.length);
   const sourceSelect = $("#planImportSourceInput");
   sourceSelect.innerHTML = sources.length
-    ? sources.map((protocol) => `<option value="${protocol.id}">${escapeHtml(acceptanceLabel(protocol))} (${protocol.plans.length} Plan/PlÃ¤ne)</option>`).join("")
+    ? sources.map((protocol) => `<option value="${protocol.id}">${escapeHtml(acceptanceLabel(protocol))} (${protocol.plans.length} Plan/Pläne)</option>`).join("")
     : `<option value="">Keine Abnahme mit Planunterlagen vorhanden</option>`;
   renderPlanImportOptions();
   $("#planImportDialog").showModal();
@@ -14087,13 +14087,13 @@ function renderPlanImportOptions() {
   const source = state.protocols.find((protocol) => protocol.id === $("#planImportSourceInput").value);
   const wrap = $("#planImportOptions");
   if (!source?.plans?.length) {
-    wrap.innerHTML = `<p class="muted">Keine Planunterlagen auswÃ¤hlbar.</p>`;
+    wrap.innerHTML = `<p class="muted">Keine Planunterlagen auswählbar.</p>`;
     return;
   }
   wrap.innerHTML = source.plans.map((plan) => `
     <label>
       <input type="checkbox" data-import-plan="${plan.id}" checked>
-      ${escapeHtml(plan.planNumber || plan.fileName || "Plan")} ${plan.title ? "â€“ " + escapeHtml(plan.title) : ""}
+      ${escapeHtml(plan.planNumber || plan.fileName || "Plan")} ${plan.title ? "– " + escapeHtml(plan.title) : ""}
     </label>
   `).join("");
 }
@@ -14101,9 +14101,9 @@ function renderPlanImportOptions() {
 async function importSelectedPlans() {
   if (!state.current) return;
   const source = state.protocols.find((protocol) => protocol.id === $("#planImportSourceInput").value);
-  if (!source) return alert("Bitte eine Abnahme als Quelle auswÃ¤hlen.");
+  if (!source) return alert("Bitte eine Abnahme als Quelle auswählen.");
   const selectedIds = $$("[data-import-plan]:checked").map((input) => input.dataset.importPlan);
-  if (!selectedIds.length) return alert("Bitte mindestens einen Plan auswÃ¤hlen.");
+  if (!selectedIds.length) return alert("Bitte mindestens einen Plan auswählen.");
   saveFromForm();
   const duplicated = await duplicateSelectedPlanRecords(source, state.current, selectedIds);
   const startNumber = state.current.plans.length;
@@ -14205,13 +14205,13 @@ async function checkStorage() {
     const info = await collectDataInventory();
     $("#storageCheckResult").innerHTML = `
       <strong>Datenbestand</strong><br>
-      ${info.projects} Projekt(e) Â· ${info.rebar} Bewehrungsabnahme(n) Â· ${info.followups} Nachbegehung(en) Â· ${info.siteControls} Baustellenkontrolle(n) Â· ${info.dailyReports} Bautagesbericht(e)<br>
-      ${info.plans} Plan-Datei(en) Â· ${info.pins} Pin(s) Â· ${info.photos} Foto(s) Â· ${info.masterEntries} Stammdaten-Eintrag(e)<br>
-      DB: ${escapeHtml(info.dbName)} v${info.dbVersion} Â· Stores: ${escapeHtml(info.stores.join(", "))}<br>
-      App: ${escapeHtml(info.appVersion)} Â· letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}
+      ${info.projects} Projekt(e) · ${info.rebar} Bewehrungsabnahme(n) · ${info.followups} Nachbegehung(en) · ${info.siteControls} Baustellenkontrolle(n) · ${info.dailyReports} Bautagesbericht(e)<br>
+      ${info.plans} Plan-Datei(en) · ${info.pins} Pin(s) · ${info.photos} Foto(s) · ${info.masterEntries} Stammdaten-Eintrag(e)<br>
+      DB: ${escapeHtml(info.dbName)} v${info.dbVersion} · Stores: ${escapeHtml(info.stores.join(", "))}<br>
+      App: ${escapeHtml(info.appVersion)} · letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}
     `;
   } catch (error) {
-    $("#storageCheckResult").textContent = `IndexedDB verfÃ¼gbar: nein oder fehlerhaft (${error?.message || error}).`;
+    $("#storageCheckResult").textContent = `IndexedDB verfügbar: nein oder fehlerhaft (${error?.message || error}).`;
   }
 }
 
@@ -14507,10 +14507,10 @@ function normalizeResultPdfActions() {
     if (className) button.className = className;
     return button;
   };
-  setButton("#pdfSaveBtn", "PDF speichern<br><small>Druckdialog Â· aus A4-Bericht</small>", "primary-btn");
-  setButton("#pdfShareBtn", "Gespeicherte PDF teilen<br><small>PDF auswÃ¤hlen Â· WhatsApp / Mail / Drive</small>", "secondary-btn");
-  setButton("#downloadReportPdfBtn", "PDF speichern<br><small>Druckdialog Â· aus A4-Bericht</small>", "primary-btn");
-  setButton("#shareReportBtn", "Gespeicherte PDF teilen<br><small>PDF auswÃ¤hlen Â· WhatsApp / Mail / Drive</small>", "secondary-btn");
+  setButton("#pdfSaveBtn", "PDF speichern<br><small>Druckdialog · aus A4-Bericht</small>", "primary-btn");
+  setButton("#pdfShareBtn", "Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small>", "secondary-btn");
+  setButton("#downloadReportPdfBtn", "PDF speichern<br><small>Druckdialog · aus A4-Bericht</small>", "primary-btn");
+  setButton("#shareReportBtn", "Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small>", "secondary-btn");
   setButton("#copyWhatsappTextBtn", "Berichtstext teilen", "secondary-btn");
   const printButton = document.querySelector("#pdfPrintBtn");
   if (printButton) printButton.hidden = true;
@@ -14522,7 +14522,7 @@ function normalizeResultPdfActions() {
     button.className = "secondary-btn";
     button.id = "copyReportTextMainBtn";
     button.type = "button";
-    button.innerHTML = "Berichtstext teilen<br><small>Kurztext fÃ¼r WhatsApp/Mail</small>";
+    button.innerHTML = "Berichtstext teilen<br><small>Kurztext für WhatsApp/Mail</small>";
     const preview = document.querySelector("#pdfPreviewBtn");
     actions.insertBefore(button, preview || null);
   }
@@ -14541,31 +14541,31 @@ function updateAppVersionDisplay() {
     node.textContent = APP_VERSION;
   });
   const target = document.getElementById("appVersionInfo");
-  if (target) target.textContent = `Kai BewehrungsCheck ${APP_VERSION} Â· Cache: ${APP_CACHE}`;
+  if (target) target.textContent = `Kai BewehrungsCheck ${APP_VERSION} · Cache: ${APP_CACHE}`;
   updateCacheDiagnostics();
 }
 
 function updateDeviceStorageInfo() {
   const target = $("#deviceStorageInfo");
   if (!target) return;
-  target.textContent = "Daten werden lokal auf diesem GerÃ¤t gespeichert.";
+  target.textContent = "Daten werden lokal auf diesem Gerät gespeichert.";
 }
 
 
 function serviceWorkerStatusText() {
   if (!("serviceWorker" in navigator)) return "nicht aktiv";
   if (navigator.serviceWorker.controller) return "aktiv";
-  return "registriert/Start wird geprÃ¼ft";
+  return "registriert/Start wird geprüft";
 }
 
 function updateCacheDiagnostics() {
   const target = document.getElementById("appCacheInfo");
   if (!target) return;
   const onlineText = navigator.onLine ? "online" : "offline";
-  target.textContent = `Kai BewehrungsCheck ${APP_VERSION} Â· Service Worker: ${serviceWorkerStatusText()} Â· Cache-Version: ${APP_CACHE} Â· ${onlineText}`;
+  target.textContent = `Kai BewehrungsCheck ${APP_VERSION} · Service Worker: ${serviceWorkerStatusText()} · Cache-Version: ${APP_CACHE} · ${onlineText}`;
 }
 
-function showAppUpdateNotice(message = "Neue Version verfÃ¼gbar. Bitte App neu laden.") {
+function showAppUpdateNotice(message = "Neue Version verfügbar. Bitte App neu laden.") {
   let notice = document.getElementById("appUpdateNotice");
   if (!notice) {
     notice = document.createElement("div");
@@ -14587,7 +14587,7 @@ async function reloadAppSafely() {
       await registration?.update?.();
     }
   } catch (error) {
-    console.warn("Service-Worker-Update vor Reload nicht mÃ¶glich", error);
+    console.warn("Service-Worker-Update vor Reload nicht möglich", error);
   }
   const url = new URL(window.location.href);
   url.searchParams.set("reload", Date.now().toString());
@@ -14654,7 +14654,7 @@ async function boot() {
     }
   } catch (error) {
     console.error("App-Initialisierung fehlgeschlagen", error);
-    showStorageWarning(`App konnte nicht vollstÃ¤ndig gestartet werden: ${error.message || error}`);
+    showStorageWarning(`App konnte nicht vollständig gestartet werden: ${error.message || error}`);
   }
 }
 

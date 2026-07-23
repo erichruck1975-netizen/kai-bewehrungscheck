@@ -6,16 +6,16 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=149">
-  <link rel="stylesheet" href="styles.css?v=149">
+  <link rel="manifest" href="manifest.webmanifest?v=163">
+  <link rel="stylesheet" href="styles.css?v=163">
 </head>
 <body>
   <div id="app" class="shell">
     <header class="appbar">
-      <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="ZurÃ¼ck">ZurÃ¼ck</button>
+      <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v162</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v163</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -25,13 +25,13 @@
         <div class="site-signal compact-hero">
           <div>
             <h2>Kai BauSuite</h2>
-            <p>Projekte verwalten Â· Baustelle dokumentieren Â· Berichte erstellen</p>
+            <p>Projekte verwalten · Baustelle dokumentieren · Berichte erstellen</p>
           </div>
         </div>
         <section class="home-section panel home-main-menu">
           <div class="module-card-grid main-menu-grid">
-            <button class="module-card main-menu-card" data-nav="projectDirectoryView" type="button"><span class="module-code">PJ</span><span><strong>Projektverwaltung</strong><small>Projekte anlegen, Ã¶ffnen und bearbeiten</small></span></button>
-            <button class="module-card main-menu-card" data-nav="masterDataView" type="button"><span class="module-code">ST</span><span><strong>Stammdaten</strong><small>Firmen, Personen, Gewerke, PrÃ¼fer</small></span></button>
+            <button class="module-card main-menu-card" data-nav="projectDirectoryView" type="button"><span class="module-code">PJ</span><span><strong>Projektverwaltung</strong><small>Projekte anlegen, öffnen und bearbeiten</small></span></button>
+            <button class="module-card main-menu-card" data-nav="masterDataView" type="button"><span class="module-code">ST</span><span><strong>Stammdaten</strong><small>Firmen, Personen, Gewerke, Prüfer</small></span></button>
             <button class="module-card main-menu-card" data-nav="settingsView" type="button"><span class="module-code">SET</span><span><strong>Einstellungen / Backup</strong><small>Sicherung, Import/Export, Speicher</small></span></button>
           </div>
         </section>
@@ -41,7 +41,7 @@
         <div class="section-head">
           <div>
             <h2>Projektverwaltung</h2>
-            <p class="muted">Projekte anlegen, suchen, Ã¶ffnen und bearbeiten.</p>
+            <p class="muted">Projekte anlegen, suchen, öffnen und bearbeiten.</p>
           </div>
           <button class="small-btn" data-nav="homeView" type="button">Zur Startseite</button>
         </div>
@@ -58,7 +58,7 @@
         <div class="section-head">
           <div>
             <h2>Projektzentrale</h2>
-            <p class="muted">Projekt Ã¶ffnen, Modul wÃ¤hlen, offene Punkte im Blick behalten.</p>
+            <p class="muted">Projekt öffnen, Modul wählen, offene Punkte im Blick behalten.</p>
           </div>
           <button class="small-btn" data-nav="projectDirectoryView" type="button">Zur Projektverwaltung</button>
         </div>
@@ -69,8 +69,8 @@
       <section id="projectPlansView" class="view">
         <div class="section-head">
           <div>
-            <h2>ProjektplÃ¤ne</h2>
-            <p class="muted">Zentrale Planverwaltung fÃ¼r das geÃ¶ffnete Projekt. Dropbox-Pfade und Links werden vorbereitet, automatische Synchronisierung ist noch nicht aktiv.</p>
+            <h2>Projektpläne</h2>
+            <p class="muted">Zentrale Planverwaltung für das geöffnete Projekt. Dropbox-Pfade und Links werden vorbereitet, automatische Synchronisierung ist noch nicht aktiv.</p>
           </div>
           <button class="small-btn" data-nav="projectHubView" type="button">Zur Projektzentrale</button>
         </div>
@@ -103,11 +103,11 @@
               <label>Protokollbezeichnung<input name="siteTitle"></label>
               <label>Datum / Uhrzeit<input name="siteDate" type="datetime-local"></label>
               <label>Projekt<input name="siteProject" disabled></label>
-              <label>Adresse<textarea name="siteAddress" rows="2"></textarea></label><button class="secondary-btn" id="siteAddressFromProjectBtn" type="button">Adresse aus Projekt Ã¼bernehmen</button>
+              <label>Adresse<textarea name="siteAddress" rows="2"></textarea></label><button class="secondary-btn" id="siteAddressFromProjectBtn" type="button">Adresse aus Projekt übernehmen</button>
               <label>Anlass<select name="siteReason"><option>Regelbegehung</option><option>Mangelkontrolle</option><option>Fotodokumentation</option><option>Abstimmung</option><option>Nachbegehung</option><option>Sonstige</option></select></label>
               <label>Bereich / Ort<input name="siteArea" list="areaOptions"></label>
               <label>Teilnehmer<input name="siteParticipants" list="responsibleOptions" placeholder="Personen/Firmen oder Freitext"></label>
-              <label>Wetter / Bedingungen<textarea name="siteWeather" rows="2"></textarea><button class="small-btn inline-field-action" id="siteWeatherAutoBtn" type="button">Wetter automatisch einfÃ¼gen</button></label>
+              <label>Wetter / Bedingungen<textarea name="siteWeather" rows="2"></textarea><button class="small-btn inline-field-action" id="siteWeatherAutoBtn" type="button">Wetter automatisch einfügen</button></label>
             </div></div>
           </div>
           <div id="sitePlanTab" class="tab-panel site-tab-panel">
@@ -115,9 +115,9 @@
               <div class="section-head">
                 <div>
                   <h3>Plan / Markierungen</h3>
-                  <p class="muted">ProjektplÃ¤ne werden zentral verwaltet. Pins werden direkt an Feststellungen gesetzt.</p>
+                  <p class="muted">Projektpläne werden zentral verwaltet. Pins werden direkt an Feststellungen gesetzt.</p>
                 </div>
-                <button class="secondary-btn" data-project-module="plans" type="button">ProjektplÃ¤ne Ã¶ffnen</button>
+                <button class="secondary-btn" data-project-module="plans" type="button">Projektpläne öffnen</button>
               </div>
               <div id="sitePlanSummary" class="site-plan-summary"></div>
             </div>
@@ -129,7 +129,7 @@
                 <button class="secondary-btn" type="button" data-add-site-item="Aufgabe">+ Aufgabe</button>
                 <button class="secondary-btn" type="button" data-add-site-item="Hinweis">+ Hinweis</button>
                 <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
-                <button class="secondary-btn" type="button" data-add-site-item="KlÃ¤rungspunkt">+ KlÃ¤rungspunkt</button>
+                <button class="secondary-btn" type="button" data-add-site-item="Klärungspunkt">+ Klärungspunkt</button>
               </div>
               <div id="siteControlItemList" class="site-item-list"></div>
             </div>
@@ -144,7 +144,7 @@
               </div>
               <div id="siteControlResultSummary" class="site-result-summary"></div>
               <label class="voice-field">Ergebnis / Schlussbemerkung<textarea name="siteFinalNote" rows="4"></textarea><button class="mic-btn" type="button" data-voice-for="siteFinalNote">Mikrofon</button></label>
-              <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog Â· A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prÃ¼fen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Ãœbersicht</button><button class="danger-btn" id="siteDeleteProtocolBtn" type="button">Vorgang lÃ¶schen</button></div>
+              <div class="report-export-actions"><button class="primary-btn" id="sitePdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · A4-Bericht</small></button><button class="secondary-btn" id="sitePdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button><button class="secondary-btn" data-nav="siteControlView" type="button">Zur Übersicht</button><button class="danger-btn" id="siteDeleteProtocolBtn" type="button">Vorgang löschen</button></div>
             </div>
           </div>
         </form>
@@ -168,11 +168,11 @@
             <div class="section-head">
               <div>
                 <h3>Bautagesbericht einsprechen</h3>
-                <p class="muted">Ein Knopf: frei diktieren, danach Vorschau prÃ¼fen und Felder korrigieren.</p>
+                <p class="muted">Ein Knopf: frei diktieren, danach Vorschau prüfen und Felder korrigieren.</p>
               </div>
               <button class="primary-btn mic-btn" type="button" data-voice-daily-field="voiceDraft" data-voice-lang="de-DE" data-voice-daily-mode="full">Bautagesbericht einsprechen</button>
             </div>
-            <label>Rohtranskript / Diktattext<textarea name="dailyVoiceDraft" rows="4" placeholder="Hier erscheint das Diktat. Alternativ Text einfÃ¼gen und auswerten."></textarea></label>
+            <label>Rohtranskript / Diktattext<textarea name="dailyVoiceDraft" rows="4" placeholder="Hier erscheint das Diktat. Alternativ Text einfügen und auswerten."></textarea></label>
             <div class="result-actions site-photo-actions">
               <button class="secondary-btn" id="dailyAnalyzeVoiceBtn" type="button">Diktat auswerten</button>
               <button class="secondary-btn mic-btn" type="button" data-voice-daily-field="voiceDraft" data-voice-lang="sq-AL" data-voice-daily-mode="full">Albanisch einsprechen</button>
@@ -183,7 +183,7 @@
             <label>Berichtsbezeichnung<input name="dailyTitle"></label>
             <label>Datum<input name="dailyDate" type="date"></label>
             <label>Projekt<input name="dailyProject" disabled></label>
-            <label>Projektadresse<input name="dailyAddress" disabled></label><button class="secondary-btn" id="dailyAddressFromProjectBtn" type="button">Adresse aus Stammdaten Ã¼bernehmen</button>
+            <label>Projektadresse<input name="dailyAddress" disabled></label><button class="secondary-btn" id="dailyAddressFromProjectBtn" type="button">Adresse aus Stammdaten übernehmen</button>
             <label>Bericht-Nr.<input name="dailyReportNumber" placeholder="optional"></label>
             <label>Status<select name="dailyStatus"><option>Entwurf</option><option>abgeschlossen</option></select></label>
           </div></div>
@@ -199,9 +199,9 @@
             <label>Anzahl Personen<input name="dailyPersonCount" type="number" min="0" step="1"></label>
             <label>Ansprechpartner / Vorarbeiter<input name="dailyForeman" list="personOptions"></label>
           </div>
-          <div class="section-head daily-worker-head"><h4>Anwesende Mitarbeiter</h4><button class="secondary-btn" id="addDailyWorkerBtn" type="button">Mitarbeiter hinzufÃ¼gen</button></div>
+          <div class="section-head daily-worker-head"><h4>Anwesende Mitarbeiter</h4><button class="secondary-btn" id="addDailyWorkerBtn" type="button">Mitarbeiter hinzufügen</button></div>
           <div id="dailyWorkerList" class="daily-worker-list"></div>
-          <p class="field-hint">Einzelzeiten sind optional. Die einfachen Kolonnenfelder bleiben fÃ¼r bestehende Tagesberichte erhalten.</p></div>
+          <p class="field-hint">Einzelzeiten sind optional. Die einfachen Kolonnenfelder bleiben für bestehende Tagesberichte erhalten.</p></div>
           <div class="panel"><h3>T&auml;tigkeiten</h3><div class="grid">
             <label>Bereich / Ort<input name="dailyArea" list="areaOptions"></label>
             <label>Gewerk<input name="dailyTrade" list="tradeOptions"></label>
@@ -243,10 +243,10 @@
       <section id="settingsView" class="view">
         <h2>Einstellungen</h2>
         <div class="panel">
-          <label>Standard PrÃ¼fer / Abnehmender
+          <label>Standard Prüfer / Abnehmender
             <input id="defaultInspector" type="text" autocomplete="name" placeholder="Name">
           </label>
-          <label>Standard ausfÃ¼hrende Firma
+          <label>Standard ausführende Firma
             <input id="defaultCompany" type="text" placeholder="Firma">
           </label>
           <label>Freie Wetter-API
@@ -265,28 +265,28 @@
           <section class="backup-card dropbox-settings-card">
             <div>
               <h3>Dropbox / Planablage</h3>
-              <p class="muted">Die automatische Dropbox-Synchronisierung wird spÃ¤ter Ã¼ber eine Dropbox-Anbindung aktiviert. Aktuell werden Pfade/Links fÃ¼r die Projekt- und Planzuordnung gespeichert.</p>
+              <p class="muted">Die automatische Dropbox-Synchronisierung wird später über eine Dropbox-Anbindung aktiviert. Aktuell werden Pfade/Links für die Projekt- und Planzuordnung gespeichert.</p>
             </div>
             <div class="grid compact-grid">
               <label>Dropbox-Basisordner<input id="dropboxBaseFolder" type="text" placeholder="/Bauprojekte/"></label>
-              <label>Standard-Unterordner fÃ¼r PlÃ¤ne<input id="dropboxPlanFolder" type="text" placeholder="PlÃ¤ne"></label>
-              <label>Standard-Unterordner fÃ¼r Fotos<input id="dropboxPhotoFolder" type="text" placeholder="Fotos"></label>
-              <label>Standard-Unterordner fÃ¼r Berichte<input id="dropboxReportFolder" type="text" placeholder="Berichte"></label>
+              <label>Standard-Unterordner für Pläne<input id="dropboxPlanFolder" type="text" placeholder="Pläne"></label>
+              <label>Standard-Unterordner für Fotos<input id="dropboxPhotoFolder" type="text" placeholder="Fotos"></label>
+              <label>Standard-Unterordner für Berichte<input id="dropboxReportFolder" type="text" placeholder="Berichte"></label>
             </div>
           </section>
           <section class="backup-card">
             <div>
-              <h3>Datensicherung / GerÃ¤tewechsel</h3>
-              <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem GerÃ¤t gespeichert. Exportieren Sie regelmÃ¤ÃŸig ein Backup.</p>
-              <p class="muted">Wenn die App auf einem anderen Handy geÃ¶ffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v162</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v162 Â· Service Worker wird geprÃ¼ft Â· online/offline wird geprÃ¼ft</p>
+              <h3>Datensicherung / Gerätewechsel</h3>
+              <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
+              <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
+              <p id="appVersionInfo" class="muted">Version: v163</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v163 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
               <button class="secondary-btn" id="importFullBackupBtn" type="button">Backup importieren</button>
               <button class="secondary-btn" id="exportProjectPackageBtn" type="button">Projektpaket exportieren</button>
-              <button class="secondary-btn" id="storageCheckBtn" type="button">Speicher prÃ¼fen</button>
+              <button class="secondary-btn" id="storageCheckBtn" type="button">Speicher prüfen</button>
               <button class="secondary-btn" id="reloadAppBtn" type="button">App neu laden</button>
             </div>
             <details class="backup-more">
@@ -295,17 +295,17 @@
             </details>
             <input id="fullBackupInput" class="visually-hidden" type="file" accept="application/json">
             <input id="projectPackageInput" class="visually-hidden" type="file" accept="application/json">
-            <p class="muted">Die PrÃ¼fung liest den vorhandenen IndexedDB-Bestand. â€žDatenbestand neu ladenâ€œ lÃ¶scht nichts und importiert nichts.</p>
+            <p class="muted">Die Prüfung liest den vorhandenen IndexedDB-Bestand. „Datenbestand neu laden“ löscht nichts und importiert nichts.</p>
             <p id="storageCheckResult" class="muted storage-diagnostics"></p>
           </section>
           <div class="info-box browser-warning-box">
             <strong>Browser-Hinweis</strong>
-            <p id="browserRecommendationInfo" class="muted">Empfohlen fÃ¼r Baustellennutzung: Android Chrome.</p>
+            <p id="browserRecommendationInfo" class="muted">Empfohlen für Baustellennutzung: Android Chrome.</p>
           </div>
           <section class="danger-zone">
             <strong>Gefahrenbereich</strong>
-            <p class="muted">Nur fÃ¼r Tests verwenden. Dabei werden lokale Projekte, Abnahmen, PlÃ¤ne, Fotos und Stammdaten auf diesem GerÃ¤t gelÃ¶scht.</p>
-            <button class="danger-btn" id="clearAllBtn" type="button">Lokale Testdaten lÃ¶schen</button>
+            <p class="muted">Nur für Tests verwenden. Dabei werden lokale Projekte, Abnahmen, Pläne, Fotos und Stammdaten auf diesem Gerät gelöscht.</p>
+            <button class="danger-btn" id="clearAllBtn" type="button">Lokale Testdaten löschen</button>
           </section>
         </div>
       </section>
@@ -332,13 +332,13 @@
             <div id="followupContextBanner" class="followup-context" hidden></div>
             <div class="grid">
               <label>Projekt / Bauvorhaben<input name="projectName" required></label>
-              <label>Baustellenadresse: StraÃŸe / Hausnummer<input name="siteStreet"></label>
-              <label>PLZ<input name="siteZip" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="postal-code" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt mÃ¶glich."></label>
+              <label>Baustellenadresse: Straße / Hausnummer<input name="siteStreet"></label>
+              <label>PLZ<input name="siteZip" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="postal-code" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt möglich."></label>
               <label>Ort<input name="siteCity"></label>
               <label>Land<input name="siteCountry" value="Deutschland"></label>
-              <button class="secondary-btn" id="rebarAddressFromProjectBtn" type="button">Projektadresse Ã¼bernehmen</button>
-              <button class="secondary-btn" id="rebarAddressFromSiteControlBtn" type="button" hidden>Adresse aus Baustellenkontrolle Ã¼bernehmen</button>
-              <p class="muted" id="rebarAddressDiagnostic">Quelle: wird geprÃ¼ft.</p>
+              <button class="secondary-btn" id="rebarAddressFromProjectBtn" type="button">Projektadresse übernehmen</button>
+              <button class="secondary-btn" id="rebarAddressFromSiteControlBtn" type="button" hidden>Adresse aus Baustellenkontrolle übernehmen</button>
+              <p class="muted" id="rebarAddressDiagnostic">Quelle: wird geprüft.</p>
               <label>Abnahmebezeichnung<input name="acceptanceTitle" placeholder="z. B. Bodenplatte Unterfahrt"></label>
               <label>Art der Abnahme<input name="acceptanceType" list="acceptanceTypeOptions"></label>
               <label>Bauteil<input name="component" list="componentOptions"></label>
@@ -349,19 +349,19 @@
         <p class="muted">Projektbezogene Pfade und Links werden gespeichert. Eine automatische Dropbox-Synchronisierung ist noch nicht aktiv.</p>
         <label>Dropbox-Projektordner<input id="projectDropboxFolderInput" type="text" placeholder="/Bauprojekte/MFH_Eversbuschstrasse/"></label>
         <label>Dropbox-Link zum Projektordner<input id="projectDropboxLinkInput" type="url" placeholder="https://www.dropbox.com/..."></label>
-        <label>Planordner innerhalb des Projekts<input id="projectPlanFolderInput" type="text" placeholder="PlÃ¤ne"></label>
+        <label>Planordner innerhalb des Projekts<input id="projectPlanFolderInput" type="text" placeholder="Pläne"></label>
         <label>Berichtordner innerhalb des Projekts<input id="projectReportFolderInput" type="text" placeholder="Berichte"></label>
         <label>Fotoordner innerhalb des Projekts<input id="projectPhotoFolderInput" type="text" placeholder="Fotos"></label>
       </fieldset>
-      <label>Allgemeiner Planstand / PrÃ¼fstand<input name="planDate"></label>
-              <label>AusfÃ¼hrende Firma<input name="contractor" list="companyOptions"></label>
+      <label>Allgemeiner Planstand / Prüfstand<input name="planDate"></label>
+              <label>Ausführende Firma<input name="contractor" list="companyOptions"></label>
               <label>Anwesende Personen<textarea name="peoplePresent" rows="2" placeholder="Namen/Firma/Rolle frei eintragen"></textarea></label>
               <label>Technische Anlagezeit<input name="createdAt" type="datetime-local"></label>
               <label>Uhrzeit der Abnahme / Baustellenzeit
                 <span class="inline-input-action"><input name="inspectionDateTime" type="datetime-local"><button class="small-btn" id="inspectionNowBtn" type="button">Jetzt</button></span>
               </label>
             </div>
-            <p class="muted">Planunterlagen werden im Reiter Plan verwaltet. Die verwendeten Planunterlagen werden automatisch aus den hochgeladenen PlÃ¤nen im Reiter Plan Ã¼bernommen.</p>
+            <p class="muted">Planunterlagen werden im Reiter Plan verwaltet. Die verwendeten Planunterlagen werden automatisch aus den hochgeladenen Plänen im Reiter Plan übernommen.</p>
             <label class="voice-field">Allgemeine Bemerkung
               <textarea name="generalNote" rows="4"></textarea>
               <button class="mic-btn" type="button" data-voice-for="generalNote">Mikrofon</button>
@@ -375,8 +375,8 @@
             <div class="grid">
               <label>Datum / Uhrzeit<input name="weatherDateTime" type="datetime-local"></label>
               <label>Ort / Baustelle<input name="weatherLocation"></label>
-              <label>Temperatur<input name="temperature" placeholder="z. B. 18 Â°C"></label>
-              <label>Wetterzustand<input name="weatherCondition" placeholder="trocken, bewÃ¶lkt"></label>
+              <label>Temperatur<input name="temperature" placeholder="z. B. 18 °C"></label>
+              <label>Wetterzustand<input name="weatherCondition" placeholder="trocken, bewölkt"></label>
               <label>Niederschlag
                 <select name="precipitation">
                   <option>nein</option>
@@ -395,38 +395,38 @@
           <div id="planTab" class="tab-panel">
             <div class="panel plan-controls">
               <div class="result-actions">
-                <button class="primary-btn" id="addPlanBtn" type="button">Plan ins Projekt hochladen und fÃ¼r diese Abnahme verwenden</button>
+                <button class="primary-btn" id="addPlanBtn" type="button">Plan ins Projekt hochladen und für diese Abnahme verwenden</button>
                 <button class="secondary-btn" id="pinModeBtn" type="button" style="display:none">Pin setzen</button>
               </div>
               <div class="zoom-actions">
-                <button class="small-btn" id="zoomOutBtn" type="button">âˆ’</button>
+                <button class="small-btn" id="zoomOutBtn" type="button">−</button>
                 <span id="zoomLabel" class="muted">100 %</span>
                 <button class="small-btn" id="zoomInBtn" type="button">+</button>
                 <button class="small-btn" id="zoomResetBtn" type="button">100 %</button>
                 <button class="small-btn" id="zoomFitBtn" type="button">Einpassen</button>
-                <button class="small-btn" id="rotateLeftBtn" type="button">90Â° links</button>
-                <button class="small-btn" id="rotateRightBtn" type="button">90Â° rechts</button>
-                <button class="small-btn" id="rotateHalfBtn" type="button">180Â°</button>
-                <span id="rotationLabel" class="muted">0Â°</span>
+                <button class="small-btn" id="rotateLeftBtn" type="button">90° links</button>
+                <button class="small-btn" id="rotateRightBtn" type="button">90° rechts</button>
+                <button class="small-btn" id="rotateHalfBtn" type="button">180°</button>
+                <span id="rotationLabel" class="muted">0°</span>
               </div>
               <input id="planInput" class="visually-hidden" type="file" accept="application/pdf,image/png,image/jpeg" multiple>
               <details class="plan-extra-actions">
                 <summary>Weitere Aktionen</summary>
-                <button class="secondary-btn" id="importPlansBtn" type="button">Planunterlagen aus anderer Abnahme Ã¼bernehmen</button>
+                <button class="secondary-btn" id="importPlansBtn" type="button">Planunterlagen aus anderer Abnahme übernehmen</button>
               </details>
-              <label>Plan auswÃ¤hlen
+              <label>Plan auswählen
                 <select id="planSelect"></select>
               </label>
               <details class="plan-meta-details">
                 <summary>Plandaten bearbeiten</summary>
-                <p class="muted project-plan-readonly-note">Zentrale ProjektplÃ¤ne werden hier angezeigt. Metadaten bitte in der Projektzentrale bearbeiten.</p>
+                <p class="muted project-plan-readonly-note">Zentrale Projektpläne werden hier angezeigt. Metadaten bitte in der Projektzentrale bearbeiten.</p>
                 <div id="planMetaFields" class="grid">
                   <label>Dateiname<input data-plan-field="fileName" placeholder="Dateiname"></label>
                   <label>Plan-Nr.<input data-plan-field="planNumber" placeholder="z. B. B-001"></label>
                   <label>Planbezeichnung<input data-plan-field="title" placeholder="z. B. Bewehrung Unterfahrt"></label>
                   <label>Status
                     <select data-plan-field="documentStatus">
-                      <option value="maÃŸgebend">maÃŸgebend</option>
+                      <option value="maßgebend">maßgebend</option>
                       <option value="verwendet">verwendet</option>
                       <option value="nur Orientierung">nur Orientierung</option>
                       <option value="ersetzt / veraltet">ersetzt / veraltet</option>
@@ -441,7 +441,7 @@
                       <option value="dropbox_link">Dropbox-Link</option>
                     </select>
                   </label>
-                  <label>Dropbox-Pfad<input data-plan-field="dropboxPath" placeholder="/Bauprojekte/.../PlÃ¤ne/B-003.pdf"></label>
+                  <label>Dropbox-Pfad<input data-plan-field="dropboxPath" placeholder="/Bauprojekte/.../Pläne/B-003.pdf"></label>
                   <label>Dropbox-Link<input data-plan-field="dropboxSharedLink" placeholder="https://www.dropbox.com/..."></label>
                   <label>Dropbox-Dateiname<input data-plan-field="dropboxFileName" placeholder="B-003.pdf"></label>
                   <label>Letzter manueller Abgleich / Stand<input data-plan-field="lastManualSync" placeholder="z. B. 15.07.2026"></label>
@@ -453,18 +453,18 @@
               <label>PDF-Seite
                 <select id="pageSelect"></select>
               </label>
-              <p class="muted">Planverwaltung: Planunterlagen pflegen und prÃ¼fen. Pins werden im Check-Tab direkt an der jeweiligen PrÃ¼fstelle gesetzt.</p>
-              <p id="androidFirefoxPlanWarning" class="browser-warning hidden">Hinweis: Firefox auf Android kann technische PDF-/BewehrungsplÃ¤ne fehlerhaft darstellen. Bitte fÃ¼r Bewehrungsabnahmen Chrome verwenden.</p>
+              <p class="muted">Planverwaltung: Planunterlagen pflegen und prüfen. Pins werden im Check-Tab direkt an der jeweiligen Prüfstelle gesetzt.</p>
+              <p id="androidFirefoxPlanWarning" class="browser-warning hidden">Hinweis: Firefox auf Android kann technische PDF-/Bewehrungspläne fehlerhaft darstellen. Bitte für Bewehrungsabnahmen Chrome verwenden.</p>
               <p id="planStatus" class="muted">Noch kein Plan hochgeladen.</p>
               <details id="planDebugDetails" class="plan-debug-details">
                 <summary>Plan-Diagnose anzeigen</summary>
                 <div id="planDebug" class="plan-debug muted">Aktiver Plan: keiner</div>
               </details>
-              <p id="pinModeHint" class="pin-hint hidden" style="display:none">Pin-Modus aktiv â€“ auf Planstelle tippen</p>
+              <p id="pinModeHint" class="pin-hint hidden" style="display:none">Pin-Modus aktiv – auf Planstelle tippen</p>
             </div>
             <div class="plan-wrap plan-viewer">
               <div id="planStage" class="plan-stage">
-                <div id="emptyPlan" class="empty-plan">Plan hinzufÃ¼gen, um die Planunterlage als Vorschau zu prÃ¼fen.</div>
+                <div id="emptyPlan" class="empty-plan">Plan hinzufügen, um die Planunterlage als Vorschau zu prüfen.</div>
                 <img id="planImage" alt="Bewehrungsplan">
                 <canvas id="pdfCanvas" class="pdf-canvas" aria-label="PDF-Planseite"></canvas>
                 <div id="pinLayer"></div>
@@ -493,24 +493,24 @@
                   <option>Nachkontrolle erforderlich</option>
                   <option>alle offenen Punkte erledigt</option>
                   <option>teilweise erledigt, Rest offen</option>
-                  <option>weiterhin wesentliche MÃ¤ngel offen</option>
-                  <option>Nachkontrolle nicht abschlieÃŸend mÃ¶glich</option>
+                  <option>weiterhin wesentliche Mängel offen</option>
+                  <option>Nachkontrolle nicht abschließend möglich</option>
                 </select>
               </label>
               <label class="voice-field">Schlussbemerkung
                 <textarea name="finalNote" rows="4"></textarea>
                 <button class="mic-btn" type="button" data-voice-for="finalNote">Mikrofon</button>
               </label>
-              <label>Name des PrÃ¼fers / Abnehmenden<input name="inspectorName" list="personOptions"></label>
+              <label>Name des Prüfers / Abnehmenden<input name="inspectorName" list="personOptions"></label>
               <label>Unterschrift als Text<input name="signatureText" placeholder="gez. Name"></label>
               <section class="overview-photo-section">
                 <div class="section-head">
-                  <h3>Ãœbersichtsfotos Baustelle</h3>
+                  <h3>Übersichtsfotos Baustelle</h3>
                 </div>
-                <p class="muted">Allgemeine Fotos zur Abnahme, z. B. Gesamtansicht, BewehrungsÃ¼bersicht oder Zustand vor Betonage.</p>
+                <p class="muted">Allgemeine Fotos zur Abnahme, z. B. Gesamtansicht, Bewehrungsübersicht oder Zustand vor Betonage.</p>
                 <div class="result-actions overview-photo-actions">
                   <button class="secondary-btn" type="button" data-overview-photo="camera">Foto aufnehmen</button>
-                  <button class="secondary-btn" type="button" data-overview-photo="gallery">Foto aus Galerie auswÃ¤hlen</button>
+                  <button class="secondary-btn" type="button" data-overview-photo="gallery">Foto aus Galerie auswählen</button>
                 </div>
                 <input id="overviewCameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment">
                 <input id="overviewGalleryInput" class="visually-hidden" type="file" accept="image/*" multiple>
@@ -520,22 +520,22 @@
               <section class="signature-section">
                 <div class="section-head">
                   <h3>Unterschriften / Kenntnisnahme</h3>
-                  <button class="secondary-btn" id="addSignatureBtn" type="button">+ Unterschrift hinzufÃ¼gen</button>
+                  <button class="secondary-btn" id="addSignatureBtn" type="button">+ Unterschrift hinzufügen</button>
                 </div>
-                <p class="muted">Die Unterschrift bestÃ¤tigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses.</p>
+                <p class="muted">Die Unterschrift bestätigt die Kenntnisnahme der dokumentierten Feststellungen, Auflagen und des Ergebnisses.</p>
                 <div id="signatureList" class="signature-list"></div>
               </section>
-              <p class="muted report-workflow-hint">Bitte den Bericht zuerst Ã¼ber â€žPDF speichernâ€œ als PDF sichern. Danach kann die gespeicherte PDF Ã¼ber â€žGespeicherte PDF teilenâ€œ ausgewÃ¤hlt und weitergegeben werden.</p>
+              <p class="muted report-workflow-hint">Bitte den Bericht zuerst über „PDF speichern“ als PDF sichern. Danach kann die gespeicherte PDF über „Gespeicherte PDF teilen“ ausgewählt und weitergegeben werden.</p>
               <div class="result-actions report-export-actions">
-                <button class="primary-btn" id="pdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog Â· aus A4-Bericht</small></button>
-                <button class="secondary-btn" id="pdfShareBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswÃ¤hlen Â· WhatsApp / Mail / Drive</small></button>
-                <button class="secondary-btn" id="copyReportTextMainBtn" type="button">Berichtstext teilen<br><small>Kurztext fÃ¼r WhatsApp/Mail</small></button>
+                <button class="primary-btn" id="pdfSaveBtn" type="button">PDF speichern<br><small>Druckdialog · aus A4-Bericht</small></button>
+                <button class="secondary-btn" id="pdfShareBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small></button>
+                <button class="secondary-btn" id="copyReportTextMainBtn" type="button">Berichtstext teilen<br><small>Kurztext für WhatsApp/Mail</small></button>
               </div>
               <section class="share-message-card" id="shareMessageCard">
                 <div class="section-head compact share-message-head">
                   <div>
                     <h3>Protokoll versenden</h3>
-                    <p class="muted">PDF vorbereiten, Begleittext prÃ¼fen und anschlieÃŸend per WhatsApp oder E-Mail teilen.</p>
+                    <p class="muted">PDF vorbereiten, Begleittext prüfen und anschließend per WhatsApp oder E-Mail teilen.</p>
                   </div>
                   <label class="inline-control">Kanal
                     <select id="shareMessageChannel">
@@ -550,7 +550,7 @@
                 <label class="share-message-preview-label">Textvorschau
                   <textarea id="shareMessagePreview" rows="8" readonly></textarea>
                 </label>
-                <p class="muted share-message-hint">Hinweis: Das Android-Teilen-MenÃ¼ zeigt hÃ¤ufig nur die PDF-Datei an. Der Begleittext wird trotzdem an die Ziel-App Ã¼bergeben, kann aber je nach App fehlen. Falls der Text fehlt, bitte Begleittext kopieren und einfÃ¼gen.</p>
+                <p class="muted share-message-hint">Hinweis: Das Android-Teilen-Menü zeigt häufig nur die PDF-Datei an. Der Begleittext wird trotzdem an die Ziel-App übergeben, kann aber je nach App fehlen. Falls der Text fehlt, bitte Begleittext kopieren und einfügen.</p>
                 <p id="sharePdfStatus" class="muted share-pdf-status" data-type="info">PDF noch nicht vorbereitet.</p>
                 <div id="sharePdfNotice" class="share-pdf-notice" data-type="info" hidden>
                   <p id="sharePdfNoticeText"></p>
@@ -566,13 +566,13 @@
                   <button class="secondary-btn" id="downloadSharePdfBtn" type="button" hidden>PDF herunterladen</button>
                   <button class="secondary-btn" id="copyShareMessageBtn" type="button">Begleittext kopieren</button>
                   <button class="secondary-btn" id="copyShareSubjectBtn" type="button" hidden>Betreff kopieren</button>
-                  <button class="secondary-btn" id="openMailFallbackBtn" type="button" hidden>E-Mail ohne Anhang Ã¶ffnen</button>
+                  <button class="secondary-btn" id="openMailFallbackBtn" type="button" hidden>E-Mail ohne Anhang öffnen</button>
                 </div>
               </section>
               <details class="report-more-options">
                 <summary>Weitere Optionen</summary>
                 <div class="result-actions report-secondary-actions">
-                  <button class="secondary-btn" id="pdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prÃ¼fen</small></button>
+                  <button class="secondary-btn" id="pdfPreviewBtn" type="button">A4-Vorschau<br><small>Bericht prüfen</small></button>
                   <button class="secondary-btn" id="exportJsonBtn" type="button">JSON exportieren</button>
                 </div>
               </details>
@@ -590,9 +590,9 @@
       <p id="photoDialogTitle" class="muted"></p>
       <div class="photo-actions">
         <button class="secondary-btn" id="photoCameraBtn" type="button">Foto aufnehmen</button>
-        <button class="secondary-btn" id="photoGalleryBtn" type="button">Foto aus Galerie auswÃ¤hlen</button>
+        <button class="secondary-btn" id="photoGalleryBtn" type="button">Foto aus Galerie auswählen</button>
       </div>
-      <p class="muted">Falls die Kamera nicht direkt Ã¶ffnet, bitte im Android-Dialog Kamera wÃ¤hlen.</p>
+      <p class="muted">Falls die Kamera nicht direkt öffnet, bitte im Android-Dialog Kamera wählen.</p>
       <input id="photoCameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment">
       <input id="photoGalleryInput" class="visually-hidden" type="file" accept="image/*" multiple>
       <div id="photoGrid" class="photo-grid"></div>
@@ -602,13 +602,13 @@
   <dialog id="planMarkDialog" class="plan-mark-dialog">
     <div class="dialog-body plan-mark-body">
       <div class="mark-toolbar">
-        <button class="secondary-btn" id="markBackBtn" type="button">ZurÃ¼ck</button>
+        <button class="secondary-btn" id="markBackBtn" type="button">Zurück</button>
         <strong id="markPlanTitle">Plan markieren</strong>
-        <button class="primary-btn" id="markPinBtn" type="button">Pin setzen / Punkt bestÃ¤tigen</button>
+        <button class="primary-btn" id="markPinBtn" type="button">Pin setzen / Punkt bestätigen</button>
       </div>
-      <p id="androidFirefoxMarkWarning" class="browser-warning hidden">Hinweis: Firefox auf Android kann technische PDF-/BewehrungsplÃ¤ne fehlerhaft darstellen. Bitte fÃ¼r Bewehrungsabnahmen Chrome verwenden.</p>
+      <p id="androidFirefoxMarkWarning" class="browser-warning hidden">Hinweis: Firefox auf Android kann technische PDF-/Bewehrungspläne fehlerhaft darstellen. Bitte für Bewehrungsabnahmen Chrome verwenden.</p>
       <div class="mark-selectors">
-        <label>Plan auswÃ¤hlen
+        <label>Plan auswählen
           <select id="markPlanSelect"></select>
         </label>
         <label>Seite
@@ -616,13 +616,13 @@
         </label>
       </div>
       <div class="zoom-actions">
-        <button class="small-btn" id="markZoomOutBtn" type="button">âˆ’</button>
+        <button class="small-btn" id="markZoomOutBtn" type="button">−</button>
         <span id="markZoomLabel" class="muted">100 %</span>
         <button class="small-btn" id="markZoomInBtn" type="button">+</button>
         <button class="small-btn" id="markZoomResetBtn" type="button">100 %</button>
         <button class="small-btn" id="markFitBtn" type="button">Einpassen</button>
       </div>
-      <p id="markHint" class="muted">Plan auswÃ¤hlen, dann â€žPin setzen / Punkt bestÃ¤tigenâ€œ antippen.</p>
+      <p id="markHint" class="muted">Plan auswählen, dann „Pin setzen / Punkt bestätigen“ antippen.</p>
       <div class="mark-viewer">
         <div id="markStage" class="mark-stage">
           <div id="markEmpty" class="empty-plan">Plan wird geladen ...</div>
@@ -637,25 +637,25 @@
   <dialog id="reportDialog" class="report-dialog">
     <div class="report-dialog-shell">
       <div class="report-dialog-toolbar">
-        <button class="secondary-btn" id="closeReportBtn" type="button">ZurÃ¼ck</button>
+        <button class="secondary-btn" id="closeReportBtn" type="button">Zurück</button>
         <strong>PDF-/Berichtsvorschau</strong>
         <button class="small-btn" id="reportReadModeBtn" type="button">Lesemodus</button>
         <button class="small-btn" id="reportA4ModeBtn" type="button">A4-Ansicht</button>
-        <button class="primary-btn" id="downloadReportPdfBtn" type="button">PDF speichern<br><small>Druckdialog Â· aus A4-Bericht</small></button>
-        <button class="secondary-btn" id="shareReportBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswÃ¤hlen Â· WhatsApp / Mail / Drive</small></button>
+        <button class="primary-btn" id="downloadReportPdfBtn" type="button">PDF speichern<br><small>Druckdialog · aus A4-Bericht</small></button>
+        <button class="secondary-btn" id="shareReportBtn" type="button">Gespeicherte PDF teilen<br><small>PDF auswählen · WhatsApp / Mail / Drive</small></button>
         <button class="secondary-btn" id="copyWhatsappTextBtn" type="button">Berichtstext teilen</button>
 
-        <button class="secondary-btn" id="printReportBtn" type="button" hidden>Druckdialog Ã¶ffnen<br><small>Als PDF speichern</small></button>
+        <button class="secondary-btn" id="printReportBtn" type="button" hidden>Druckdialog öffnen<br><small>Als PDF speichern</small></button>
         <button class="secondary-btn" id="saveReportHtmlBtn" type="button">HTML-Bericht speichern (Fallback)</button>
       </div>
-      <p class="muted report-browser-hint">Im Druckdialog als Ziel â€žAls PDF speichernâ€œ auswÃ¤hlen, um eine PDF-Datei zu speichern.</p>
+      <p class="muted report-browser-hint">Im Druckdialog als Ziel „Als PDF speichern“ auswählen, um eine PDF-Datei zu speichern.</p>
       <div id="reportPreviewContent" class="report-preview-content"></div>
     </div>
   </dialog>
   <dialog id="barCountDialog">
     <form method="dialog" class="dialog-body">
-      <h3>StÃ¤be zÃ¤hlen (Beta)</h3>
-      <p class="muted">Diese Fotoauswertung ist als Assistenzfunktion vorbereitet. Eine automatische Erkennung ist noch nicht aktiv und muss spÃ¤ter fachlich geprÃ¼ft werden.</p>
+      <h3>Stäbe zählen (Beta)</h3>
+      <p class="muted">Diese Fotoauswertung ist als Assistenzfunktion vorbereitet. Eine automatische Erkennung ist noch nicht aktiv und muss später fachlich geprüft werden.</p>
       <input id="barCountPhotoId" type="hidden">
       <label>Richtung
         <select id="barCountDirectionInput">
@@ -665,19 +665,19 @@
           <option value="both">beide Richtungen</option>
         </select>
       </label>
-      <label>KI-Vorschlag erkannte StÃ¤be
-        <input id="barCountDetectedInput" type="number" min="0" inputmode="numeric" placeholder="spÃ¤ter automatisch">
+      <label>KI-Vorschlag erkannte Stäbe
+        <input id="barCountDetectedInput" type="number" min="0" inputmode="numeric" placeholder="später automatisch">
       </label>
-      <label>Manuell bestÃ¤tigte Anzahl
+      <label>Manuell bestätigte Anzahl
         <input id="barCountConfirmedInput" type="number" min="0" inputmode="numeric" placeholder="Anzahl eintragen">
       </label>
       <label>Bemerkung
-        <textarea id="barCountNoteInput" rows="3" placeholder="z. B. ZÃ¤hlung manuell korrigiert"></textarea>
+        <textarea id="barCountNoteInput" rows="3" placeholder="z. B. Zählung manuell korrigiert"></textarea>
       </label>
-      <p class="muted">Die automatische Fotoauswertung dient als Assistenzfunktion und ersetzt keine fachliche PrÃ¼fung.</p>
+      <p class="muted">Die automatische Fotoauswertung dient als Assistenzfunktion und ersetzt keine fachliche Prüfung.</p>
       <div class="result-actions">
         <button class="secondary-btn" id="cancelBarCountBtn" type="button">Abbrechen</button>
-        <button class="primary-btn" id="saveBarCountBtn" type="button">ZÃ¤hlung speichern</button>
+        <button class="primary-btn" id="saveBarCountBtn" type="button">Zählung speichern</button>
       </div>
     </form>
   </dialog>
@@ -698,22 +698,22 @@
     <form method="dialog" class="dialog-body">
       <h3 id="projectDialogTitle">Neues Projekt</h3>
       <input id="projectIdInput" type="hidden">
-      <label>Projektname / Bauvorhaben<input id="projectNameInput" type="text" required placeholder="z. B. MFH MusterstraÃŸe"></label>
-      <label>Baustellenadresse: StraÃŸe / Hausnummer<input id="projectStreetInput" type="text" placeholder="optional"></label>
-      <label>PLZ<input id="projectZipInput" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="postal-code" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt mÃ¶glich." placeholder="optional"></label>
+      <label>Projektname / Bauvorhaben<input id="projectNameInput" type="text" required placeholder="z. B. MFH Musterstraße"></label>
+      <label>Baustellenadresse: Straße / Hausnummer<input id="projectStreetInput" type="text" placeholder="optional"></label>
+      <label>PLZ<input id="projectZipInput" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="postal-code" title="Deutsche PLZ normalerweise 5-stellig, freie Eingabe bleibt möglich." placeholder="optional"></label>
       <label>Ort<input id="projectCityInput" type="text" placeholder="optional"></label>
       <label>Land<input id="projectCountryInput" type="text" value="Deutschland"></label>
       <label>Auftraggeber<input id="projectClientInput" type="text" list="clientOptions" placeholder="optional"></label>
-      <label>AusfÃ¼hrende Firma<input id="projectContractorInput" type="text" list="companyOptions" placeholder="optional"></label>
-      <label>PrÃ¼fingenieur / PrÃ¼fer<input id="projectInspectorInput" type="text" list="inspectorOptions" placeholder="optional"></label>
+      <label>Ausführende Firma<input id="projectContractorInput" type="text" list="companyOptions" placeholder="optional"></label>
+      <label>Prüfingenieur / Prüfer<input id="projectInspectorInput" type="text" list="inspectorOptions" placeholder="optional"></label>
       <label>Standard-Abnehmender<input id="projectDefaultInspectorInput" type="text" list="ownPersonOptions" placeholder="optional"></label>
       <div class="result-actions">
-        <button class="small-btn" id="projectClientToMasterBtn" type="button">Auftraggeber in Stammdaten Ã¼bernehmen</button>
-        <button class="small-btn" id="projectContractorToMasterBtn" type="button">Firma in Stammdaten Ã¼bernehmen</button>
-        <button class="small-btn" id="projectInspectorToMasterBtn" type="button">PrÃ¼fer in Stammdaten Ã¼bernehmen</button>
-        <button class="small-btn" id="projectDefaultInspectorToMasterBtn" type="button">Abnehmenden in Stammdaten Ã¼bernehmen</button>
+        <button class="small-btn" id="projectClientToMasterBtn" type="button">Auftraggeber in Stammdaten übernehmen</button>
+        <button class="small-btn" id="projectContractorToMasterBtn" type="button">Firma in Stammdaten übernehmen</button>
+        <button class="small-btn" id="projectInspectorToMasterBtn" type="button">Prüfer in Stammdaten übernehmen</button>
+        <button class="small-btn" id="projectDefaultInspectorToMasterBtn" type="button">Abnehmenden in Stammdaten übernehmen</button>
       </div>
-      <label>Allgemeiner Planstand / PrÃ¼fstand<input id="projectPlanDateInput" type="text" placeholder="optional"></label>
+      <label>Allgemeiner Planstand / Prüfstand<input id="projectPlanDateInput" type="text" placeholder="optional"></label>
       <label>Bemerkung<textarea id="projectNoteInput" rows="2" placeholder="optional"></textarea></label>
       <div class="result-actions">
         <button class="secondary-btn" value="cancel" type="submit">Abbrechen</button>
@@ -730,18 +730,18 @@
       <label>Bauteil<input id="acceptanceComponentInput" type="text" list="componentOptions"></label>
       <label>Geschoss<input id="acceptanceFloorInput" type="text" list="floorOptions"></label>
       <div class="result-actions">
-        <button class="small-btn" id="acceptanceTypeToMasterBtn" type="button">Abnahmeart in Stammdaten Ã¼bernehmen</button>
-        <button class="small-btn" id="acceptanceComponentToMasterBtn" type="button">Bauteil in Stammdaten Ã¼bernehmen</button>
-        <button class="small-btn" id="acceptanceFloorToMasterBtn" type="button">Geschoss in Stammdaten Ã¼bernehmen</button>
-        <button class="small-btn" id="acceptanceAreaToMasterBtn" type="button">Bereich/Achse in Stammdaten Ã¼bernehmen</button>
+        <button class="small-btn" id="acceptanceTypeToMasterBtn" type="button">Abnahmeart in Stammdaten übernehmen</button>
+        <button class="small-btn" id="acceptanceComponentToMasterBtn" type="button">Bauteil in Stammdaten übernehmen</button>
+        <button class="small-btn" id="acceptanceFloorToMasterBtn" type="button">Geschoss in Stammdaten übernehmen</button>
+        <button class="small-btn" id="acceptanceAreaToMasterBtn" type="button">Bereich/Achse in Stammdaten übernehmen</button>
       </div>
       <label>Bereich / Achsen<input id="acceptanceAreaInput" type="text" list="areaOptions"></label>
-      <label>AusfÃ¼hrende Firma<input id="acceptanceContractorInput" type="text" list="companyOptions"></label>
+      <label>Ausführende Firma<input id="acceptanceContractorInput" type="text" list="companyOptions"></label>
       <label>Abnehmender<input id="acceptanceInspectorInput" type="text" list="personOptions"></label>
-      <label>Planunterlagen aus anderer Abnahme Ã¼bernehmen
+      <label>Planunterlagen aus anderer Abnahme übernehmen
         <select id="acceptancePlanSourceInput"></select>
       </label>
-      <p class="muted">Pins, Fotos, Ergebnis und Bewertungen werden dabei nicht Ã¼bernommen.</p>
+      <p class="muted">Pins, Fotos, Ergebnis und Bewertungen werden dabei nicht übernommen.</p>
       <div class="result-actions">
         <button class="secondary-btn" id="cancelAcceptanceBtn" value="cancel" type="button">Abbrechen</button>
         <button class="primary-btn" id="createAcceptanceConfirmBtn" value="default" type="button">Abnahme anlegen</button>
@@ -763,17 +763,17 @@
         <label>Bereich / Achsen<input id="duplicateAreaInput" type="text"></label>
       </div>
       <fieldset class="option-grid">
-        <legend>Ãœbernehmen</legend>
-        <label><input id="dupHeadInput" type="checkbox" checked> Kopfdaten Ã¼bernehmen</label>
-        <label><input id="dupChecklistInput" type="checkbox" checked> Checklistenstruktur Ã¼bernehmen</label>
-        <label><input id="dupPlansInput" type="checkbox"> Planunterlagen Ã¼bernehmen</label>
-        <label><input id="dupSamplesInput" type="checkbox"> PrÃ¼fstellen Ã¼bernehmen</label>
-        <label><input id="dupPinsInput" type="checkbox"> Pins Ã¼bernehmen</label>
-        <label><input id="dupPhotosInput" type="checkbox"> Fotos Ã¼bernehmen</label>
-        <label><input id="dupResultInput" type="checkbox"> Ergebnis Ã¼bernehmen</label>
-        <label><input id="dupSignaturesInput" type="checkbox"> Unterschriften Ã¼bernehmen</label>
+        <legend>Übernehmen</legend>
+        <label><input id="dupHeadInput" type="checkbox" checked> Kopfdaten übernehmen</label>
+        <label><input id="dupChecklistInput" type="checkbox" checked> Checklistenstruktur übernehmen</label>
+        <label><input id="dupPlansInput" type="checkbox"> Planunterlagen übernehmen</label>
+        <label><input id="dupSamplesInput" type="checkbox"> Prüfstellen übernehmen</label>
+        <label><input id="dupPinsInput" type="checkbox"> Pins übernehmen</label>
+        <label><input id="dupPhotosInput" type="checkbox"> Fotos übernehmen</label>
+        <label><input id="dupResultInput" type="checkbox"> Ergebnis übernehmen</label>
+        <label><input id="dupSignaturesInput" type="checkbox"> Unterschriften übernehmen</label>
       </fieldset>
-      <p id="duplicateHint" class="muted">Planunterlagen, Pins, Fotos, Ergebnis und Unterschriften werden standardmÃ¤ÃŸig nicht Ã¼bernommen.</p>
+      <p id="duplicateHint" class="muted">Planunterlagen, Pins, Fotos, Ergebnis und Unterschriften werden standardmäßig nicht übernommen.</p>
       <div class="result-actions">
         <button class="secondary-btn" id="cancelDuplicateBtn" type="button">Abbrechen</button>
         <button class="primary-btn" id="createDuplicateBtn" type="button">Abnahme duplizieren</button>
@@ -783,15 +783,15 @@
 
   <dialog id="planImportDialog">
     <form method="dialog" class="dialog-body">
-      <h3>Planunterlagen Ã¼bernehmen</h3>
+      <h3>Planunterlagen übernehmen</h3>
       <label>Quelle
         <select id="planImportSourceInput"></select>
       </label>
       <div id="planImportOptions" class="option-grid"></div>
-      <p class="muted">Es werden nur ausgewÃ¤hlte Planunterlagen Ã¼bernommen. Pins, Fotos und Bewertungen bleiben unverÃ¤ndert.</p>
+      <p class="muted">Es werden nur ausgewählte Planunterlagen übernommen. Pins, Fotos und Bewertungen bleiben unverändert.</p>
       <div class="result-actions">
         <button class="secondary-btn" id="cancelPlanImportBtn" type="button">Abbrechen</button>
-        <button class="primary-btn" id="confirmPlanImportBtn" type="button">AusgewÃ¤hlte PlÃ¤ne Ã¼bernehmen</button>
+        <button class="primary-btn" id="confirmPlanImportBtn" type="button">Ausgewählte Pläne übernehmen</button>
       </div>
     </form>
   </dialog>
@@ -802,7 +802,7 @@
     <option value="Verantwortlicher Rohbau"></option>
     <option value="Eisenflechter"></option>
     <option value="Betonbauer"></option>
-    <option value="PrÃ¼fender / Abnehmender"></option>
+    <option value="Prüfender / Abnehmender"></option>
     <option value="Sonstige"></option>
   </datalist>
   <datalist id="companyOptions"></datalist>
@@ -819,8 +819,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=162"></script>
-  <script src="app.js?v=162"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=163"></script>
+  <script src="app.js?v=163"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
