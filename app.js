@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v165";
+const APP_VERSION = "v166";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -3347,7 +3347,8 @@ function applyProjectTradeAssignmentToSiteItem(item, { force = false } = {}) {
 
 function projectTradeAssignmentRow(entry = {}) {
   const item = normalizeProjectTradeAssignments([entry])[0] || { id: uid("tradeassign"), trade: "", companyName: "", contactName: "", email: "", phone: "", defaultPriority: "normal", defaultDeadlineDays: "", notes: "" };
-  return '<article class="project-trade-assignment-card" data-project-trade-assignment="' + escapeAttr(item.id) + '"><div class="grid compact-grid">'
+  const title = item.trade || item.companyName || item.contactName ? "Zuständigkeit" : "Neue Zuständigkeit";
+  return '<article class="project-trade-assignment-card" data-project-trade-assignment="' + escapeAttr(item.id) + '"><div class="section-head compact"><div><h5>' + escapeHtml(title) + '</h5><p class="muted">Projektbezogene Gewerk-Firma-Zuordnung</p></div></div><div class="grid compact-grid">'
     + '<label>Gewerk<input data-project-trade-field="trade" list="tradeOptions" value="' + escapeAttr(item.trade) + '" placeholder="z. B. Heizung"></label>'
     + '<label>Zuständige Firma<input data-project-trade-field="companyName" list="companyOptions" value="' + escapeAttr(item.companyName) + '" placeholder="Firma aus Stammdaten oder Freitext"></label>'
     + '<label>Ansprechpartner<input data-project-trade-field="contactName" list="personOptions" value="' + escapeAttr(item.contactName) + '" placeholder="optional"></label>'
@@ -3356,14 +3357,15 @@ function projectTradeAssignmentRow(entry = {}) {
     + '<label>Standardfrist Tage<input data-project-trade-field="defaultDeadlineDays" type="number" min="0" inputmode="numeric" value="' + escapeAttr(item.defaultDeadlineDays) + '" placeholder="z. B. 7"></label>'
     + '<label>Standardpriorität<select data-project-trade-field="defaultPriority">' + siteControlOptions(state.masterData?.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.defaultPriority || "normal") + '</select></label>'
     + '<label>Bemerkung<textarea data-project-trade-field="notes" rows="2">' + escapeHtml(item.notes) + '</textarea></label></div>'
-    + '<button class="danger-btn small-btn" type="button" data-delete-project-trade-assignment="' + escapeAttr(item.id) + '">Zuordnung löschen</button></article>';
+    + '<div class="result-actions compact"><button class="small-btn" type="button" data-action="save-trade-assignment">Zuordnung speichern</button><button class="danger-btn small-btn" type="button" data-action="delete-trade-assignment" data-delete-project-trade-assignment="' + escapeAttr(item.id) + '">Entfernen</button></div></article>';
 }
 
 function renderProjectTradeAssignments(assignments = []) {
   const target = document.getElementById("projectTradeAssignmentsList");
   if (!target) return;
-  const rows = normalizeProjectTradeAssignments(assignments);
-  target.innerHTML = rows.length ? rows.map(projectTradeAssignmentRow).join("") : '<p class="muted">Noch keine projektbezogenen Zuständigkeiten hinterlegt.</p>';
+  const rawRows = Array.isArray(assignments) ? assignments : [];
+  const rows = rawRows.length ? rawRows.map((entry) => ({ id: entry.id || uid("tradeassign"), ...entry })) : [];
+  target.innerHTML = rows.length ? rows.map(projectTradeAssignmentRow).join("") : '<div class="empty-state compact"><p class="muted">Noch keine projektbezogenen Zuständigkeiten hinterlegt.</p><button class="secondary-btn small-btn" type="button" data-action="add-trade-assignment">Erste Zuordnung anlegen</button></div>';
 }
 
 function collectProjectTradeAssignmentsFromDialog() {
@@ -3389,10 +3391,45 @@ function addProjectTradeAssignmentRow() {
     card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     card?.querySelector('[data-project-trade-field="trade"]')?.focus({ preventScroll: true });
   });
+  showAppToast("Neue Gewerk-Zuordnung angelegt.", { type: "success" });
 }
 
 function deleteProjectTradeAssignmentRow(id) {
   renderProjectTradeAssignments(collectProjectTradeAssignmentsFromDialog().filter((entry) => entry.id !== id));
+  showAppToast("Gewerk-Zuordnung entfernt.", { type: "info" });
+}
+
+let lastProjectTradeAssignmentPointerAction = 0;
+
+function handleProjectTradeAssignmentAction(event) {
+  const target = event.target?.closest?.('[data-action="add-trade-assignment"], [data-action="delete-trade-assignment"], [data-action="save-trade-assignment"]');
+  if (!target) return false;
+  const dialog = document.getElementById("projectDialog");
+  if (dialog && !dialog.contains(target)) return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  if (event.type === "click" && Date.now() - lastProjectTradeAssignmentPointerAction < 450) return true;
+  if (event.type === "pointerup" || event.type === "touchend") lastProjectTradeAssignmentPointerAction = Date.now();
+  try {
+    const action = target.dataset.action;
+    if (action === "add-trade-assignment") {
+      addProjectTradeAssignmentRow();
+      return true;
+    }
+    if (action === "delete-trade-assignment") {
+      deleteProjectTradeAssignmentRow(target.dataset.deleteProjectTradeAssignment || "");
+      return true;
+    }
+    if (action === "save-trade-assignment") {
+      createProjectFromDialog();
+      showAppToast("Gewerk-Zuordnung gespeichert.", { type: "success" });
+      return true;
+    }
+  } catch (error) {
+    showAppToast("Zuordnung konnte nicht angelegt werden: " + (error?.message || error), { type: "error", timeout: 6500 });
+    console.error("Projekt-Gewerk-Zuordnung fehlgeschlagen", error);
+  }
+  return true;
 }
 
 function applyProjectTradeCompanySnapshot(field) {
@@ -12801,21 +12838,8 @@ function bindOptional(selector, eventName, handler, options) {
 function bindEvents() {
   bindOptional("#newProjectBtn", "click", createProject);
   bindOptional("#newFromListBtn", "click", createProject);
-  bindOptional("#projectDialog", "click", (event) => {
-    const addAssignment = event.target.closest("#addProjectTradeAssignmentBtn");
-    if (addAssignment) {
-      event.preventDefault();
-      event.stopPropagation();
-      addProjectTradeAssignmentRow();
-      return;
-    }
-    const deleteAssignment = event.target.closest("[data-delete-project-trade-assignment]");
-    if (deleteAssignment) {
-      event.preventDefault();
-      event.stopPropagation();
-      deleteProjectTradeAssignmentRow(deleteAssignment.dataset.deleteProjectTradeAssignment);
-    }
-  });
+  document.addEventListener("click", handleProjectTradeAssignmentAction, true);
+  document.addEventListener("pointerup", handleProjectTradeAssignmentAction, true);
   bindOptional("#projectDialog", "input", (event) => { if (event.target.matches("[data-project-trade-field]")) applyProjectTradeCompanySnapshot(event.target); });
   bindOptional("#projectDialog", "change", (event) => { if (event.target.matches("[data-project-trade-field]")) applyProjectTradeCompanySnapshot(event.target); });
   bindOptional("#backBtn", "click", async () => {
@@ -13298,10 +13322,7 @@ function bindEvents() {
       state.currentProjectId = openProject.dataset.openProject;
       navigateToView("projectHubView");
     }
-    const addProjectTradeAssignment = event.target.closest("#addProjectTradeAssignmentBtn");
-    if (addProjectTradeAssignment) { event.preventDefault(); event.stopPropagation(); addProjectTradeAssignmentRow(); }
-    const deleteProjectTradeAssignment = event.target.closest("[data-delete-project-trade-assignment]");
-    if (deleteProjectTradeAssignment) { event.preventDefault(); event.stopPropagation(); deleteProjectTradeAssignmentRow(deleteProjectTradeAssignment.dataset.deleteProjectTradeAssignment); }
+    if (handleProjectTradeAssignmentAction(event)) return;
     const editProject = event.target.closest("[data-edit-project]");
     if (editProject) openProjectDialog(editProject.dataset.editProject);
     const newAcceptance = event.target.closest("[data-new-acceptance]");

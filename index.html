@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=165">
-  <link rel="stylesheet" href="styles.css?v=165">
+  <link rel="manifest" href="manifest.webmanifest?v=166">
+  <link rel="stylesheet" href="styles.css?v=166">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v165</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v166</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -279,8 +279,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v165</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v165 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v166</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v166 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -715,7 +715,7 @@
       </div>
 
       <section class="project-trade-assignment-box">
-        <div class="section-head compact"><div><h4>Gewerke / Zuständigkeiten</h4><p class="muted">Diese Zuordnung wird für Baustellenkontrolle, Spracheingabe, Bautagesbericht und spätere Dispo-Funktionen genutzt.</p></div><button class="secondary-btn" id="addProjectTradeAssignmentBtn" type="button">+ Zuordnung</button></div>
+        <div class="section-head compact"><div><h4>Gewerke / Zuständigkeiten</h4><p class="muted">Diese Zuordnung wird für Baustellenkontrolle, Spracheingabe, Bautagesbericht und spätere Dispo-Funktionen genutzt.</p></div><button class="secondary-btn" id="addProjectTradeAssignmentBtn" type="button" data-action="add-trade-assignment">+ Zuordnung</button></div>
         <div id="projectTradeAssignmentsList" class="project-trade-assignment-list"></div>
       </section>
       <label>Allgemeiner Planstand / Prüfstand<input id="projectPlanDateInput" type="text" placeholder="optional"></label>
@@ -824,8 +824,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=165"></script>
-  <script src="app.js?v=165"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=166"></script>
+  <script src="app.js?v=166"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
