@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v164";
+const APP_VERSION = "v165";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -3380,8 +3380,15 @@ function collectProjectTradeAssignmentsFromDialog() {
 
 function addProjectTradeAssignmentRow() {
   const current = collectProjectTradeAssignmentsFromDialog();
-  current.push({ id: uid("tradeassign"), trade: "", companyName: "", defaultPriority: "normal" });
+  const id = uid("tradeassign");
+  current.push({ id, trade: "", companyName: "", defaultPriority: "normal" });
   renderProjectTradeAssignments(current);
+  requestAnimationFrame(() => {
+    const selector = '[data-project-trade-assignment="' + CSS.escape(id) + '"]';
+    const card = document.querySelector(selector);
+    card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    card?.querySelector('[data-project-trade-field="trade"]')?.focus({ preventScroll: true });
+  });
 }
 
 function deleteProjectTradeAssignmentRow(id) {
@@ -12794,6 +12801,21 @@ function bindOptional(selector, eventName, handler, options) {
 function bindEvents() {
   bindOptional("#newProjectBtn", "click", createProject);
   bindOptional("#newFromListBtn", "click", createProject);
+  bindOptional("#projectDialog", "click", (event) => {
+    const addAssignment = event.target.closest("#addProjectTradeAssignmentBtn");
+    if (addAssignment) {
+      event.preventDefault();
+      event.stopPropagation();
+      addProjectTradeAssignmentRow();
+      return;
+    }
+    const deleteAssignment = event.target.closest("[data-delete-project-trade-assignment]");
+    if (deleteAssignment) {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteProjectTradeAssignmentRow(deleteAssignment.dataset.deleteProjectTradeAssignment);
+    }
+  });
   bindOptional("#projectDialog", "input", (event) => { if (event.target.matches("[data-project-trade-field]")) applyProjectTradeCompanySnapshot(event.target); });
   bindOptional("#projectDialog", "change", (event) => { if (event.target.matches("[data-project-trade-field]")) applyProjectTradeCompanySnapshot(event.target); });
   bindOptional("#backBtn", "click", async () => {
@@ -13277,9 +13299,9 @@ function bindEvents() {
       navigateToView("projectHubView");
     }
     const addProjectTradeAssignment = event.target.closest("#addProjectTradeAssignmentBtn");
-    if (addProjectTradeAssignment) { event.preventDefault(); addProjectTradeAssignmentRow(); }
+    if (addProjectTradeAssignment) { event.preventDefault(); event.stopPropagation(); addProjectTradeAssignmentRow(); }
     const deleteProjectTradeAssignment = event.target.closest("[data-delete-project-trade-assignment]");
-    if (deleteProjectTradeAssignment) { event.preventDefault(); deleteProjectTradeAssignmentRow(deleteProjectTradeAssignment.dataset.deleteProjectTradeAssignment); }
+    if (deleteProjectTradeAssignment) { event.preventDefault(); event.stopPropagation(); deleteProjectTradeAssignmentRow(deleteProjectTradeAssignment.dataset.deleteProjectTradeAssignment); }
     const editProject = event.target.closest("[data-edit-project]");
     if (editProject) openProjectDialog(editProject.dataset.editProject);
     const newAcceptance = event.target.closest("[data-new-acceptance]");
