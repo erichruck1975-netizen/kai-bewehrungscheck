@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v163";
+const APP_VERSION = "v164";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -439,6 +439,16 @@ async function migrateLocalStorageData() {
   }
 }
 
+function normalizeProjectTradeAssignments(assignments = []) {
+  return (assignments || []).map((entry) => {
+    const company = resolveCompanyById(entry.companyId || entry.company_id || "") || resolveCompany(entry.companyName || entry.company || "");
+    const contact = resolveOwnPersonById(entry.contactId || entry.contact_id || "") || resolveOwnPerson(entry.contactName || entry.contact || "");
+    const companyName = entry.companyName || entry.company || company?.name || "";
+    const contactName = entry.contactName || entry.contact || contact?.name || "";
+    return { id: entry.id || uid("tradeassign"), trade: entry.trade || entry.gewerk || "", companyId: entry.companyId || entry.company_id || company?.id || "", companyName, contactId: entry.contactId || entry.contact_id || contact?.id || "", contactName, email: entry.email || company?.email || contact?.email || "", phone: entry.phone || company?.phone || contact?.phone || "", defaultPriority: entry.defaultPriority || entry.default_priority || "normal", defaultDeadlineDays: entry.defaultDeadlineDays || entry.default_deadline_days || "", notes: entry.notes || entry.note || "" };
+  }).filter((entry) => entry.trade || entry.companyName || entry.contactName || entry.email || entry.phone || entry.notes);
+}
+
 function normalizeProject(project = {}) {
   const address = normalizeAddress(project.address || project.siteAddress || project.baustellenAdresse || "");
   const clientSnapshot = project.clientSnapshot || snapshotCompany(resolveCompanyById(project.clientId) || resolveCompany(project.client || ""));
@@ -470,6 +480,7 @@ function normalizeProject(project = {}) {
     reportFolder: project.reportFolder || state.settings.dropboxReportFolder || "Berichte",
     photoFolder: project.photoFolder || state.settings.dropboxPhotoFolder || "Fotos",
     generalData: project.generalData || "",
+    tradeAssignments: normalizeProjectTradeAssignments(project.tradeAssignments || project.trade_assignments || []),
     createdAt: project.createdAt || new Date().toISOString(),
     updatedAt: project.updatedAt || new Date().toISOString()
   };
@@ -1992,6 +2003,7 @@ function openProjectDialog(projectId = "") {
   $("#projectPhotoFolderInput").value = state.settings.dropboxPhotoFolder || "Fotos";
   $("#projectPlanDateInput").value = "";
   $("#projectNoteInput").value = "";
+  renderProjectTradeAssignments(project?.tradeAssignments || []);
   if (project) {
     const address = normalizeAddress(project.address || project.siteAddress);
     $("#projectNameInput").value = project.name || "";
@@ -2052,6 +2064,7 @@ function createProjectFromDialog() {
     planFolder: $("#projectPlanFolderInput")?.value.trim() || state.settings.dropboxPlanFolder || "Pläne",
     reportFolder: $("#projectReportFolderInput")?.value.trim() || state.settings.dropboxReportFolder || "Berichte",
     photoFolder: $("#projectPhotoFolderInput")?.value.trim() || state.settings.dropboxPhotoFolder || "Fotos",
+    tradeAssignments: collectProjectTradeAssignmentsFromDialog(),
     updatedAt: new Date().toISOString()
   });
   if (existing) {
@@ -3289,6 +3302,129 @@ function acceptanceLabel(protocol) {
 }
 
 
+
+function projectTradeAssignments(project = {}) {
+  return normalizeProjectTradeAssignments(project?.tradeAssignments || project?.trade_assignments || []);
+}
+
+function resolveResponsibleCompanyForTrade(project, trade) {
+  const normalizedTrade = normalizeLookupText(trade || "");
+  if (!project || !normalizedTrade) return { status: "none", assignments: [] };
+  const assignments = projectTradeAssignments(project).filter((entry) => normalizeLookupText(entry.trade || "") === normalizedTrade);
+  if (!assignments.length) return { status: "none", assignments: [] };
+  if (assignments.length === 1) return { status: "single", assignment: assignments[0], assignments };
+  return { status: "multiple", assignments };
+}
+
+function datePlusDays(days = 0) {
+  if (!days) return "";
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function applyProjectTradeAssignmentToSiteItem(item, { force = false } = {}) {
+  if (!item || !isSiteControlProtocol()) return null;
+  const project = projectById(state.current?.projectId || state.currentProjectId);
+  const result = resolveResponsibleCompanyForTrade(project, item.trade);
+  item.tradeAssignmentHint = "";
+  if (result.status === "single") {
+    const assignment = result.assignment;
+    if (force || !String(item.responsible || "").trim()) {
+      item.responsible = assignment.companyName || assignment.contactName || item.responsible || "";
+      item.responsibleCompanyId = assignment.companyId || "";
+      item.responsibleContactId = assignment.contactId || "";
+      if (assignment.defaultPriority && (!item.priority || force)) item.priority = assignment.defaultPriority;
+      if (assignment.defaultDeadlineDays && (!item.dueDate || force)) item.dueDate = datePlusDays(Number(assignment.defaultDeadlineDays) || 0);
+      item.tradeAssignmentHint = "Zuständig aus Projekt-Gewerk-Zuordnung übernommen.";
+    } else {
+      item.tradeAssignmentHint = "Vorschlag aus Projekt: " + (assignment.companyName || assignment.contactName) + ".";
+    }
+  }
+  if (result.status === "multiple") item.tradeAssignmentHint = "Mehrere Zuständigkeiten für Gewerk " + item.trade + " gefunden.";
+  return result;
+}
+
+function projectTradeAssignmentRow(entry = {}) {
+  const item = normalizeProjectTradeAssignments([entry])[0] || { id: uid("tradeassign"), trade: "", companyName: "", contactName: "", email: "", phone: "", defaultPriority: "normal", defaultDeadlineDays: "", notes: "" };
+  return '<article class="project-trade-assignment-card" data-project-trade-assignment="' + escapeAttr(item.id) + '"><div class="grid compact-grid">'
+    + '<label>Gewerk<input data-project-trade-field="trade" list="tradeOptions" value="' + escapeAttr(item.trade) + '" placeholder="z. B. Heizung"></label>'
+    + '<label>Zuständige Firma<input data-project-trade-field="companyName" list="companyOptions" value="' + escapeAttr(item.companyName) + '" placeholder="Firma aus Stammdaten oder Freitext"></label>'
+    + '<label>Ansprechpartner<input data-project-trade-field="contactName" list="personOptions" value="' + escapeAttr(item.contactName) + '" placeholder="optional"></label>'
+    + '<label>E-Mail<input data-project-trade-field="email" type="email" value="' + escapeAttr(item.email) + '" placeholder="optional"></label>'
+    + '<label>Telefon / WhatsApp<input data-project-trade-field="phone" type="tel" value="' + escapeAttr(item.phone) + '" placeholder="optional"></label>'
+    + '<label>Standardfrist Tage<input data-project-trade-field="defaultDeadlineDays" type="number" min="0" inputmode="numeric" value="' + escapeAttr(item.defaultDeadlineDays) + '" placeholder="z. B. 7"></label>'
+    + '<label>Standardpriorität<select data-project-trade-field="defaultPriority">' + siteControlOptions(state.masterData?.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.defaultPriority || "normal") + '</select></label>'
+    + '<label>Bemerkung<textarea data-project-trade-field="notes" rows="2">' + escapeHtml(item.notes) + '</textarea></label></div>'
+    + '<button class="danger-btn small-btn" type="button" data-delete-project-trade-assignment="' + escapeAttr(item.id) + '">Zuordnung löschen</button></article>';
+}
+
+function renderProjectTradeAssignments(assignments = []) {
+  const target = document.getElementById("projectTradeAssignmentsList");
+  if (!target) return;
+  const rows = normalizeProjectTradeAssignments(assignments);
+  target.innerHTML = rows.length ? rows.map(projectTradeAssignmentRow).join("") : '<p class="muted">Noch keine projektbezogenen Zuständigkeiten hinterlegt.</p>';
+}
+
+function collectProjectTradeAssignmentsFromDialog() {
+  return normalizeProjectTradeAssignments(Array.from(document.querySelectorAll("[data-project-trade-assignment]")).map((card) => {
+    const entry = { id: card.dataset.projectTradeAssignment || uid("tradeassign") };
+    card.querySelectorAll("[data-project-trade-field]").forEach((field) => { entry[field.dataset.projectTradeField] = field.value || ""; });
+    const company = resolveCompany(entry.companyName || "");
+    if (company) { entry.companyId = company.id; entry.companyName = company.name; entry.email = entry.email || company.email || ""; entry.phone = entry.phone || company.phone || ""; }
+    const contact = resolveOwnPerson(entry.contactName || "");
+    if (contact) { entry.contactId = contact.id; entry.contactName = contact.name; entry.email = entry.email || contact.email || ""; entry.phone = entry.phone || contact.phone || ""; }
+    return entry;
+  }));
+}
+
+function addProjectTradeAssignmentRow() {
+  const current = collectProjectTradeAssignmentsFromDialog();
+  current.push({ id: uid("tradeassign"), trade: "", companyName: "", defaultPriority: "normal" });
+  renderProjectTradeAssignments(current);
+}
+
+function deleteProjectTradeAssignmentRow(id) {
+  renderProjectTradeAssignments(collectProjectTradeAssignmentsFromDialog().filter((entry) => entry.id !== id));
+}
+
+function applyProjectTradeCompanySnapshot(field) {
+  const card = field.closest("[data-project-trade-assignment]");
+  if (!card || field.dataset.projectTradeField !== "companyName") return;
+  const company = resolveCompany(field.value || "");
+  if (!company) return;
+  const email = card.querySelector('[data-project-trade-field="email"]');
+  const phone = card.querySelector('[data-project-trade-field="phone"]');
+  const contact = card.querySelector('[data-project-trade-field="contactName"]');
+  if (email && !email.value) email.value = company.email || "";
+  if (phone && !phone.value) phone.value = company.phone || "";
+  if (contact && !contact.value) contact.value = company.contact || "";
+}
+
+function siteControlTradeAssignmentControls(item = {}) {
+  const project = projectById(state.current?.projectId || state.currentProjectId);
+  const result = resolveResponsibleCompanyForTrade(project, item.trade);
+  const hint = item.tradeAssignmentHint || (result.status === "multiple" ? "Mehrere Zuständigkeiten für Gewerk " + item.trade + " gefunden." : "");
+  if (result.status !== "multiple") return hint ? '<p class="muted site-assignment-hint">' + escapeHtml(hint) + '</p>' : "";
+  return '<label class="site-assignment-choice">Zuständigkeit wählen<select data-site-responsible-choice="' + escapeAttr(item.id) + '"><option value="">Bitte auswählen</option>' + result.assignments.map((entry) => '<option value="' + escapeAttr(entry.id) + '">' + escapeHtml(entry.companyName || entry.contactName || entry.trade) + '</option>').join("") + '</select></label><p class="muted site-assignment-hint">' + escapeHtml(hint) + '</p>';
+}
+
+function applySiteControlResponsibleChoice(itemId, assignmentId) {
+  const item = findSiteControlItem(itemId);
+  if (!item) return;
+  const project = projectById(state.current?.projectId || state.currentProjectId);
+  const assignment = projectTradeAssignments(project).find((entry) => entry.id === assignmentId);
+  if (!assignment) return;
+  item.responsible = assignment.companyName || assignment.contactName || item.responsible || "";
+  item.responsibleCompanyId = assignment.companyId || "";
+  item.responsibleContactId = assignment.contactId || "";
+  if (assignment.defaultPriority) item.priority = assignment.defaultPriority;
+  if (assignment.defaultDeadlineDays && !item.dueDate) item.dueDate = datePlusDays(Number(assignment.defaultDeadlineDays) || 0);
+  item.tradeAssignmentHint = "Zuständigkeit aus Projekt-Gewerk-Zuordnung übernommen.";
+  item.updatedAt = new Date().toISOString();
+  persist();
+  renderSiteControlItems();
+}
 
 function projectStats(project) {
   const acceptances = rebarProtocolsForProject(project.id);
@@ -8722,6 +8858,7 @@ function siteControlItemCard(item) {
           <label>Gewerk<input data-site-item-field="trade" list="tradeOptions" value="${escapeAttr(item.trade)}"></label>
           <label>Bereich / Ort<input data-site-item-field="location" list="siteControlAreaOptions" value="${escapeAttr(item.location)}"></label>
           <label>Zuständig<input data-site-item-field="responsible" list="responsibleOptions" value="${escapeAttr(item.responsible)}"></label>
+          ${siteControlTradeAssignmentControls(item)}
           <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
           <label>Priorität<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
           <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
@@ -8791,6 +8928,17 @@ function updateSiteControlItemField(element) {
   const item = findSiteControlItem(element.closest("[data-site-item]")?.dataset.siteItem || "");
   if (!item) return;
   item[element.dataset.siteItemField] = element.value || "";
+  if (element.dataset.siteItemField === "trade") {
+    applyProjectTradeAssignmentToSiteItem(item);
+    const card = element.closest("[data-site-item]");
+    const responsibleField = card?.querySelector('[data-site-item-field="responsible"]');
+    const dueDateField = card?.querySelector('[data-site-item-field="dueDate"]');
+    const priorityField = card?.querySelector('[data-site-item-field="priority"]');
+    if (responsibleField && item.responsible && !responsibleField.value) responsibleField.value = item.responsible;
+    if (dueDateField && item.dueDate && !dueDateField.value) dueDateField.value = item.dueDate;
+    if (priorityField && item.priority) priorityField.value = item.priority;
+  }
+  if (element.dataset.siteItemField === "responsible") item.tradeAssignmentHint = "";
   item.updatedAt = new Date().toISOString();
   persist();
   if (element.dataset.siteItemField === "status") {
@@ -12646,6 +12794,8 @@ function bindOptional(selector, eventName, handler, options) {
 function bindEvents() {
   bindOptional("#newProjectBtn", "click", createProject);
   bindOptional("#newFromListBtn", "click", createProject);
+  bindOptional("#projectDialog", "input", (event) => { if (event.target.matches("[data-project-trade-field]")) applyProjectTradeCompanySnapshot(event.target); });
+  bindOptional("#projectDialog", "change", (event) => { if (event.target.matches("[data-project-trade-field]")) applyProjectTradeCompanySnapshot(event.target); });
   bindOptional("#backBtn", "click", async () => {
     const viewId = activeViewId();
     if (viewId === "dailyReportEditorView") saveDailyReportForm();
@@ -12856,6 +13006,10 @@ function bindEvents() {
   const siteControlForm = $("#siteControlForm");
   if (siteControlForm) {
     siteControlForm.addEventListener("input", (event) => {
+      if (event.target.matches("[data-site-responsible-choice]")) {
+        applySiteControlResponsibleChoice(event.target.dataset.siteResponsibleChoice, event.target.value);
+        return;
+      }
       if (event.target.matches("[data-site-item-field]")) {
         updateSiteControlItemField(event.target);
         return;
@@ -12863,6 +13017,10 @@ function bindEvents() {
       saveSiteControlForm({ persistNow: false });
     });
     siteControlForm.addEventListener("change", (event) => {
+      if (event.target.matches("[data-site-responsible-choice]")) {
+        applySiteControlResponsibleChoice(event.target.dataset.siteResponsibleChoice, event.target.value);
+        return;
+      }
       if (event.target.matches("[data-site-item-field]")) {
         updateSiteControlItemField(event.target);
         return;
@@ -13118,6 +13276,10 @@ function bindEvents() {
       state.currentProjectId = openProject.dataset.openProject;
       navigateToView("projectHubView");
     }
+    const addProjectTradeAssignment = event.target.closest("#addProjectTradeAssignmentBtn");
+    if (addProjectTradeAssignment) { event.preventDefault(); addProjectTradeAssignmentRow(); }
+    const deleteProjectTradeAssignment = event.target.closest("[data-delete-project-trade-assignment]");
+    if (deleteProjectTradeAssignment) { event.preventDefault(); deleteProjectTradeAssignmentRow(deleteProjectTradeAssignment.dataset.deleteProjectTradeAssignment); }
     const editProject = event.target.closest("[data-edit-project]");
     if (editProject) openProjectDialog(editProject.dataset.editProject);
     const newAcceptance = event.target.closest("[data-new-acceptance]");
@@ -14659,6 +14821,8 @@ async function boot() {
 }
 
 boot();
+
+
 
 
 
