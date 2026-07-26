@@ -3855,31 +3855,42 @@ dialog button {
   }
 }
 
-
-/* v168: Kai Voice Core Basis-UI */
-.kai-voice-panel {
+/* v169: Kai Voice Core Diktiergerät-UI */
+.kai-voice-panel.kai-recorder-panel {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: 12px 0;
-  padding: 12px;
-  border: 1px solid #b9d7f2;
+  padding: 14px;
+  border: 1px solid #c7d7e8;
   border-left: 5px solid #2563eb;
-  border-radius: 8px;
-  background: #f5faff;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fbff 0%, #edf6ff 100%);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.kai-recorder-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.kai-recorder-head h4 {
+  margin: 0 0 3px;
 }
 
 .kai-voice-status {
-  align-self: start;
-  justify-self: end;
-  padding: 4px 9px;
+  flex: 0 0 auto;
+  padding: 5px 10px;
   border-radius: 999px;
   background: #e8eef4;
   color: #1d252d;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 800;
+  text-transform: lowercase;
 }
 
-.kai-voice-status[data-status="listening"] {
+.kai-voice-status[data-status="recording"] {
   background: #fee2e2;
   color: #991b1b;
 }
@@ -3889,29 +3900,140 @@ dialog button {
   color: #9a3412;
 }
 
-.kai-voice-status[data-status="stopped"] {
+.kai-voice-status[data-status="processing"] {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.kai-voice-status[data-status="no-transcription"] {
   background: #dcfce7;
   color: #166534;
 }
 
-.kai-voice-actions {
+.kai-recorder-body {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  place-items: center;
   gap: 8px;
+  padding: 2px 0 4px;
+}
+
+.kai-record-button {
+  width: 92px;
+  height: 92px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 8px #fee2e2, 0 12px 26px rgba(185, 28, 28, 0.22);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.kai-record-button .record-dot {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: #dc2626;
+  box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.16);
+}
+
+.kai-recorder-panel[data-status="recording"] .kai-record-button {
+  box-shadow: inset 0 0 0 8px #fecaca, 0 0 0 8px rgba(239, 68, 68, 0.12), 0 14px 30px rgba(185, 28, 28, 0.28);
+}
+
+.kai-recorder-panel[data-status="recording"] .kai-record-button .record-dot {
+  animation: kai-record-pulse 1.25s ease-in-out infinite;
+}
+
+.kai-record-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+}
+
+.kai-recorder-time {
+  color: #111827;
+  font-size: 1.45rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.kai-voice-actions.kai-recorder-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.kai-icon-btn {
+  width: 48px;
+  height: 48px;
+  border: 1px solid #c8d3df;
+  border-radius: 999px;
+  background: #fff;
+  color: #17212b;
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.kai-icon-btn:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.kai-icon-btn:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.kai-icon-btn-muted {
+  color: #7f1d1d;
+}
+
+.kai-icon-btn-apply {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #166534;
 }
 
 .kai-voice-preview {
-  min-height: 64px;
-  padding: 10px;
+  min-height: 78px;
+  padding: 11px;
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #fff;
   color: #17212b;
   white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+@keyframes kai-record-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.18); }
+  50% { transform: scale(1.12); box-shadow: 0 0 0 14px rgba(220, 38, 38, 0.04); }
 }
 
 @media (max-width: 640px) {
-  .kai-voice-actions {
-    grid-template-columns: 1fr;
+  .kai-voice-panel.kai-recorder-panel {
+    padding: 12px;
+  }
+
+  .kai-record-button {
+    width: 88px;
+    height: 88px;
+  }
+
+  .kai-icon-btn {
+    width: 46px;
+    height: 46px;
   }
 }
+

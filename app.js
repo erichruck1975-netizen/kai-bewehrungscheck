@@ -8152,6 +8152,9 @@ const kaiVoiceCore = {
     active: false,
     paused: false,
     userStopped: true,
+    startedAt: 0,
+    elapsedMs: 0,
+    timerId: null,
     transcript: "",
     liveText: "",
     mode: "media-recorder",
@@ -8180,6 +8183,8 @@ const kaiVoiceCore = {
       this.state.active = true;
       this.state.paused = false;
       this.state.userStopped = false;
+      this.state.startedAt = Date.now();
+      this.state.elapsedMs = 0;
       this.state.mode = "media-recorder";
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) this.state.audioChunks.push(event.data);
@@ -8191,6 +8196,7 @@ const kaiVoiceCore = {
       };
       recorder.onstop = () => this.finishRecording();
       recorder.start(1000);
+      this.startTimer();
       this.setStatus("recording");
       return true;
     } catch (error) {
@@ -8211,6 +8217,7 @@ const kaiVoiceCore = {
       if (this.state.recorder?.state === "recording" && typeof this.state.recorder.pause === "function") this.state.recorder.pause();
     } catch {}
     this.state.paused = true;
+    this.pauseTimer();
     this.setStatus("paused");
   },
   resume() {
@@ -8219,6 +8226,7 @@ const kaiVoiceCore = {
       if (this.state.recorder?.state === "paused" && typeof this.state.recorder.resume === "function") this.state.recorder.resume();
     } catch {}
     this.state.paused = false;
+    this.resumeTimer();
     this.setStatus("recording");
   },
   stop() {
@@ -8226,6 +8234,7 @@ const kaiVoiceCore = {
     this.state.userStopped = true;
     this.state.paused = false;
     this.state.active = false;
+    this.stopTimer();
     this.setStatus("processing");
     try {
       if (this.state.recorder && this.state.recorder.state !== "inactive") {
@@ -8251,10 +8260,14 @@ const kaiVoiceCore = {
     this.state.userStopped = true;
     this.state.transcript = "";
     this.state.liveText = "";
+    this.state.startedAt = 0;
+    this.state.elapsedMs = 0;
+    this.clearTimer();
     this.state.status = "ready";
     if (!silent) this.notify();
   },
   finishRecording() {
+    this.stopTimer();
     const type = this.state.recorder?.mimeType || this.state.audioChunks[0]?.type || "audio/webm";
     if (this.state.audioChunks.length) {
       this.state.audioBlob = new Blob(this.state.audioChunks, { type });
@@ -8272,6 +8285,30 @@ const kaiVoiceCore = {
     this.state.active = false;
     this.state.paused = false;
     this.closeStream();
+  },
+  clearTimer() {
+    if (this.state.timerId) window.clearInterval(this.state.timerId);
+    this.state.timerId = null;
+  },
+  startTimer() {
+    this.clearTimer();
+    this.state.timerId = window.setInterval(() => {
+      if (!this.state.active || this.state.paused || !this.state.startedAt) return;
+      this.state.elapsedMs = Date.now() - this.state.startedAt;
+      this.notify();
+    }, 1000);
+  },
+  pauseTimer() {
+    if (this.state.startedAt) this.state.elapsedMs = Date.now() - this.state.startedAt;
+    this.clearTimer();
+  },
+  resumeTimer() {
+    this.state.startedAt = Date.now() - (this.state.elapsedMs || 0);
+    this.startTimer();
+  },
+  stopTimer() {
+    if (this.state.startedAt && this.state.active) this.state.elapsedMs = Date.now() - this.state.startedAt;
+    this.clearTimer();
   },
   closeStream() {
     try { this.state.stream?.getTracks?.().forEach((track) => track.stop()); } catch {}
@@ -8310,16 +8347,27 @@ function kaiVoiceStatusText(status = kaiVoiceCore.state.status) {
   return labels[status] || status;
 }
 
+function formatKaiVoiceDuration(ms = 0) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return hours + ":" + minutes + ":" + seconds;
+}
+
 function renderKaiVoiceCoreUi() {
   const panel = document.getElementById("siteKaiVoicePanel");
   if (!panel) return;
   const value = kaiVoiceCore.state;
   const supported = kaiVoiceCore.isSupported();
+  panel.dataset.status = supported ? value.status : "unsupported";
   const status = document.getElementById("kaiVoiceStatusBadge");
   if (status) {
     status.textContent = supported ? kaiVoiceStatusText(value.status) : "nicht verfügbar";
     status.dataset.status = supported ? value.status : "unsupported";
   }
+  const timer = document.getElementById("kaiVoiceTimer");
+  if (timer) timer.textContent = formatKaiVoiceDuration(value.elapsedMs || 0);
   const preview = document.getElementById("kaiVoiceTranscript");
   if (preview) {
     const text = value.transcript || value.liveText || (value.audioBlob ? "Audio aufgenommen. Transkription noch nicht verbunden." : "Noch kein Diktat erfasst.");
@@ -15118,6 +15166,7 @@ async function boot() {
 }
 
 boot();
+
 
 
 

@@ -131,18 +131,24 @@
                 <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
                 <button class="secondary-btn" type="button" data-add-site-item="Klärungspunkt">+ Klärungspunkt</button>
               </div>
-              <section class="kai-voice-panel" id="siteKaiVoicePanel" aria-live="polite">
-                <div class="section-head compact"><div><h4>Per Sprache erfassen</h4><p class="muted">Diktiergerät-Modus: Start, Pause, Fortsetzen, Beenden und Text übernehmen.</p></div><span id="kaiVoiceStatusBadge" class="kai-voice-status">bereit</span></div>
-                <div class="kai-voice-actions">
-                  <button class="primary-btn" type="button" data-kai-voice-action="start">Aufnahme starten</button>
-                  <button class="secondary-btn" type="button" data-kai-voice-action="pause">Pause</button>
-                  <button class="secondary-btn" type="button" data-kai-voice-action="resume">Fortsetzen</button>
-                  <button class="secondary-btn" type="button" data-kai-voice-action="stop">Beenden / Auswerten</button>
-                  <button class="small-btn" type="button" data-kai-voice-action="discard">Verwerfen</button>
+              <section class="kai-voice-panel kai-recorder-panel" id="siteKaiVoicePanel" aria-live="polite" data-status="ready">
+                <div class="kai-recorder-head">
+                  <div><h4>Per Sprache erfassen</h4><p class="muted">Diktiergerät-Modus: aufnehmen, pausieren, auswerten und Text übernehmen.</p></div>
+                  <span id="kaiVoiceStatusBadge" class="kai-voice-status">bereit</span>
+                </div>
+                <div class="kai-recorder-body">
+                  <button class="kai-record-button" type="button" data-kai-voice-action="start" aria-label="Aufnahme starten" title="Aufnahme starten"><span class="record-dot" aria-hidden="true"></span></button>
+                  <div class="kai-recorder-time" id="kaiVoiceTimer" aria-label="Aufnahmezeit">00:00:00</div>
+                </div>
+                <div class="kai-voice-actions kai-recorder-controls" aria-label="Diktiergerät-Steuerung">
+                  <button class="kai-icon-btn" type="button" data-kai-voice-action="pause" aria-label="Pause" title="Pause"><span aria-hidden="true">Ⅱ</span></button>
+                  <button class="kai-icon-btn" type="button" data-kai-voice-action="resume" aria-label="Fortsetzen" title="Fortsetzen"><span aria-hidden="true">▶</span></button>
+                  <button class="kai-icon-btn" type="button" data-kai-voice-action="stop" aria-label="Beenden und auswerten" title="Beenden / Auswerten"><span aria-hidden="true">■</span></button>
+                  <button class="kai-icon-btn kai-icon-btn-muted" type="button" data-kai-voice-action="discard" aria-label="Verwerfen" title="Verwerfen"><span aria-hidden="true">×</span></button>
+                  <button class="kai-icon-btn kai-icon-btn-apply" type="button" data-kai-voice-action="apply-site-note" aria-label="Text übernehmen" title="Text übernehmen"><span aria-hidden="true">✓</span></button>
                 </div>
                 <div class="kai-voice-preview" id="kaiVoiceTranscript">Noch kein Diktat erfasst.</div>
                 <p class="muted" id="kaiVoiceHint">Kurze Sprechpausen beenden die Aufnahme nicht automatisch.</p>
-                <button class="secondary-btn" type="button" data-kai-voice-action="apply-site-note">Text in Bemerkung übernehmen</button>
               </section>
               <div id="siteControlItemList" class="site-item-list"></div>
             </div>
