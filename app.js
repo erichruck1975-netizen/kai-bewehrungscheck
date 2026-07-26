@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v167";
+const APP_VERSION = "v168";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -8141,6 +8141,238 @@ async function hydratePhotoThumbs(root = document) {
   }
 }
 
+const kaiVoiceCore = {
+  state: {
+    status: "ready",
+    recognition: null,
+    active: false,
+    paused: false,
+    userStopped: true,
+    segments: [],
+    finalResults: {},
+    liveText: "",
+    transcript: "",
+    restartTimer: null,
+    restartAttempts: 0,
+    lang: "de-DE",
+    callbacks: []
+  },
+  start(options = {}) {
+    return this.startDictation(options);
+  },
+  startDictation({ lang = "de-DE" } = {}) {
+    if (!this.isSupported()) {
+      this.setStatus("unsupported");
+      showAppToast("Spracheingabe ist in diesem Browser nicht verfügbar.", { type: "error" });
+      return false;
+    }
+    this.reset({ silent: true });
+    this.state.lang = lang;
+    this.state.active = true;
+    this.state.paused = false;
+    this.state.userStopped = false;
+    this.state.restartAttempts = 0;
+    return this.startRecognition();
+  },
+  pause() {
+    if (!this.state.active || this.state.paused) return;
+    this.state.paused = true;
+    this.state.userStopped = false;
+    window.clearTimeout(this.state.restartTimer);
+    try { this.state.recognition?.stop(); } catch {}
+    this.state.recognition = null;
+    this.mergeSegments();
+    this.setStatus("paused");
+  },
+  resume() {
+    if (!this.isSupported()) {
+      this.setStatus("unsupported");
+      return false;
+    }
+    if (!this.state.active) return this.startDictation({ lang: this.state.lang || "de-DE" });
+    this.state.paused = false;
+    this.state.userStopped = false;
+    return this.startRecognition();
+  },
+  stop() {
+    if (!this.state.active && !this.state.transcript) return;
+    this.state.userStopped = true;
+    this.state.paused = false;
+    this.state.active = false;
+    window.clearTimeout(this.state.restartTimer);
+    try { this.state.recognition?.stop(); } catch {}
+    this.state.recognition = null;
+    this.mergeSegments();
+    this.setStatus("stopped");
+  },
+  reset({ silent = false } = {}) {
+    window.clearTimeout(this.state.restartTimer);
+    try { this.state.recognition?.stop(); } catch {}
+    this.state.recognition = null;
+    this.state.active = false;
+    this.state.paused = false;
+    this.state.userStopped = true;
+    this.state.segments = [];
+    this.state.finalResults = {};
+    this.state.liveText = "";
+    this.state.transcript = "";
+    this.state.restartAttempts = 0;
+    this.state.status = "ready";
+    if (!silent) this.notify();
+  },
+  getTranscript() {
+    return this.mergeSegments();
+  },
+  addSegment(text) {
+    const cleaned = cleanDictationText(text);
+    if (!cleaned) return;
+    const key = normalizeDictationKey(cleaned);
+    if (!key || this.state.segments.some((segment) => normalizeDictationKey(segment) === key)) return;
+    const last = this.state.segments[this.state.segments.length - 1] || "";
+    const lastKey = normalizeDictationKey(last);
+    if (lastKey && key.startsWith(lastKey)) this.state.segments[this.state.segments.length - 1] = cleaned;
+    else if (!lastKey || !lastKey.startsWith(key)) this.state.segments.push(cleaned);
+  },
+  mergeSegments() {
+    Object.keys(this.state.finalResults || {})
+      .sort((a, b) => Number(a) - Number(b))
+      .forEach((key) => this.addSegment(this.state.finalResults[key]));
+    this.state.transcript = normalizeSpeechRecognitionTranscript(this.state.segments);
+    return this.state.transcript;
+  },
+  isSupported() {
+    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  },
+  onUpdate(callback) {
+    if (typeof callback === "function" && !this.state.callbacks.includes(callback)) this.state.callbacks.push(callback);
+  },
+  notify() {
+    this.state.callbacks.forEach((callback) => {
+      try { callback(this.state); } catch (error) { console.warn("Kai Voice Core Update fehlgeschlagen", error); }
+    });
+    renderKaiVoiceCoreUi();
+  },
+  setStatus(status) {
+    this.state.status = status;
+    this.notify();
+  },
+  createRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return null;
+    const recognition = new SpeechRecognition();
+    recognition.lang = this.state.lang || "de-DE";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onresult = (event) => {
+      this.state.restartAttempts = 0;
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = cleanDictationText(result[0]?.transcript || "");
+        if (!transcript) continue;
+        if (result.isFinal) {
+          this.state.finalResults[index] = transcript;
+          this.state.liveText = "";
+        } else {
+          this.state.liveText = transcript;
+        }
+      }
+      this.mergeSegments();
+      this.notify();
+    };
+    recognition.onerror = (event) => {
+      if (["aborted", "no-speech"].includes(event.error)) return;
+      this.state.userStopped = true;
+      this.state.paused = false;
+      this.setStatus("error");
+      showAppToast("Spracheingabe konnte nicht fortgesetzt werden. Bitte erneut starten.", { type: "error" });
+    };
+    recognition.onend = () => {
+      this.state.recognition = null;
+      if (this.state.userStopped || this.state.paused || !this.state.active) {
+        this.notify();
+        return;
+      }
+      this.setStatus("listening");
+      window.clearTimeout(this.state.restartTimer);
+      this.state.restartTimer = window.setTimeout(() => this.restartAfterBrowserEnd(), 420);
+    };
+    return recognition;
+  },
+  startRecognition() {
+    if (this.state.paused || this.state.userStopped) return false;
+    const recognition = this.createRecognition();
+    if (!recognition) return false;
+    this.state.recognition = recognition;
+    try {
+      recognition.start();
+      this.setStatus("listening");
+      return true;
+    } catch {
+      this.state.recognition = null;
+      this.setStatus("error");
+      showAppToast("Spracheingabe konnte nicht gestartet werden.", { type: "error" });
+      return false;
+    }
+  },
+  restartAfterBrowserEnd() {
+    if (this.state.userStopped || this.state.paused || !this.state.active) return;
+    this.state.restartAttempts += 1;
+    this.startRecognition();
+  }
+};
+
+function kaiVoiceStatusText(status = kaiVoiceCore.state.status) {
+  const labels = { ready: "bereit", listening: "hört zu", paused: "pausiert", stopped: "beendet", error: "Fehler", unsupported: "nicht verfügbar" };
+  return labels[status] || status;
+}
+
+function renderKaiVoiceCoreUi() {
+  const panel = document.getElementById("siteKaiVoicePanel");
+  if (!panel) return;
+  const value = kaiVoiceCore.state;
+  const supported = kaiVoiceCore.isSupported();
+  const status = document.getElementById("kaiVoiceStatusBadge");
+  if (status) {
+    status.textContent = supported ? kaiVoiceStatusText(value.status) : "nicht verfügbar";
+    status.dataset.status = supported ? value.status : "unsupported";
+  }
+  const preview = document.getElementById("kaiVoiceTranscript");
+  if (preview) preview.textContent = value.transcript || value.liveText || "Noch kein Diktat erfasst.";
+  const hint = document.getElementById("kaiVoiceHint");
+  if (hint) hint.textContent = supported ? "Kurze Sprechpausen beenden die Aufnahme nicht automatisch." : "SpeechRecognition wird in diesem Browser nicht unterstützt.";
+  panel.querySelectorAll("[data-kai-voice-action]").forEach((button) => {
+    const action = button.dataset.kaiVoiceAction;
+    button.disabled = !supported && action !== "discard";
+    if (action === "start") button.disabled = !supported || value.active;
+    if (action === "pause") button.disabled = !supported || !value.active || value.paused;
+    if (action === "resume") button.disabled = !supported || !value.paused;
+    if (action === "stop") button.disabled = !supported || (!value.active && !value.transcript);
+    if (action === "apply-site-note") button.disabled = !value.transcript;
+  });
+}
+
+function applyKaiVoiceTranscriptToOpenSiteItem() {
+  if (!isSiteControlProtocol()) return showAppToast("Bitte zuerst eine Baustellenkontrolle öffnen.", { type: "error" });
+  const item = findSiteControlItem(state.openSiteItemId || "");
+  const text = kaiVoiceCore.getTranscript();
+  if (!item) return showAppToast("Bitte zuerst eine Feststellung öffnen oder neu anlegen.", { type: "info" });
+  if (!text) return showAppToast("Noch kein Diktattext vorhanden.", { type: "info" });
+  item.description = appendVoiceText(item.description || "", text);
+  item.updatedAt = new Date().toISOString();
+  persist();
+  renderSiteControlEditor();
+  showAppToast("Diktattext in Bemerkung übernommen.", { type: "success" });
+}
+
+function handleKaiVoiceCoreAction(action) {
+  if (action === "start") kaiVoiceCore.start();
+  if (action === "pause") kaiVoiceCore.pause();
+  if (action === "resume") kaiVoiceCore.resume();
+  if (action === "stop") kaiVoiceCore.stop();
+  if (action === "discard") kaiVoiceCore.reset();
+  if (action === "apply-site-note") applyKaiVoiceTranscriptToOpenSiteItem();
+}
+
 function bindVoice() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
@@ -8815,6 +9047,7 @@ function renderSiteControlEditor() {
   renderSiteControlPlanTab();
   renderSiteControlResultSummary();
   activateSiteControlTab(activeSiteControlTabId());
+  renderKaiVoiceCoreUi();
   hydratePhotoThumbs($("#siteControlItemList"));
 }
 function saveSiteControlForm({ persistNow = true } = {}) {
@@ -13194,6 +13427,13 @@ function bindEvents() {
     if (siteItem) renderSiteControlEditor(); else renderChecklist();
   });
   document.addEventListener("click", (event) => {
+    const kaiVoiceAction = event.target.closest("[data-kai-voice-action]");
+    if (kaiVoiceAction) {
+      event.preventDefault();
+      event.stopPropagation();
+      handleKaiVoiceCoreAction(kaiVoiceAction.dataset.kaiVoiceAction);
+      return;
+    }
     const dynamicNav = event.target.closest("[data-nav]");
     if (dynamicNav) navigateToView(dynamicNav.dataset.nav);
     const siteNewProject = event.target.closest("#siteNewProjectBtn");

@@ -3854,3 +3854,64 @@ dialog button {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* v168: Kai Voice Core Basis-UI */
+.kai-voice-panel {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #b9d7f2;
+  border-left: 5px solid #2563eb;
+  border-radius: 8px;
+  background: #f5faff;
+}
+
+.kai-voice-status {
+  align-self: start;
+  justify-self: end;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #e8eef4;
+  color: #1d252d;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.kai-voice-status[data-status="listening"] {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.kai-voice-status[data-status="paused"] {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.kai-voice-status[data-status="stopped"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.kai-voice-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.kai-voice-preview {
+  min-height: 64px;
+  padding: 10px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #fff;
+  color: #17212b;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .kai-voice-actions {
+    grid-template-columns: 1fr;
+  }
+}

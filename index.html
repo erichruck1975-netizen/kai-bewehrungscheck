@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=167">
-  <link rel="stylesheet" href="styles.css?v=167">
+  <link rel="manifest" href="manifest.webmanifest?v=168">
+  <link rel="stylesheet" href="styles.css?v=168">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v167</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v168</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -131,6 +131,19 @@
                 <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
                 <button class="secondary-btn" type="button" data-add-site-item="Klärungspunkt">+ Klärungspunkt</button>
               </div>
+              <section class="kai-voice-panel" id="siteKaiVoicePanel" aria-live="polite">
+                <div class="section-head compact"><div><h4>Per Sprache erfassen</h4><p class="muted">Diktiergerät-Modus: Start, Pause, Fortsetzen, Beenden und Text übernehmen.</p></div><span id="kaiVoiceStatusBadge" class="kai-voice-status">bereit</span></div>
+                <div class="kai-voice-actions">
+                  <button class="primary-btn" type="button" data-kai-voice-action="start">Aufnahme starten</button>
+                  <button class="secondary-btn" type="button" data-kai-voice-action="pause">Pause</button>
+                  <button class="secondary-btn" type="button" data-kai-voice-action="resume">Fortsetzen</button>
+                  <button class="secondary-btn" type="button" data-kai-voice-action="stop">Beenden / Auswerten</button>
+                  <button class="small-btn" type="button" data-kai-voice-action="discard">Verwerfen</button>
+                </div>
+                <div class="kai-voice-preview" id="kaiVoiceTranscript">Noch kein Diktat erfasst.</div>
+                <p class="muted" id="kaiVoiceHint">Kurze Sprechpausen beenden die Aufnahme nicht automatisch.</p>
+                <button class="secondary-btn" type="button" data-kai-voice-action="apply-site-note">Text in Bemerkung übernehmen</button>
+              </section>
               <div id="siteControlItemList" class="site-item-list"></div>
             </div>
           </div>
@@ -279,8 +292,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v167</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v167 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v168</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v168 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -824,8 +837,8 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=167"></script>
-  <script src="app.js?v=167"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=168"></script>
+  <script src="app.js?v=168"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
