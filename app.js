@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v170";
+const APP_VERSION = "v171";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -8155,6 +8155,8 @@ const kaiVoiceCore = {
     startedAt: 0,
     elapsedMs: 0,
     timerId: null,
+    lastAction: "",
+    lastError: "",
     transcript: "",
     liveText: "",
     mode: "media-recorder",
@@ -8165,6 +8167,7 @@ const kaiVoiceCore = {
   },
   async startDictation() {
     if (!this.isSupported()) {
+      this.state.lastError = "MediaRecorder oder Mikrofonzugriff nicht verfügbar";
       this.setStatus("unsupported");
       showAppToast("Audioaufnahme ist in diesem Browser nicht verfügbar.", { type: "error" });
       return false;
@@ -8197,12 +8200,15 @@ const kaiVoiceCore = {
       recorder.onstop = () => this.finishRecording();
       recorder.start(1000);
       this.startTimer();
+      this.state.lastError = "";
       this.setStatus("recording");
+      showAppToast("Aufnahme gestartet", { type: "success", timeout: 1800 });
       return true;
     } catch (error) {
       this.closeStream();
+      this.state.lastError = error?.message || String(error || "Unbekannter Mikrofonfehler");
       this.setStatus("error");
-      showAppToast("Mikrofon konnte nicht gestartet werden. Bitte Berechtigung prüfen.", { type: "error" });
+      showAppToast("Mikrofon konnte nicht gestartet werden: " + this.state.lastError, { type: "error", timeout: 6500 });
       return false;
     }
   },
@@ -8260,6 +8266,7 @@ const kaiVoiceCore = {
     this.state.userStopped = true;
     this.state.transcript = "";
     this.state.liveText = "";
+    this.state.lastError = "";
     this.state.startedAt = 0;
     this.state.elapsedMs = 0;
     this.clearTimer();
@@ -8382,27 +8389,98 @@ function renderKaiVoiceCoreUi() {
     else if (value.status === "no-transcription") hint.textContent = "Audioaufnahme funktioniert. Für die Texterkennung muss noch ein Transkriptionsdienst verbunden werden.";
     else hint.textContent = "Echter Diktiergerät-Modus: kurze Pausen beenden die Aufnahme nicht.";
   }
-  panel.querySelectorAll("[data-kai-voice-action]").forEach((button) => {
-    const action = button.dataset.kaiVoiceAction;
+  const debug = document.getElementById("kaiVoiceDebug");
+  if (debug) {
+    const recorderState = value.recorder?.state || (value.audioBlob ? "stopped" : value.status || "ready");
+    const errorPart = value.lastError ? " · Fehler: " + value.lastError : "";
+    debug.textContent = "Voice Debug: letzter Klick " + (value.lastAction || "-") + " · Recorder " + recorderState + errorPart;
+  }
+  panel.querySelectorAll("[data-action^='voice-'], [data-kai-voice-action]").forEach((button) => {
+    const action = normalizeKaiVoiceAction(button.dataset.action || button.dataset.kaiVoiceAction || "");
     button.hidden = false;
-    button.disabled = !supported && action !== "discard";
-    if (action === "start") button.disabled = !supported || value.active;
-    if (action === "pause") {
+    button.disabled = !supported && action !== "voice-reset";
+    if (action === "voice-start") button.disabled = !supported || value.active;
+    if (action === "voice-pause") {
       button.hidden = !value.active || value.paused;
       button.disabled = !supported || !value.active || value.paused;
     }
-    if (action === "resume") {
+    if (action === "voice-resume") {
       button.hidden = !value.paused;
       button.disabled = !supported || !value.paused;
     }
-    if (action === "stop") {
+    if (action === "voice-stop") {
       button.hidden = !value.active && value.status !== "processing";
-      button.disabled = !supported || (!value.active && !value.audioBlob);
+      button.disabled = !supported || !value.active;
     }
-    if (action === "discard") button.disabled = !value.active && !value.audioBlob && !value.transcript && !value.liveText;
-    if (action === "apply-site-note") button.disabled = !value.transcript;
+    if (action === "voice-reset") button.disabled = !value.active && !value.audioBlob && !value.transcript && !value.liveText;
+    if (action === "voice-apply") button.disabled = !value.transcript;
   });
 }
+
+function normalizeKaiVoiceAction(action = "") {
+  const map = {
+    start: "voice-start",
+    pause: "voice-pause",
+    resume: "voice-resume",
+    stop: "voice-stop",
+    discard: "voice-reset",
+    reset: "voice-reset",
+    "apply-site-note": "voice-apply",
+    apply: "voice-apply"
+  };
+  return map[action] || action;
+}
+
+async function handleKaiVoiceCoreAction(action) {
+  const normalized = normalizeKaiVoiceAction(action);
+  kaiVoiceCore.state.lastAction = normalized || "unbekannt";
+  kaiVoiceCore.state.lastError = "";
+  kaiVoiceCore.notify();
+  try {
+    if (normalized === "voice-start") {
+      await kaiVoiceCore.start();
+      return;
+    }
+    if (normalized === "voice-pause") {
+      kaiVoiceCore.pause();
+      return;
+    }
+    if (normalized === "voice-resume") {
+      kaiVoiceCore.resume();
+      return;
+    }
+    if (normalized === "voice-stop") {
+      kaiVoiceCore.stop();
+      return;
+    }
+    if (normalized === "voice-reset") {
+      kaiVoiceCore.reset();
+      showAppToast("Diktat verworfen", { type: "info", timeout: 1800 });
+      return;
+    }
+    if (normalized === "voice-apply") {
+      applyKaiVoiceTranscriptToOpenSiteItem();
+      return;
+    }
+  } catch (error) {
+    kaiVoiceCore.state.lastError = error?.message || String(error || "Unbekannter Fehler");
+    kaiVoiceCore.notify();
+    showAppToast("Voice-Aktion fehlgeschlagen: " + kaiVoiceCore.state.lastError, { type: "error", timeout: 6500 });
+  }
+}
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action^='voice-'], [data-kai-voice-action]");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (button.disabled) {
+    kaiVoiceCore.state.lastAction = normalizeKaiVoiceAction(button.dataset.action || button.dataset.kaiVoiceAction || "") || "deaktiviert";
+    kaiVoiceCore.notify();
+    return;
+  }
+  handleKaiVoiceCoreAction(button.dataset.action || button.dataset.kaiVoiceAction || "");
+}, true);
 
 function bindVoice() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;

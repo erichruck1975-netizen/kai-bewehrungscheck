@@ -3855,7 +3855,7 @@ dialog button {
   }
 }
 
-/* v170: Kai Voice Core echte Diktiergerät-UI */
+/* v171: Kai Voice Core echte Diktiergerät-UI */
 .voice-recorder {
   display: grid;
   gap: 10px;
@@ -4017,6 +4017,14 @@ dialog button {
 .voice-hint {
   margin: 0;
   font-size: 0.84rem;
+}
+
+.voice-debug-line {
+  margin: -2px 0 0;
+  color: #64748b;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 @keyframes voice-record-pulse {

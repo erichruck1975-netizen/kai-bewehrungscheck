@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=170">
-  <link rel="stylesheet" href="styles.css?v=170">
+  <link rel="manifest" href="manifest.webmanifest?v=171">
+  <link rel="stylesheet" href="styles.css?v=171">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v170</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v171</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -138,17 +138,18 @@
                 </div>
                 <div class="voice-recorder-display">
                   <div class="voice-timer" id="kaiVoiceTimer" aria-label="Aufnahmezeit">00:00:00</div>
-                  <button class="voice-main-button" type="button" data-kai-voice-action="start" aria-label="Aufnahme starten" title="Aufnahme starten"><span aria-hidden="true">●</span></button>
+                  <button class="voice-main-button" type="button" data-action="voice-start" aria-label="Aufnahme starten" title="Aufnahme starten"><span aria-hidden="true">●</span></button>
                 </div>
                 <div class="voice-controls" aria-label="Diktiergerät-Steuerung">
-                  <button class="voice-icon-button" type="button" data-kai-voice-action="pause" aria-label="Pause" title="Pause"><span aria-hidden="true">Ⅱ</span></button>
-                  <button class="voice-icon-button" type="button" data-kai-voice-action="resume" aria-label="Fortsetzen" title="Fortsetzen"><span aria-hidden="true">▶</span></button>
-                  <button class="voice-icon-button voice-icon-stop" type="button" data-kai-voice-action="stop" aria-label="Beenden und auswerten" title="Beenden / Auswerten"><span aria-hidden="true">■</span></button>
-                  <button class="voice-icon-button voice-icon-discard" type="button" data-kai-voice-action="discard" aria-label="Verwerfen" title="Verwerfen"><span aria-hidden="true">×</span></button>
-                  <button class="voice-icon-button voice-icon-apply" type="button" data-kai-voice-action="apply-site-note" aria-label="Text übernehmen" title="Text übernehmen"><span aria-hidden="true">✓</span></button>
+                  <button class="voice-icon-button" type="button" data-action="voice-pause" aria-label="Pause" title="Pause"><span aria-hidden="true">Ⅱ</span></button>
+                  <button class="voice-icon-button" type="button" data-action="voice-resume" aria-label="Fortsetzen" title="Fortsetzen"><span aria-hidden="true">▶</span></button>
+                  <button class="voice-icon-button voice-icon-stop" type="button" data-action="voice-stop" aria-label="Beenden und auswerten" title="Beenden / Auswerten"><span aria-hidden="true">■</span></button>
+                  <button class="voice-icon-button voice-icon-discard" type="button" data-action="voice-reset" aria-label="Verwerfen" title="Verwerfen"><span aria-hidden="true">×</span></button>
+                  <button class="voice-icon-button voice-icon-apply" type="button" data-action="voice-apply" aria-label="Text übernehmen" title="Text übernehmen"><span aria-hidden="true">✓</span></button>
                 </div>
                 <div class="voice-transcript-preview" id="kaiVoiceTranscript">Noch kein Diktat erfasst.</div>
                 <p class="muted voice-hint" id="kaiVoiceHint">Kurze Sprechpausen beenden die Aufnahme nicht automatisch.</p>
+                <p class="voice-debug-line" id="kaiVoiceDebug">Voice Debug: bereit</p>
               </section>
               <div id="siteControlItemList" class="site-item-list"></div>
             </div>
@@ -298,8 +299,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v170</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v170 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v171</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v171 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -843,11 +844,12 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=170"></script>
-  <script src="app.js?v=170"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=171"></script>
+  <script src="app.js?v=171"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
+
 
 
 
