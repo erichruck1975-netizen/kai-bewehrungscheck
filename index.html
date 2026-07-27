@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4c542">
   <meta name="description" content="Mobile Bewehrungsabnahme mit Plan-Pins, Fotos, Checkliste und Protokoll.">
   <title>Kai BauSuite</title>
-  <link rel="manifest" href="manifest.webmanifest?v=169">
-  <link rel="stylesheet" href="styles.css?v=169">
+  <link rel="manifest" href="manifest.webmanifest?v=170">
+  <link rel="stylesheet" href="styles.css?v=170">
 </head>
 <body>
   <div id="app" class="shell">
@@ -15,7 +15,7 @@
       <button class="icon-btn back-btn hidden" id="backBtn" type="button" aria-label="Zurück">Zurück</button>
       <div class="appbar-title">
         <p class="eyebrow">Kai BauSuite MVP</p>
-        <h1>Kai BauSuite <span class="version-badge" data-app-version>v169</span></h1>
+        <h1>Kai BauSuite <span class="version-badge" data-app-version>v170</span></h1>
       </div>
       <button class="icon-btn" id="saveBtn" type="button" aria-label="Speichern">OK</button>
     </header>
@@ -131,24 +131,24 @@
                 <button class="secondary-btn" type="button" data-add-site-item="Foto-Doku">+ Foto-Doku</button>
                 <button class="secondary-btn" type="button" data-add-site-item="Klärungspunkt">+ Klärungspunkt</button>
               </div>
-              <section class="kai-voice-panel kai-recorder-panel" id="siteKaiVoicePanel" aria-live="polite" data-status="ready">
-                <div class="kai-recorder-head">
-                  <div><h4>Per Sprache erfassen</h4><p class="muted">Diktiergerät-Modus: aufnehmen, pausieren, auswerten und Text übernehmen.</p></div>
-                  <span id="kaiVoiceStatusBadge" class="kai-voice-status">bereit</span>
+              <section class="voice-recorder" id="siteKaiVoicePanel" aria-live="polite" data-status="ready">
+                <div class="voice-recorder-top">
+                  <div><h4>Per Sprache erfassen</h4><p class="muted">Diktiergerät-Modus für Baustellen-Notizen.</p></div>
+                  <span id="kaiVoiceStatusBadge" class="voice-status-pill">bereit</span>
                 </div>
-                <div class="kai-recorder-body">
-                  <button class="kai-record-button" type="button" data-kai-voice-action="start" aria-label="Aufnahme starten" title="Aufnahme starten"><span class="record-dot" aria-hidden="true"></span></button>
-                  <div class="kai-recorder-time" id="kaiVoiceTimer" aria-label="Aufnahmezeit">00:00:00</div>
+                <div class="voice-recorder-display">
+                  <div class="voice-timer" id="kaiVoiceTimer" aria-label="Aufnahmezeit">00:00:00</div>
+                  <button class="voice-main-button" type="button" data-kai-voice-action="start" aria-label="Aufnahme starten" title="Aufnahme starten"><span aria-hidden="true">●</span></button>
                 </div>
-                <div class="kai-voice-actions kai-recorder-controls" aria-label="Diktiergerät-Steuerung">
-                  <button class="kai-icon-btn" type="button" data-kai-voice-action="pause" aria-label="Pause" title="Pause"><span aria-hidden="true">Ⅱ</span></button>
-                  <button class="kai-icon-btn" type="button" data-kai-voice-action="resume" aria-label="Fortsetzen" title="Fortsetzen"><span aria-hidden="true">▶</span></button>
-                  <button class="kai-icon-btn" type="button" data-kai-voice-action="stop" aria-label="Beenden und auswerten" title="Beenden / Auswerten"><span aria-hidden="true">■</span></button>
-                  <button class="kai-icon-btn kai-icon-btn-muted" type="button" data-kai-voice-action="discard" aria-label="Verwerfen" title="Verwerfen"><span aria-hidden="true">×</span></button>
-                  <button class="kai-icon-btn kai-icon-btn-apply" type="button" data-kai-voice-action="apply-site-note" aria-label="Text übernehmen" title="Text übernehmen"><span aria-hidden="true">✓</span></button>
+                <div class="voice-controls" aria-label="Diktiergerät-Steuerung">
+                  <button class="voice-icon-button" type="button" data-kai-voice-action="pause" aria-label="Pause" title="Pause"><span aria-hidden="true">Ⅱ</span></button>
+                  <button class="voice-icon-button" type="button" data-kai-voice-action="resume" aria-label="Fortsetzen" title="Fortsetzen"><span aria-hidden="true">▶</span></button>
+                  <button class="voice-icon-button voice-icon-stop" type="button" data-kai-voice-action="stop" aria-label="Beenden und auswerten" title="Beenden / Auswerten"><span aria-hidden="true">■</span></button>
+                  <button class="voice-icon-button voice-icon-discard" type="button" data-kai-voice-action="discard" aria-label="Verwerfen" title="Verwerfen"><span aria-hidden="true">×</span></button>
+                  <button class="voice-icon-button voice-icon-apply" type="button" data-kai-voice-action="apply-site-note" aria-label="Text übernehmen" title="Text übernehmen"><span aria-hidden="true">✓</span></button>
                 </div>
-                <div class="kai-voice-preview" id="kaiVoiceTranscript">Noch kein Diktat erfasst.</div>
-                <p class="muted" id="kaiVoiceHint">Kurze Sprechpausen beenden die Aufnahme nicht automatisch.</p>
+                <div class="voice-transcript-preview" id="kaiVoiceTranscript">Noch kein Diktat erfasst.</div>
+                <p class="muted voice-hint" id="kaiVoiceHint">Kurze Sprechpausen beenden die Aufnahme nicht automatisch.</p>
               </section>
               <div id="siteControlItemList" class="site-item-list"></div>
             </div>
@@ -298,8 +298,8 @@
               <h3>Datensicherung / Gerätewechsel</h3>
               <p id="deviceStorageInfo" class="muted">Daten werden lokal auf diesem Gerät gespeichert. Exportieren Sie regelmäßig ein Backup.</p>
               <p class="muted">Wenn die App auf einem anderen Handy geöffnet wird, sind die lokalen Daten dort nicht automatisch vorhanden.</p>
-              <p id="appVersionInfo" class="muted">Version: v169</p>
-              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v169 · Service Worker wird geprüft · online/offline wird geprüft</p>
+              <p id="appVersionInfo" class="muted">Version: v170</p>
+              <p id="appCacheInfo" class="muted cache-diagnostics">Kai BewehrungsCheck v170 · Service Worker wird geprüft · online/offline wird geprüft</p>
             </div>
             <div class="backup-actions">
               <button class="primary-btn" id="exportFullBackupBtn" type="button">Komplettes Backup exportieren</button>
@@ -843,11 +843,12 @@
   <datalist id="tradeRoleOptions"></datalist>
   <datalist id="signatureCategoryOptions"></datalist>
 
-  <script src="vendor/pdfjs/pdf.min.js?v=169"></script>
-  <script src="app.js?v=169"></script>
+  <script src="vendor/pdfjs/pdf.min.js?v=170"></script>
+  <script src="app.js?v=170"></script>
   <datalist id="tradeOptions"></datalist>
 </body>
 </html>
+
 
 
 

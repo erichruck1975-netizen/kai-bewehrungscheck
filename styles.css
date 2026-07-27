@@ -3855,127 +3855,128 @@ dialog button {
   }
 }
 
-/* v169: Kai Voice Core Diktiergerät-UI */
-.kai-voice-panel.kai-recorder-panel {
+/* v170: Kai Voice Core echte Diktiergerät-UI */
+.voice-recorder {
   display: grid;
-  gap: 12px;
-  margin: 12px 0;
-  padding: 14px;
-  border: 1px solid #c7d7e8;
+  gap: 10px;
+  margin: 10px 0 12px;
+  padding: 12px;
+  border: 1px solid #c9d7e4;
   border-left: 5px solid #2563eb;
   border-radius: 10px;
   background: linear-gradient(180deg, #f8fbff 0%, #edf6ff 100%);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
-.kai-recorder-head {
+.voice-recorder-top {
   display: flex;
-  gap: 10px;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 10px;
 }
 
-.kai-recorder-head h4 {
-  margin: 0 0 3px;
+.voice-recorder-top h4 {
+  margin: 0 0 2px;
 }
 
-.kai-voice-status {
+.voice-status-pill {
   flex: 0 0 auto;
   padding: 5px 10px;
   border-radius: 999px;
   background: #e8eef4;
   color: #1d252d;
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 900;
   text-transform: lowercase;
 }
 
-.kai-voice-status[data-status="recording"] {
-  background: #fee2e2;
-  color: #991b1b;
-}
+.voice-status-pill[data-status="recording"] { background: #fee2e2; color: #991b1b; }
+.voice-status-pill[data-status="paused"] { background: #fff7ed; color: #9a3412; }
+.voice-status-pill[data-status="processing"] { background: #dbeafe; color: #1d4ed8; }
+.voice-status-pill[data-status="no-transcription"] { background: #dcfce7; color: #166534; }
+.voice-status-pill[data-status="unsupported"],
+.voice-status-pill[data-status="error"] { background: #fee2e2; color: #7f1d1d; }
 
-.kai-voice-status[data-status="paused"] {
-  background: #fff7ed;
-  color: #9a3412;
-}
-
-.kai-voice-status[data-status="processing"] {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.kai-voice-status[data-status="no-transcription"] {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.kai-recorder-body {
+.voice-recorder-display {
   display: grid;
   place-items: center;
-  gap: 8px;
-  padding: 2px 0 4px;
+  gap: 7px;
+  padding: 0;
 }
 
-.kai-record-button {
-  width: 92px;
-  height: 92px;
-  border: 0;
-  border-radius: 999px;
-  background: #fff;
-  display: grid;
-  place-items: center;
-  box-shadow: inset 0 0 0 8px #fee2e2, 0 12px 26px rgba(185, 28, 28, 0.22);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.kai-record-button .record-dot {
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  background: #dc2626;
-  box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.16);
-}
-
-.kai-recorder-panel[data-status="recording"] .kai-record-button {
-  box-shadow: inset 0 0 0 8px #fecaca, 0 0 0 8px rgba(239, 68, 68, 0.12), 0 14px 30px rgba(185, 28, 28, 0.28);
-}
-
-.kai-recorder-panel[data-status="recording"] .kai-record-button .record-dot {
-  animation: kai-record-pulse 1.25s ease-in-out infinite;
-}
-
-.kai-record-button:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-  filter: grayscale(0.25);
-}
-
-.kai-recorder-time {
+.voice-timer {
   color: #111827;
-  font-size: 1.45rem;
+  font-size: 1.32rem;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
 
-.kai-voice-actions.kai-recorder-controls {
-  display: flex;
+.voice-recorder .voice-main-button {
+  appearance: none;
+  width: 86px !important;
+  height: 86px !important;
+  min-width: 86px !important;
+  max-width: 86px !important;
+  min-height: 86px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #dc2626 !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 86px !important;
+  font-size: 3.1rem;
+  line-height: 1;
+  box-shadow: inset 0 0 0 8px #fee2e2, 0 12px 26px rgba(185, 28, 28, 0.24);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.voice-recorder .voice-main-button span {
+  transform: translateY(-2px);
+}
+
+.voice-recorder[data-status="recording"] .voice-main-button {
+  box-shadow: inset 0 0 0 8px #fecaca, 0 0 0 8px rgba(239, 68, 68, 0.12), 0 14px 30px rgba(185, 28, 28, 0.3);
+}
+
+.voice-recorder[data-status="recording"] .voice-main-button span {
+  animation: voice-record-pulse 1.2s ease-in-out infinite;
+}
+
+.voice-recorder .voice-main-button:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.voice-recorder .voice-controls {
+  display: flex !important;
+  flex-direction: row !important;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+  align-items: center;
+  width: auto !important;
 }
 
-.kai-icon-btn {
-  width: 48px;
-  height: 48px;
-  border: 1px solid #c8d3df;
-  border-radius: 999px;
-  background: #fff;
-  color: #17212b;
-  display: grid;
-  place-items: center;
+.voice-recorder .voice-icon-button {
+  appearance: none;
+  width: 50px !important;
+  height: 50px !important;
+  min-width: 50px !important;
+  max-width: 50px !important;
+  min-height: 50px !important;
+  padding: 0 !important;
+  border: 1px solid #c8d3df !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #17212b !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 50px !important;
   font-size: 1.15rem;
   font-weight: 900;
   line-height: 1;
@@ -3984,56 +3985,70 @@ dialog button {
   touch-action: manipulation;
 }
 
-.kai-icon-btn:hover:not(:disabled) {
-  border-color: #2563eb;
-  color: #1d4ed8;
+.voice-recorder .voice-icon-button:hover:not(:disabled) {
+  border-color: #2563eb !important;
+  color: #1d4ed8 !important;
 }
 
-.kai-icon-btn:disabled {
-  opacity: 0.34;
+.voice-recorder .voice-icon-button:disabled {
+  opacity: 0.3;
   cursor: not-allowed;
   box-shadow: none;
+  filter: grayscale(0.35);
 }
 
-.kai-icon-btn-muted {
-  color: #7f1d1d;
-}
+.voice-recorder .voice-icon-stop { color: #7f1d1d !important; border-color: #fecaca !important; }
+.voice-recorder .voice-icon-discard { color: #7f1d1d !important; }
+.voice-recorder .voice-icon-apply { background: #ecfdf5 !important; border-color: #86efac !important; color: #166534 !important; }
 
-.kai-icon-btn-apply {
-  background: #ecfdf5;
-  border-color: #86efac;
-  color: #166534;
-}
-
-.kai-voice-preview {
-  min-height: 78px;
-  padding: 11px;
+.voice-transcript-preview {
+  min-height: 62px;
+  max-height: 150px;
+  overflow: auto;
+  padding: 10px;
   border: 1px solid #d8dee6;
   border-radius: 8px;
   background: #fff;
   color: #17212b;
   white-space: pre-wrap;
-  line-height: 1.45;
+  line-height: 1.42;
 }
 
-@keyframes kai-record-pulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.18); }
-  50% { transform: scale(1.12); box-shadow: 0 0 0 14px rgba(220, 38, 38, 0.04); }
+.voice-hint {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+@keyframes voice-record-pulse {
+  0%, 100% { transform: translateY(-2px) scale(1); text-shadow: 0 0 0 rgba(220, 38, 38, 0); }
+  50% { transform: translateY(-2px) scale(1.16); text-shadow: 0 0 18px rgba(220, 38, 38, 0.38); }
 }
 
 @media (max-width: 640px) {
-  .kai-voice-panel.kai-recorder-panel {
-    padding: 12px;
+  .voice-recorder {
+    gap: 9px;
+    padding: 11px;
   }
 
-  .kai-record-button {
-    width: 88px;
-    height: 88px;
+  .voice-recorder-top {
+    align-items: center;
   }
 
-  .kai-icon-btn {
-    width: 46px;
-    height: 46px;
+  .voice-recorder .voice-main-button {
+    width: 82px !important;
+    height: 82px !important;
+    min-width: 82px !important;
+    max-width: 82px !important;
+    min-height: 82px !important;
+    flex-basis: 82px !important;
+  }
+
+  .voice-recorder .voice-icon-button {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    min-height: 48px !important;
+    flex-basis: 48px !important;
   }
 }
-

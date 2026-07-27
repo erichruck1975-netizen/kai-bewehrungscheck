@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v169";
+const APP_VERSION = "v170";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -8384,11 +8384,22 @@ function renderKaiVoiceCoreUi() {
   }
   panel.querySelectorAll("[data-kai-voice-action]").forEach((button) => {
     const action = button.dataset.kaiVoiceAction;
+    button.hidden = false;
     button.disabled = !supported && action !== "discard";
     if (action === "start") button.disabled = !supported || value.active;
-    if (action === "pause") button.disabled = !supported || !value.active || value.paused;
-    if (action === "resume") button.disabled = !supported || !value.paused;
-    if (action === "stop") button.disabled = !supported || (!value.active && !value.audioBlob);
+    if (action === "pause") {
+      button.hidden = !value.active || value.paused;
+      button.disabled = !supported || !value.active || value.paused;
+    }
+    if (action === "resume") {
+      button.hidden = !value.paused;
+      button.disabled = !supported || !value.paused;
+    }
+    if (action === "stop") {
+      button.hidden = !value.active && value.status !== "processing";
+      button.disabled = !supported || (!value.active && !value.audioBlob);
+    }
+    if (action === "discard") button.disabled = !value.active && !value.audioBlob && !value.transcript && !value.liveText;
     if (action === "apply-site-note") button.disabled = !value.transcript;
   });
 }
