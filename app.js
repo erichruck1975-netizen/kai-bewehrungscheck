@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v172";
+const APP_VERSION = "v174";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -308,6 +308,7 @@ function syncSettingsInputs() {
   if ($("#translationEnabled")) $("#translationEnabled").checked = !!state.settings.translationEnabled;
   if ($("#translationEndpointUrl")) $("#translationEndpointUrl").value = state.settings.translationEndpointUrl || "";
   if ($("#translationDefaultDirection")) $("#translationDefaultDirection").value = state.settings.translationDefaultDirection || "auto";
+  if ($("#voiceTranscriptionEndpoint")) $("#voiceTranscriptionEndpoint").value = voiceTranscriptionEndpoint();
 }
 
 function persist() {
@@ -8162,7 +8163,8 @@ const kaiVoiceCore = {
     mode: "media-recorder",
     callbacks: [],
     lastTranscription: null,
-    audioMimeType: ""
+    audioMimeType: "",
+    transcriptionDebug: null
   },
   start(options = {}) {
     return this.startDictation(options);
@@ -8185,6 +8187,7 @@ const kaiVoiceCore = {
       this.state.audioUrl = "";
       this.state.audioMimeType = "";
       this.state.lastTranscription = null;
+      this.state.transcriptionDebug = null;
       this.state.transcript = "";
       this.state.liveText = "";
       this.state.active = true;
@@ -8267,6 +8270,7 @@ const kaiVoiceCore = {
     this.state.audioUrl = "";
     this.state.audioMimeType = "";
     this.state.lastTranscription = null;
+    this.state.transcriptionDebug = null;
     this.state.active = false;
     this.state.paused = false;
     this.state.userStopped = true;
@@ -8300,6 +8304,7 @@ const kaiVoiceCore = {
         return;
       }
       this.state.liveText = "Audio wird transkribiert ...";
+      this.state.transcriptionDebug = { endpoint, uploadStartedAt: new Date().toISOString(), uploadBytes: this.state.audioBlob?.size || 0, fetchStatus: "Upload startet" };
       this.setStatus("transcribing");
       const result = await transcribeVoiceAudio(this.state.audioBlob, kaiVoiceContext({ mimeType: type }));
       this.state.lastTranscription = result;
@@ -8457,6 +8462,60 @@ function voiceTranscriptionEndpoint() {
   return String(state.settings?.voiceTranscriptionEndpoint || state.settings?.voice?.transcriptionEndpoint || "").trim();
 }
 
+function voiceTranscriptionHealthEndpoint(endpoint = voiceTranscriptionEndpoint()) {
+  const value = String(endpoint || "").trim();
+  if (!value) return "";
+  if (value.endsWith("/health")) return value;
+  return value.replace(/\/+$/, "") + "/health";
+}
+
+function formatBytes(bytes = 0) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return value + " B";
+  if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB";
+  return (value / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function formatTime(value) {
+  try { return new Date(value).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }); } catch { return "-"; }
+}
+
+function updateKaiVoiceTranscriptionDebug(patch = {}) {
+  kaiVoiceCore.state.transcriptionDebug = { ...(kaiVoiceCore.state.transcriptionDebug || {}), ...patch };
+  kaiVoiceCore.notify();
+}
+
+async function testVoiceTranscriptionEndpoint() {
+  const result = document.getElementById("voiceEndpointTestResult");
+  const endpoint = voiceTranscriptionEndpoint();
+  if (!endpoint) {
+    if (result) result.textContent = "Kein Transkriptions-Endpunkt eingetragen.";
+    showAppToast("Kein Transkriptions-Endpunkt eingetragen.", { type: "error" });
+    return;
+  }
+  const healthUrl = voiceTranscriptionHealthEndpoint(endpoint);
+  if (result) result.textContent = "Endpunkt wird geprüft ...";
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(healthUrl, { method: "GET", signal: controller.signal });
+    const text = await response.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text }; }
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const message = `Erreichbar ? OpenAI-Key: ${payload.openaiKeyConfigured ? "ja" : "nein"} ? Modell: ${payload.model || "-"}`;
+    if (result) result.textContent = message;
+    showAppToast("Transkriptions-Endpunkt erreichbar.", { type: "success", timeout: 3000 });
+  } catch (error) {
+    const isTimeout = error?.name === "AbortError";
+    const message = isTimeout ? "Endpunkt-Test abgebrochen: Server antwortet nicht innerhalb von 10 Sekunden." : `Endpunkt nicht erreichbar: ${error?.message || error}`;
+    if (result) result.textContent = `${message} ? URL: ${healthUrl}`;
+    showAppToast(message, { type: "error", timeout: 6500 });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 function kaiVoiceContext(extra = {}) {
   return {
     module: isSiteControlProtocol() ? "site-control" : (isDailyReportProtocol() ? "daily-report" : "rebar-inspection"),
@@ -8484,11 +8543,14 @@ function extractTranscriptText(payload) {
 async function transcribeVoiceAudio(audioBlob, context = {}) {
   const endpoint = voiceTranscriptionEndpoint();
   const createdAt = new Date().toISOString();
-  if (!audioBlob) return { transcriptText: "", language: context.languageHint || "de", provider: "none", createdAt, error: "Keine Audiodaten vorhanden." };
-  if (!endpoint) return { transcriptText: "", language: context.languageHint || "de", provider: "none", createdAt, error: "Kein Transkriptions-Endpunkt eingetragen." };
+  const language = context.languageHint || "de";
+  if (!audioBlob) return { transcriptText: "", language, provider: "none", createdAt, error: "Keine Audiodaten vorhanden." };
+  if (!endpoint) return { transcriptText: "", language, provider: "none", createdAt, error: "Kein Transkriptions-Endpunkt eingetragen." };
   const mimeType = audioBlob.type || context.mimeType || "audio/webm";
   const filename = voiceAudioFileName(mimeType);
-  // FormData lässt den Browser den multipart/form-data Header mit Boundary setzen.\n  const formData = new FormData();
+  const debugBase = { endpoint, uploadStartedAt: createdAt, uploadBytes: audioBlob.size || 0, fetchStatus: "Upload startet" };
+  updateKaiVoiceTranscriptionDebug(debugBase);
+  const formData = new FormData();
   formData.append("audio", audioBlob, filename);
   formData.append("module", context.module || "kai-voice");
   formData.append("projectId", context.projectId || "");
@@ -8497,15 +8559,30 @@ async function transcribeVoiceAudio(audioBlob, context = {}) {
   formData.append("filename", filename);
   if (context.currentField) formData.append("currentField", context.currentField);
   if (context.targetField) formData.append("targetField", context.targetField);
+  const controller = new AbortController();
+  const timeoutMs = 60000;
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(endpoint, { method: "POST", body: formData });
-    if (!response.ok) throw new Error("Transkriptionsserver antwortet mit HTTP " + response.status);
-    const payload = await response.json();
+    updateKaiVoiceTranscriptionDebug({ fetchStatus: "POST wird gesendet" });
+    const response = await fetch(endpoint, { method: "POST", body: formData, signal: controller.signal });
+    updateKaiVoiceTranscriptionDebug({ fetchStatus: "Antwort HTTP " + response.status });
+    const responseText = await response.text();
+    let payload = {};
+    try { payload = responseText ? JSON.parse(responseText) : {}; } catch { payload = { error: responseText }; }
+    if (!response.ok) throw new Error(payload.error || "Transkriptionsserver antwortet mit HTTP " + response.status);
     const transcriptText = cleanDictationText(extractTranscriptText(payload));
-    if (!transcriptText) throw new Error("Serverantwort enthält keinen Text.");
-    return { transcriptText, language: payload.language || context.languageHint || "de", provider: payload.provider || "configured-endpoint", createdAt, error: "" };
+    if (!transcriptText) throw new Error("Serverantwort enth?lt keinen Text.");
+    updateKaiVoiceTranscriptionDebug({ fetchStatus: "Transkript empfangen" });
+    return { transcriptText, language: payload.language || language, provider: payload.provider || "configured-endpoint", createdAt, error: "" };
   } catch (error) {
-    return { transcriptText: "", language: context.languageHint || "de", provider: "configured-endpoint", createdAt, error: error?.message || String(error || "Transkription fehlgeschlagen.") };
+    const isTimeout = error?.name === "AbortError";
+    const message = isTimeout
+      ? "Transkription abgebrochen: Server antwortet nicht innerhalb von 60 Sekunden."
+      : `Transkription fehlgeschlagen: ${error?.message || error}. Netzwerk/CORS pr?fen. Endpoint: ${endpoint}`;
+    updateKaiVoiceTranscriptionDebug({ fetchStatus: isTimeout ? "Timeout nach 60 Sekunden" : "Fehler: " + (error?.name || "Fetch"), error: message });
+    return { transcriptText: "", language, provider: "configured-endpoint", createdAt, error: message };
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
@@ -14352,6 +14429,7 @@ function bindEvents() {
   bindOptional("#translationEndpointUrl", "input", (event) => { state.settings.translationEndpointUrl = event.target.value || ""; persist(); });
   bindOptional("#translationDefaultDirection", "change", (event) => { state.settings.translationDefaultDirection = event.target.value || "auto"; persist(); });
   bindOptional("#voiceTranscriptionEndpoint", "input", (event) => { state.settings.voiceTranscriptionEndpoint = event.target.value || ""; state.settings.voice = { ...(state.settings.voice || {}), transcriptionEndpoint: state.settings.voiceTranscriptionEndpoint }; persist(); renderKaiVoiceCoreUi(); });
+  bindOptional("#testVoiceTranscriptionEndpointBtn", "click", testVoiceTranscriptionEndpoint);
   bindOptional("#storageCheckBtn", "click", checkStorage);
   bindOptional("#reloadAppBtn", "click", reloadAppSafely);
   bindOptional("#reloadDataInventoryBtn", "click", reloadDataInventoryFromDb);
