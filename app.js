@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v174";
+const APP_VERSION = "v175";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -308,7 +308,7 @@ function syncSettingsInputs() {
   if ($("#translationEnabled")) $("#translationEnabled").checked = !!state.settings.translationEnabled;
   if ($("#translationEndpointUrl")) $("#translationEndpointUrl").value = state.settings.translationEndpointUrl || "";
   if ($("#translationDefaultDirection")) $("#translationDefaultDirection").value = state.settings.translationDefaultDirection || "auto";
-  if ($("#voiceTranscriptionEndpoint")) $("#voiceTranscriptionEndpoint").value = voiceTranscriptionEndpoint();
+  if ($("#voiceTranscriptionEndpoint")) $("#voiceTranscriptionEndpoint").value = explicitVoiceTranscriptionEndpoint() || voiceTranscriptionEndpoint();
 }
 
 function persist() {
@@ -8458,8 +8458,46 @@ function renderKaiVoiceCoreUi() {
   });
 }
 
-function voiceTranscriptionEndpoint() {
+function explicitVoiceTranscriptionEndpoint() {
   return String(state.settings?.voiceTranscriptionEndpoint || state.settings?.voice?.transcriptionEndpoint || "").trim();
+}
+
+function isPrivateLanHost(hostname = window.location.hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || /^192\.168\./.test(hostname) || /^10\./.test(hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+}
+
+function isLocalKaiMobileApp() {
+  return isPrivateLanHost(window.location.hostname) && window.location.pathname.startsWith("/kai-bewehrungscheck/");
+}
+
+function localVoiceTranscriptionEndpoint() {
+  return "/api/voice/transcribe";
+}
+
+function suggestedVoiceTranscriptionEndpoint() {
+  return isLocalKaiMobileApp() ? localVoiceTranscriptionEndpoint() : "https://192.168.178.49:8443/api/voice/transcribe";
+}
+
+function voiceTranscriptionEndpoint() {
+  return explicitVoiceTranscriptionEndpoint() || (isLocalKaiMobileApp() ? localVoiceTranscriptionEndpoint() : "");
+}
+
+function useLocalVoiceTranscriptionEndpoint() {
+  const endpoint = suggestedVoiceTranscriptionEndpoint();
+  state.settings.voiceTranscriptionEndpoint = endpoint;
+  state.settings.voice = { ...(state.settings.voice || {}), transcriptionEndpoint: endpoint };
+  persist();
+  syncSettingsInputs();
+  renderKaiVoiceCoreUi();
+  showAppToast(isLocalKaiMobileApp() ? "Lokaler Same-Origin-Endpunkt gesetzt." : "Lokaler Server-Endpunkt gesetzt. Für Same-Origin bitte die App über den Mobile-Server öffnen.", { type: "success", timeout: 6500 });
+}
+
+function showLocalServerStorageNotice() {
+  if (!isLocalKaiMobileApp()) return;
+  const key = "kai-local-server-storage-notice-v1";
+  if (localStorage.getItem(key)) return;
+  localStorage.setItem(key, "shown");
+  showAppToast("Hinweis: Die lokale Server-Version verwendet einen eigenen Browser-Speicher. Falls Projekte fehlen, bitte Backup importieren.", { type: "info", timeout: 9000 });
 }
 
 function voiceTranscriptionHealthEndpoint(endpoint = voiceTranscriptionEndpoint()) {
@@ -14430,6 +14468,7 @@ function bindEvents() {
   bindOptional("#translationDefaultDirection", "change", (event) => { state.settings.translationDefaultDirection = event.target.value || "auto"; persist(); });
   bindOptional("#voiceTranscriptionEndpoint", "input", (event) => { state.settings.voiceTranscriptionEndpoint = event.target.value || ""; state.settings.voice = { ...(state.settings.voice || {}), transcriptionEndpoint: state.settings.voiceTranscriptionEndpoint }; persist(); renderKaiVoiceCoreUi(); });
   bindOptional("#testVoiceTranscriptionEndpointBtn", "click", testVoiceTranscriptionEndpoint);
+  bindOptional("#useLocalVoiceTranscriptionEndpointBtn", "click", useLocalVoiceTranscriptionEndpoint);
   bindOptional("#storageCheckBtn", "click", checkStorage);
   bindOptional("#reloadAppBtn", "click", reloadAppSafely);
   bindOptional("#reloadDataInventoryBtn", "click", reloadDataInventoryFromDb);
@@ -15424,6 +15463,7 @@ async function boot() {
     bindVoice();
     updateAppVersionDisplay();
     updateDeviceStorageInfo();
+    showLocalServerStorageNotice();
     renderBrowserWarnings();
     renderHomeProjects();
     renderList();
