@@ -1,9 +1,9 @@
-const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
+﻿const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
 const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v191";
+const APP_VERSION = "v192";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -165,6 +165,21 @@ const DEFAULT_MASTER_DATA = {
 };
 
 let pendingMasterFocus = null;
+
+
+const REBAR_CHECK_TEMPLATE_OPTIONS = [
+  "Bodenplatte",
+  "Decke / Filigrandecke",
+  "Wand",
+  "Stütze",
+  "Unterzug",
+  "Treppe",
+  "Fundament",
+  "Ringanker / Randbalken",
+  "Anschlussbewehrung",
+  "Sonstiges Bauteil"
+];
+const INVALID_REBAR_CHECK_TEMPLATE_VALUES = new Set(["projektpläne", "projektplaene", "projektpläne / planverwaltung", "planverwaltung", "project-plans"]);
 
 const state = {
   projects: [],
@@ -1611,17 +1626,20 @@ function normalizeProtocol(protocol) {
     pin.checkpointIds = pin.checkpointIds || [];
   });
   protocol.activePlanId = protocol.activePlanId || protocol.plans[0]?.id || "";
-  protocol.checkpoints = protocol.checkpoints || CHECK_ITEMS.map((title, index) => ({
-    id: uid(`check-${index}`),
-    title,
-    active: false,
-    manuallyActivated: false,
-    status: "offen / nicht bewertet",
-    note: "",
-    pinId: "",
-    photos: [],
-    samples: []
-  }));
+  protocol.checkpoints = Array.isArray(protocol.checkpoints) ? protocol.checkpoints : [];
+  if (!isSiteControlProtocol(protocol) && !isDailyReportProtocol(protocol) && !isProjectPlanLibraryProtocol(protocol) && !protocol.checkpoints.length) {
+    protocol.checkpoints = CHECK_ITEMS.map((title, index) => ({
+      id: uid(`check-${index}`),
+      title,
+      active: false,
+      manuallyActivated: false,
+      status: "offen / nicht bewertet",
+      note: "",
+      pinId: "",
+      photos: [],
+      samples: []
+    }));
+  }
   if (protocol.type === "followup") ensureFollowupCatalogChecks(protocol);
   const templateKey = checkTemplateKey(protocol.head.component || protocol.head.acceptanceTitle || "");
   const templateActive = new Set((CHECK_SCOPE_TEMPLATES[templateKey] || CHECK_ITEMS).map((title) => title.toLowerCase()));
@@ -2254,6 +2272,13 @@ function armReturnToResultAfterPrint() {
 }
 
 function openProtocol(protocol) {
+  if (isProjectPlanLibraryProtocol(protocol) && !protocol.__allowProjectPlanPreviewOpen) {
+    state.currentProjectId = protocol.projectId || state.currentProjectId || "";
+    showView("projectPlansView");
+    renderProjectPlansView();
+    showAppToast("Projektpläne sind keine Bewehrungsabnahme. Bitte eine Abnahme öffnen.", { type: "info" });
+    return;
+  }
   if (isDailyReportProtocol(protocol)) {
     openDailyReportProtocol(protocol);
     return;
@@ -5353,8 +5378,8 @@ async function renderProjectPlansView() {
     <section class="panel project-plan-toolbar-card">
       <div class="section-head">
         <div>
-          <h3>Projektpl?ne</h3>
-          <p class="muted">Pläne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verf?gung.</p>
+          <h3>Projektpläne</h3>
+          <p class="muted">Pläne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verfügung.</p>
         </div>
         <button class="primary-btn" id="projectPlanUploadBtn" type="button">PDF-Pläne hochladen</button>
       </div>
@@ -5373,7 +5398,7 @@ async function renderProjectPlansView() {
         <h3>Importierte Planunterlagen</h3>
         <span class="badge neutral">${visibleEntries.length} von ${entries.length}</span>
       </div>
-      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. über PDF-Pläne hochladen k?nnen PDF-Dateien direkt im Projekt gespeichert werden."}</div>`}
+      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. über PDF-Pläne hochladen können PDF-Dateien direkt im Projekt gespeichert werden."}</div>`}
     </section>
     ${unassignedHtml}`;
 }
@@ -5487,7 +5512,9 @@ function useProjectPlanForCurrentAcceptance(protocolId, planId) {
 function openProjectPlanPreview(protocolId, planId) {
   const protocol = state.protocols.find((item) => item.id === protocolId);
   if (!protocol) return showAppToast("Planquelle nicht gefunden.", { type: "error" });
+  if (isProjectPlanLibraryProtocol(protocol)) protocol.__allowProjectPlanPreviewOpen = true;
   openProtocol(protocol);
+  if (protocol.__allowProjectPlanPreviewOpen) delete protocol.__allowProjectPlanPreviewOpen;
   state.selectedPlanId = planId;
   state.current.activePlanId = planId;
   activateProtocolTab("planTab");
@@ -6436,12 +6463,15 @@ function shouldIncludeCheckInReport(check) {
 }
 
 function checkTemplateKey(component = "") {
-  const value = component.toLowerCase();
+  const value = String(component || "").toLowerCase().trim();
+  if (!value || INVALID_REBAR_CHECK_TEMPLATE_VALUES.has(value)) return "";
   if (value.includes("filigran")) return "filigrandecke";
   if (value.includes("decke") || value.includes("unterzug")) return "decke";
   if (value.includes("wand")) return "wand";
   if (value.includes("stütze") || value.includes("stuetze")) return "stuetze";
-  if (value.includes("rampe")) return "rampe";
+  if (value.includes("treppe")) return "decke";
+  if (value.includes("ringanker") || value.includes("randbalken")) return "bodenplatte";
+  if (value.includes("anschlussbewehrung")) return "bodenplatte";
   if (value.includes("bodenplatte") || value.includes("fundament")) return "bodenplatte";
   return "";
 }
@@ -6455,32 +6485,88 @@ function normalizeCheckTitle(value = "") {
     .trim();
 }
 
+function isInvalidRebarCheckTemplate(value = "") {
+  const normalized = String(value || "").toLowerCase().trim();
+  return INVALID_REBAR_CHECK_TEMPLATE_VALUES.has(normalized);
+}
+
+function validRebarCheckTemplateValue(value = "") {
+  const trimmed = String(value || "").trim();
+  if (!trimmed || isInvalidRebarCheckTemplate(trimmed)) return "";
+  return trimmed;
+}
+
 function checkTemplateOptions() {
   const masterComponents = state.masterData?.components || DEFAULT_MASTER_DATA.components || [];
   return uniqueValues([
-    state.current?.head?.component,
-    "Bodenplatte",
-    "Decke / Filigrandecke",
-    "Wand",
-    "Unterzug",
-    "Stütze",
-    "Fundament",
-    "Treppenhauskern",
-    "Rampe",
-    "Sonstige / frei",
+    ...REBAR_CHECK_TEMPLATE_OPTIONS,
     ...masterComponents
-  ].filter(Boolean));
+  ].map(validRebarCheckTemplateValue).filter(Boolean));
 }
 
 function checkTemplateLabel() {
-  return state.current?.head?.component || checkTemplateOptions()[0] || "Bodenplatte";
+  const value = validRebarCheckTemplateValue(state.current?.head?.component || "");
+  return value || "";
+}
+
+function ensureRebarChecklistCatalog(protocol = state.current) {
+  if (!protocol || isSiteControlProtocol(protocol) || isDailyReportProtocol(protocol) || isProjectPlanLibraryProtocol(protocol)) return false;
+  protocol.checkpoints = Array.isArray(protocol.checkpoints) ? protocol.checkpoints : [];
+  const existing = new Set(protocol.checkpoints.map((check) => normalizeCheckTitle(check.title || check.name || check.label || "")).filter(Boolean));
+  let added = false;
+  CHECK_ITEMS.forEach((title, index) => {
+    const key = normalizeCheckTitle(title);
+    if (existing.has(key)) return;
+    protocol.checkpoints.push({
+      id: uid(`check-fallback-${index}`),
+      title,
+      active: false,
+      manuallyActivated: false,
+      status: "offen / nicht bewertet",
+      note: "",
+      pinId: "",
+      photos: [],
+      samples: []
+    });
+    existing.add(key);
+    added = true;
+  });
+  return added;
+}
+
+function addManualCheckPoint(title = "") {
+  if (!state.current || isProjectPlanLibraryProtocol(state.current)) return;
+  const clean = String(title || "").trim() || `Prüfpunkt ${state.current.checkpoints.length + 1}`;
+  const check = {
+    id: uid("check-manual"),
+    title: clean,
+    active: true,
+    manuallyActivated: true,
+    status: "offen / nicht bewertet",
+    note: "",
+    pinId: "",
+    photos: [],
+    samples: []
+  };
+  state.current.checkpoints.push(check);
+  state.openCheckId = check.id;
+  state.openSampleId = "";
+  persist();
+  renderChecklist();
 }
 
 function applyCheckScopeTemplate({ confirmUser = true } = {}) {
-  if (!state.current) return;
+  if (!state.current || isProjectPlanLibraryProtocol(state.current)) return;
+  ensureRebarChecklistCatalog(state.current);
   const hasExistingEntries = state.current.checkpoints.some((check) => check.manuallyActivated || checkHasDocumentation(check));
   if (confirmUser && hasExistingEntries && !confirm("Bauteil-Vorlage anwenden? Bestehende Einträge bleiben erhalten.")) return;
-  const selectedTemplate = $("#checkTemplateSelect")?.value || state.current.head.component || state.current.head.acceptanceTitle || "";
+  const rawTemplate = $("#checkTemplateSelect")?.value || state.current.head.component || state.current.head.acceptanceTitle || "";
+  const selectedTemplate = validRebarCheckTemplateValue(rawTemplate);
+  if (!selectedTemplate) {
+    showAppToast("Ungültige Prüfvorlage wurde ignoriert. Bitte Bauteil auswählen.", { type: "info" });
+    renderChecklist();
+    return;
+  }
   const key = checkTemplateKey(selectedTemplate);
   const activeTitles = new Set((CHECK_SCOPE_TEMPLATES[key] || CHECK_ITEMS).map(normalizeCheckTitle));
   state.current.checkpoints.forEach((check) => {
@@ -6491,7 +6577,7 @@ function applyCheckScopeTemplate({ confirmUser = true } = {}) {
     check.active = activeTitles.has(normalizeCheckTitle(check.title || ""));
     check.manuallyActivated = false;
   });
-  if (selectedTemplate && selectedTemplate !== "Sonstige / frei") state.current.head.component = selectedTemplate;
+  if (selectedTemplate && selectedTemplate !== "Sonstige / frei" && selectedTemplate !== "Sonstiges Bauteil") state.current.head.component = selectedTemplate;
   persist();
   renderChecklist();
 }
@@ -6524,12 +6610,18 @@ function isNewFollowupSample(check, sample) {
 function renderChecklist() {
   const wrap = $("#checklist");
   if (!state.current) return;
+  if (isProjectPlanLibraryProtocol(state.current)) {
+    if (wrap) wrap.innerHTML = `<section class="panel"><h3>Projektpläne</h3><p class="muted">Diese Ansicht ist die zentrale Planverwaltung und keine Bewehrungs-Prüfvorlage. Bitte eine Bewehrungsabnahme öffnen, um Prüfpunkte zu bearbeiten.</p></section>`;
+    return;
+  }
+  const fallbackActivated = ensureRebarChecklistCatalog(state.current);
   state.current.checkpoints.forEach(updateCheckStatus);
   const visibleChecks = state.current.checkpoints.filter((item) => item.active || checkHasDocumentation(item));
   const inactiveChecks = state.current.checkpoints.filter((item) => !item.active && !checkHasDocumentation(item));
   const activeCount = visibleChecks.length;
   const documentedCount = state.current.checkpoints.filter(checkHasDocumentation).length;
-  const templateValue = checkTemplateLabel();
+  const invalidTemplateIgnored = isInvalidRebarCheckTemplate(state.current.head?.component || "");
+  const templateValue = invalidTemplateIgnored ? "" : checkTemplateLabel();
   if (!visibleChecks.some((item) => item.id === state.openCheckId)) state.openCheckId = "";
   const openCheck = visibleChecks.find((item) => item.id === state.openCheckId) || null;
   const visibleSamples = openCheck ? (openCheck.samples || []) : [];
@@ -6547,10 +6639,12 @@ function renderChecklist() {
       </div>
       <div class="check-scope-compact">
         <label>Vorlage für Bauteil
-          <input id="checkTemplateSelect" list="componentOptions" value="${escapeAttr(templateValue)}" placeholder="z. B. Bodenplatte">
+          <input id="checkTemplateSelect" list="rebarCheckTemplateOptions" value="${escapeAttr(templateValue)}" placeholder="Bauteil auswählen">
         </label>
+        <datalist id="rebarCheckTemplateOptions">${checkTemplateOptions().map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
         <button class="secondary-btn" type="button" data-apply-check-template>Vorlage anwenden</button>
-        <div class="check-scope-status">${activeCount} Prüfpunkt(e) aktiv${documentedCount ? ` · ${documentedCount} dokumentiert` : ""}</div>
+        <div class="check-scope-status">${activeCount} Prüfpunkt(e) aktiv${documentedCount ? ` - ${documentedCount} dokumentiert` : ""}</div>
+        <div class="check-scope-status muted">Check-Diagnose: Vorlagen ${checkTemplateOptions().length} - aktive Prüfpunkte ${activeCount} - weitere Prüfpunkte ${inactiveChecks.length} - ungültige Vorlage ignoriert: ${invalidTemplateIgnored ? "ja" : "nein"}${fallbackActivated ? " - Fallback-Vorlagen aktiviert" : ""}</div>
       </div>
       <details class="check-scope-details">
         <summary>Aktive Prüfpunkte bearbeiten</summary>
@@ -6562,6 +6656,12 @@ function renderChecklist() {
         <summary>Weitere Prüfpunkte hinzufügen (${inactiveChecks.length})</summary>
         <div class="check-scope-list">
           ${inactiveChecks.length ? inactiveChecks.map((item) => checkScopeRow(item)).join("") : `<p class="muted">Alle Prüfpunkte sind aktiv oder dokumentiert.</p>`}
+        </div>
+        <div class="manual-check-add">
+          <label>Eigener Prüfpunkt
+            <input id="manualCheckTitleInput" type="text" placeholder="z. B. besondere Feststellung">
+          </label>
+          <button class="secondary-btn" type="button" data-add-manual-check>Prüfpunkt hinzufügen</button>
         </div>
       </details>
     </section>
@@ -15542,6 +15642,8 @@ function bindEvents() {
     }
     const applyTemplate = event.target.closest("[data-apply-check-template]");
     if (applyTemplate) applyCheckScopeTemplate();
+    const addManualCheck = event.target.closest("[data-add-manual-check]");
+    if (addManualCheck) addManualCheckPoint($("#manualCheckTitleInput")?.value || "");
     const toggleCheckPanel = event.target.closest("[data-toggle-check-panel]");
     if (toggleCheckPanel) {
       const id = toggleCheckPanel.dataset.toggleCheckPanel;
@@ -16994,6 +17096,8 @@ async function boot() {
 }
 
 boot();
+
+
 
 
 
