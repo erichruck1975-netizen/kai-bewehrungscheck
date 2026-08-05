@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v175";
+const APP_VERSION = "v177";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -8313,7 +8313,7 @@ const kaiVoiceCore = {
         this.state.liveText = this.state.transcript;
         this.state.lastError = "";
         this.setStatus("transcript-ready");
-        showAppToast("Transkript bereit.", { type: "success", timeout: 2600 });
+        showAppToast(result.transcriptPolished ? "Transkript fachlich geglättet." : "Transkript bereit.", { type: "success", timeout: 2600 });
       } else {
         this.state.transcript = "";
         this.state.liveText = result?.error || "Serverantwort enthält keinen Text.";
@@ -8424,7 +8424,7 @@ function renderKaiVoiceCoreUi() {
     else if (value.status === "paused") hint.textContent = "Aufnahme pausiert.";
     else if (value.status === "processing") hint.textContent = "Audio wird ausgewertet ...";
     else if (value.status === "transcribing") hint.textContent = "Audio wird an den Transkriptions-Endpunkt gesendet ...";
-    else if (value.status === "transcript-ready") hint.textContent = "Transkript bereit. Text kann in die geöffnete Feststellung übernommen werden.";
+    else if (value.status === "transcript-ready") hint.textContent = value.lastTranscription?.transcriptPolished ? "Transkript bereit. Fachlich geglättet. Text kann in die geöffnete Feststellung übernommen werden." : "Transkript bereit. Text kann in die geöffnete Feststellung übernommen werden.";
     else if (value.status === "no-transcription") hint.textContent = value.liveText || "Audioaufnahme funktioniert. Es ist noch kein Transkriptions-Endpunkt eingetragen.";
     else hint.textContent = "Echter Diktiergerät-Modus: kurze Pausen beenden die Aufnahme nicht.";
   }
@@ -8434,7 +8434,8 @@ function renderKaiVoiceCoreUi() {
     const endpointPart = " · Endpoint " + (voiceTranscriptionEndpoint() ? "ja" : "nein");
     const formatPart = value.audioMimeType ? " · Format " + value.audioMimeType : "";
     const errorPart = value.lastError ? " · Fehler: " + value.lastError : "";
-    debug.textContent = "Voice Debug: letzter Klick " + (value.lastAction || "-") + " · Recorder " + recorderState + endpointPart + formatPart + errorPart;
+    const polishedPart = value.lastTranscription?.transcriptPolished ? " · fachlich geglättet" : "";
+    debug.textContent = "Voice Debug: letzter Klick " + (value.lastAction || "-") + " · Recorder " + recorderState + endpointPart + formatPart + polishedPart + errorPart;
   }
   panel.querySelectorAll("[data-action^='voice-'], [data-kai-voice-action]").forEach((button) => {
     const action = normalizeKaiVoiceAction(button.dataset.action || button.dataset.kaiVoiceAction || "");
@@ -8611,7 +8612,16 @@ async function transcribeVoiceAudio(audioBlob, context = {}) {
     const transcriptText = cleanDictationText(extractTranscriptText(payload));
     if (!transcriptText) throw new Error("Serverantwort enth?lt keinen Text.");
     updateKaiVoiceTranscriptionDebug({ fetchStatus: "Transkript empfangen" });
-    return { transcriptText, language: payload.language || language, provider: payload.provider || "configured-endpoint", createdAt, error: "" };
+    return {
+      transcriptText,
+      rawTranscript: payload.rawText || payload.raw_transcript || payload.transcript_text || "",
+      transcriptPolished: Boolean(payload.transcriptPolished || payload.transcript_polished),
+      transcriptCorrections: Array.isArray(payload.transcriptCorrections) ? payload.transcriptCorrections : [],
+      language: payload.language || language,
+      provider: payload.provider || "configured-endpoint",
+      createdAt,
+      error: ""
+    };
   } catch (error) {
     const isTimeout = error?.name === "AbortError";
     const message = isTimeout
