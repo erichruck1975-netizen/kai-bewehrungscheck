@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v180";
+const APP_VERSION = "v181";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -157,6 +157,8 @@ const DEFAULT_MASTER_DATA = {
   siteControlReasons: SITE_CONTROL_REASONS,
   siteControlPriorities: SITE_CONTROL_PRIORITIES
 };
+
+let pendingMasterFocus = null;
 
 const state = {
   projects: [],
@@ -496,7 +498,9 @@ function normalizeMasterData(masterData = {}) {
     ownPersons: (source.ownPersons || []).map((item) => ({
       id: item.id || uid("person"),
       name: item.name || "",
-      company: item.company || "",
+      company: item.company || item.companyName || "",
+      companyId: item.companyId || item.company_id || "",
+      companyName: item.companyName || item.company || "",
       role: item.role || "",
       address: normalizeAddress(item.address || item.siteAddress || item.baustellenAdresse || ""),
       phone: item.phone || "",
@@ -3617,6 +3621,7 @@ function renderMasterData() {
   panel.innerHTML = state.masterDataSection
     ? renderMasterDataDetail(state.masterDataSection, master)
     : renderMasterDataOverview(master);
+  applyPendingMasterFocus();
 }
 
 function renderMasterDataOverview(master) {
@@ -3768,16 +3773,22 @@ function masterItemSummary(collection, item) {
 
 function masterItemCard(collection, item, fields) {
   const contactButton = ["ownPersons", "inspectors", "companies"].includes(collection)
-    ? `<button class="secondary-btn small-btn" type="button" data-pick-contact-master="${collection}" data-master-id="${item.id}">Kontakt vom Handy übernehmen</button>`
+    ? `<button class="secondary-btn small-btn" type="button" data-pick-contact-master="${collection}" data-master-id="${item.id}">Kontakt vom Handy ?bernehmen</button>`
+    : "";
+  const companyContacts = collection === "companies" ? renderCompanyContactsForMaster(item) : "";
+  const companyContactButton = collection === "companies"
+    ? `<button class="secondary-btn small-btn" type="button" data-add-company-contact="${escapeAttr(item.id)}">Ansprechpartner hinzuf?gen</button>`
     : "";
   const body = `
       <div class="grid compact-grid">
         ${fields.map((field) => masterInput(collection, item, field)).join("")}
       </div>
-      <div class="result-actions compact">${contactButton}<button class="danger-btn small-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">Löschen</button></div>`;
+      ${companyContacts}
+      <div class="result-actions compact">${companyContactButton}${contactButton}<button class="danger-btn small-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">L?schen</button></div>`;
   if (collection === "companies") {
+    const shouldOpen = !item.name || pendingMasterFocus?.collection === collection && pendingMasterFocus?.id === item.id;
     return `
-      <details class="master-card master-card-collapsible" data-master-item="${collection}" data-master-id="${item.id}" ${item.name ? "" : "open"}>
+      <details class="master-card master-card-collapsible" data-master-item="${collection}" data-master-id="${item.id}" ${shouldOpen ? "open" : ""}>
         <summary><strong>${escapeHtml(masterItemSummary(collection, item))}</strong><small>${escapeHtml(item.contact || item.email || item.phone || "Details bearbeiten")}</small></summary>
         ${body}
       </details>
@@ -3789,6 +3800,64 @@ function masterItemCard(collection, item, fields) {
     </article>
   `;
 }
+
+function renderCompanyContactsForMaster(company) {
+  const contacts = companyContacts(company);
+  return `
+    <div class="company-contact-list">
+      <h4>Ansprechpartner</h4>
+      ${contacts.length ? `<ul>${contacts.map((person) => `<li><strong>${escapeHtml(person.name || "Ohne Namen")}</strong>${person.role ? ` ? ${escapeHtml(person.role)}` : ""}${person.phone ? ` ? ${escapeHtml(person.phone)}` : ""}${person.email ? ` ? ${escapeHtml(person.email)}` : ""}</li>`).join("")}</ul>` : `<p class="muted">Noch keine Ansprechpartner zugeordnet.</p>`}
+    </div>
+  `;
+}
+
+function companyContacts(company = {}) {
+  const companyNameNorm = normalizeContactCompare(company.name || "");
+  const companyId = company.id || "";
+  return (state.masterData?.ownPersons || []).filter((person) => {
+    if (companyId && person.companyId === companyId) return true;
+    const names = [person.companyName, person.company].filter(Boolean).map(normalizeContactCompare);
+    return companyNameNorm && names.some((name) => name === companyNameNorm);
+  });
+}
+
+function masterItemHasAddress(address = {}) {
+  const normalized = normalizeAddress(address);
+  return !!(normalized.street || normalized.zip || normalized.city || normalized.country);
+}
+
+function isEmptyMasterDraft(collection, item = {}) {
+  if (collection === "companies") return !(item.name || item.role || item.contact || masterItemHasAddress(item.address) || item.phone || item.email || item.website || item.note);
+  if (collection === "ownPersons") return !(item.name || item.company || item.companyName || item.companyId || item.role || masterItemHasAddress(item.address) || item.phone || item.email || item.aliases);
+  return false;
+}
+
+function isReusablePersonDraft(item = {}, company = null) {
+  const hasPersonContent = !!(item.name || item.role || masterItemHasAddress(item.address) || item.phone || item.email || item.aliases);
+  if (hasPersonContent) return false;
+  if (!company) return !(item.company || item.companyName || item.companyId);
+  return item.companyId === company.id || normalizeContactCompare(item.companyName || item.company) === normalizeContactCompare(company.name || "");
+}
+
+function queueMasterFocus(collection, id, field = "name", message = "") {
+  pendingMasterFocus = { collection, id, field, message };
+}
+
+function applyPendingMasterFocus() {
+  if (!pendingMasterFocus) return;
+  const target = pendingMasterFocus;
+  pendingMasterFocus = null;
+  window.setTimeout(() => {
+    const card = document.querySelector(`[data-master-item="${CSS.escape(target.collection)}"][data-master-id="${CSS.escape(target.id)}"]`);
+    if (!card) return;
+    if (card.tagName === "DETAILS") card.open = true;
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    const input = card.querySelector(`[data-master-field="${CSS.escape(target.field)}"]`) || card.querySelector("input, textarea, select");
+    if (input) input.focus({ preventScroll: true });
+    if (target.message) showAppToast(target.message, { type: "success", timeout: 2800 });
+  }, 60);
+}
+
 
 
 function postalInputAttributes() {
@@ -3831,7 +3900,7 @@ function applyPostalCitySuggestion(input) {
 }
 
 function masterInput(collection, item, field) {
-  const value = getPath(item, field.name) || "";
+  const value = collection === "ownPersons" && field.name === "company" ? (item.companyName || item.company || "") : (getPath(item, field.name) || "");
   if (field.type === "checkbox") {
     return `<label>${escapeHtml(field.label)}<input data-master-field="${field.name}" type="checkbox" ${getPath(item, field.name) ? "checked" : ""}></label>`;
   }
@@ -4293,9 +4362,19 @@ function applyExtractToCompany(company, data) {
   return company;
 }
 
-function applyExtractToPerson(person, data, companyName = "") {
+function applyPersonCompanySelection(person, value = "", company = null) {
+  const selected = company || resolveCompany(value || "");
+  const text = selected?.name || String(value || "").trim();
+  person.company = text;
+  person.companyName = text;
+  person.companyId = selected?.id || "";
+  return person;
+}
+
+function applyExtractToPerson(person, data, companyRef = "") {
   if (data.personName) person.name = data.personName;
-  if (companyName || data.companyName) person.company = companyName || data.companyName;
+  const company = typeof companyRef === "object" && companyRef ? companyRef : resolveCompany(companyRef || data.companyName || "");
+  if (company || companyRef || data.companyName) applyPersonCompanySelection(person, company?.name || companyRef || data.companyName, company);
   if (data.role || data.trade) person.role = data.role || data.trade;
   if (data.mobile || data.phone) person.phone = data.mobile || data.phone;
   if (data.email) person.email = data.email;
@@ -4332,10 +4411,10 @@ async function saveContactExtract(kind) {
       target = choice === "update" ? similar : null;
     }
     if (!target) {
-      target = { id: uid("person"), name: "", company: "", role: "", address: normalizeAddress(), phone: "", email: "", aliases: "", isDefault: !master.ownPersons.length };
+      target = { id: uid("person"), name: "", company: "", companyId: "", companyName: "", role: "", address: normalizeAddress(), phone: "", email: "", aliases: "", isDefault: !master.ownPersons.length };
       master.ownPersons.push(target);
     }
-    applyExtractToPerson(target, data, companyName);
+    applyExtractToPerson(target, data, savedCompany || companyName);
   }
   state.masterData = normalizeMasterData(master);
   setMasterDataDirty(true);
@@ -4428,16 +4507,47 @@ async function pickContactForMasterItem(collection, id) {
   showAppToast("Kontakt vom Handy übernommen. Bitte Stammdaten speichern.", { type: "success", timeout: 5200 });
 }
 
-function addMasterItem(collection) {
-  const master = normalizeMasterData(state.masterData);
-  if (collection === "ownPersons") master.ownPersons.push({ id: uid("person"), name: "", company: "", role: "", address: normalizeAddress(), phone: "", email: "", isDefault: !master.ownPersons.length });
-  if (collection === "companies") master.companies.unshift({ id: uid("company"), name: "", role: "", contact: "", address: normalizeAddress(), phone: "", email: "", note: "" });
-  if (collection === "inspectors") master.inspectors.push({ id: uid("inspector"), name: "", office: "", address: normalizeAddress(), email: "", phone: "", note: "" });
+function addMasterItem(collection, options = {}) {
+  const master = syncMasterDataFromDom();
+  let item = null;
+  if (collection === "ownPersons") {
+    item = master.ownPersons.find((entry) => isReusablePersonDraft(entry, options.company || null));
+    if (!item) {
+      item = { id: uid("person"), name: "", company: "", companyId: "", companyName: "", role: "", address: normalizeAddress(), phone: "", email: "", aliases: "", isDefault: !master.ownPersons.length };
+      master.ownPersons.push(item);
+    }
+    if (options.company) applyPersonCompanySelection(item, options.company.name || options.companyName || "", options.company);
+    else if (options.companyName) applyPersonCompanySelection(item, options.companyName);
+    queueMasterFocus("ownPersons", item.id, "name", options.message || "Neuer Ansprechpartner ge?ffnet.");
+    state.masterDataSection = "persons";
+  }
+  if (collection === "companies") {
+    item = master.companies.find((entry) => isEmptyMasterDraft("companies", entry));
+    if (!item) {
+      item = { id: uid("company"), name: "", role: "", contact: "", address: normalizeAddress(), phone: "", email: "", website: "", note: "" };
+      master.companies.unshift(item);
+    }
+    queueMasterFocus("companies", item.id, "name", options.message || "Neue Firma ge?ffnet.");
+  }
+  if (collection === "inspectors") {
+    item = { id: uid("inspector"), name: "", office: "", address: normalizeAddress(), email: "", phone: "", note: "" };
+    master.inspectors.push(item);
+    queueMasterFocus("inspectors", item.id, "name", "Neuer Eintrag ge?ffnet.");
+  }
   state.masterData = master;
   setMasterDataDirty(true);
   renderDatalists();
   renderMasterData();
 }
+
+function addCompanyContact(companyId) {
+  const master = syncMasterDataFromDom();
+  const company = (master.companies || []).find((entry) => entry.id === companyId);
+  if (!company) return showAppToast("Firma nicht gefunden.", { type: "error" });
+  state.masterData = master;
+  addMasterItem("ownPersons", { company, message: "Neuer Ansprechpartner zur Firma ge?ffnet." });
+}
+
 
 function deleteMasterItem(collection, id) {
   const master = normalizeMasterData(state.masterData);
@@ -13107,6 +13217,7 @@ function syncMasterDataFromDom() {
     card.querySelectorAll("[data-master-field]").forEach((input) => {
       setPath(item, input.dataset.masterField, input.type === "checkbox" ? input.checked : input.value);
     });
+    if (collection === "ownPersons") applyPersonCompanySelection(item, item.companyName || item.company || "");
   });
   panel.querySelectorAll("[data-lookup-key]").forEach((input) => {
     const key = input.dataset.lookupKey;
@@ -13132,6 +13243,7 @@ function handleMasterDataInput(event) {
     if (!item) return true;
     const field = event.target.dataset.masterField;
     setPath(item, field, event.target.type === "checkbox" ? event.target.checked : event.target.value);
+    if (collection === "ownPersons" && field === "company") applyPersonCompanySelection(item, event.target.value);
     if (collection === "ownPersons" && field === "isDefault" && item[field]) {
       state.masterData.ownPersons.forEach((person) => { if (person.id !== item.id) person.isDefault = false; });
     }
@@ -14465,8 +14577,16 @@ function bindEvents() {
       updateAppHeader("masterDataView");
       return;
     }
+    const addCompanyContactButton = event.target.closest("[data-add-company-contact]");
+    if (addCompanyContactButton) {
+      addCompanyContact(addCompanyContactButton.dataset.addCompanyContact);
+      return;
+    }
     const addMaster = event.target.closest("[data-add-master]");
-    if (addMaster) addMasterItem(addMaster.dataset.addMaster);
+    if (addMaster) {
+      addMasterItem(addMaster.dataset.addMaster);
+      return;
+    }
     const pickContactMaster = event.target.closest("[data-pick-contact-master]");
     if (pickContactMaster) {
       pickContactForMasterItem(pickContactMaster.dataset.pickContactMaster, pickContactMaster.dataset.masterId);

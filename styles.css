@@ -4205,3 +4205,28 @@ dialog button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* v181 Stammdaten: Ansprechpartner direkt in Firmenkarten */
+.company-contact-list {
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+.company-contact-list h4 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+.company-contact-list ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.company-contact-list li {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.company-contact-list .muted {
+  margin: 0;
+}
