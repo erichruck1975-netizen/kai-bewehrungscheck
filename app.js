@@ -3,8 +3,11 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v181";
+const APP_VERSION = "v183";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
+const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
+const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
+const MASTER_DATA_SNAPSHOT_LIMIT = 10;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
 const STABLE_TAG = "v52-stable-before-v53";
@@ -285,7 +288,9 @@ async function load({ persistRepairs = true } = {}) {
   state.db = await openDatabase();
   state.projects = (await idbGetAll("projects")).map(normalizeProject);
   state.protocols = (await idbGetAll("protocols")).map(normalizeProtocol);
-  state.masterData = normalizeMasterData(await idbGet("masterData", "app"));
+  const rawMasterData = await idbGet("masterData", "app");
+  await ensureMasterDataUpdateSnapshot(rawMasterData);
+  state.masterData = normalizeMasterData(rawMasterData);
   state.settings = await idbGet("settings", "app") || JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
   let migrated = false;
   if (!state.protocols.length) {
@@ -336,9 +341,17 @@ async function persistAsync() {
       ...state.projects.map((project) => idbPut("projects", normalizeProject(project))),
       ...state.protocols.map((protocol) => idbPut("protocols", stripRuntimeFields(protocol)))
     ]);
-    await idbPut("masterData", normalizeMasterData(state.masterData));
+    const masterPayload = pruneMasterDataDrafts(state.masterData);
+    const masterDataPersistBlocked = await masterDataHardLossDetected(masterPayload);
+    if (masterDataPersistBlocked) {
+      console.warn("Persist übersprungen: Stammdaten würden gespeicherte Firmen/Ansprechpartner leer überschreiben.");
+      showStorageWarning("Stammdaten-Speicherung wurde zum Schutz vor Datenverlust übersprungen. Bitte Stammdaten prüfen.");
+    } else {
+      await createMasterDataSnapshot("before-persist");
+      await idbPut("masterData", masterPayload);
+    }
     await idbPut("settings", { ...state.settings, id: "app" });
-    showStorageWarning("");
+    if (!masterDataPersistBlocked) showStorageWarning("");
   } catch (error) {
     showStorageWarning(`IndexedDB-Speicherfehler: ${error.message || error}`);
   }
@@ -490,34 +503,204 @@ function normalizeProject(project = {}) {
   };
 }
 
+
+function compactMasterDataSnapshot(masterData = {}) {
+  const normalized = normalizeMasterData(masterData);
+  return {
+    id: "app",
+    lastSavedAt: normalized.lastSavedAt || "",
+    ownPersons: normalized.ownPersons || [],
+    companies: normalized.companies || [],
+    inspectors: normalized.inspectors || [],
+    components: normalized.components || [],
+    floors: normalized.floors || [],
+    acceptanceTypes: normalized.acceptanceTypes || [],
+    areaAxes: normalized.areaAxes || [],
+    signatureRoles: normalized.signatureRoles || [],
+    trades: normalized.trades || [],
+    siteControlAreas: normalized.siteControlAreas || [],
+    siteControlTypes: normalized.siteControlTypes || [],
+    siteControlReasons: normalized.siteControlReasons || [],
+    siteControlPriorities: normalized.siteControlPriorities || []
+  };
+}
+
+function isLegacyCompanyRecordVisible(item = {}) {
+  const address = item.address || item.siteAddress || item.baustellenAdresse || {};
+  return !!(item.id || item.name || item.companyName || item.firma || item.trade || item.gewerk || item.role || item.category || item.companyTrade || item.contact || item.phone || item.mobile || item.tel || item.email || item.website || item.web || item.address || item.street || item.city || address.street || address.city || address.zip);
+}
+
+function isLegacyPersonRecordVisible(item = {}) {
+  return !!(item.id || item.name || item.personName || item.contact || item.company || item.companyName || item.firma || item.phone || item.mobile || item.tel || item.email || item.role || item.title);
+}
+
+function masterDataSnapshotCounts(masterData = {}) {
+  const normalized = normalizeMasterData(masterData);
+  return {
+    companies: (normalized.companies || []).length,
+    ownPersons: (normalized.ownPersons || []).length,
+    inspectors: (normalized.inspectors || []).length
+  };
+}
+
+function readMasterDataSnapshots() {
+  try {
+    const data = JSON.parse(localStorage.getItem(MASTER_DATA_SNAPSHOT_KEY) || "[]");
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeMasterDataSnapshots(snapshots) {
+  try {
+    localStorage.setItem(MASTER_DATA_SNAPSHOT_KEY, JSON.stringify((snapshots || []).slice(0, MASTER_DATA_SNAPSHOT_LIMIT)));
+  } catch (error) {
+    console.warn("Stammdaten-Snapshot konnte nicht gespeichert werden", error);
+  }
+}
+
+async function createMasterDataSnapshot(reason = "manual", sourceData = null) {
+  let source = sourceData;
+  if (!source && state.db) source = await idbGet("masterData", "app");
+  if (!source) source = state.masterData;
+  const snapshotData = compactMasterDataSnapshot(source || {});
+  const counts = masterDataSnapshotCounts(snapshotData);
+  const hasContent = counts.companies || counts.ownPersons || counts.inspectors;
+  if (!hasContent) return null;
+  const snapshot = { id: uid("mastersnap"), reason, createdAt: new Date().toISOString(), appVersion: APP_VERSION, counts, masterData: snapshotData };
+  writeMasterDataSnapshots([snapshot, ...readMasterDataSnapshots()].slice(0, MASTER_DATA_SNAPSHOT_LIMIT));
+  return snapshot;
+}
+
+function latestMasterDataSnapshot() {
+  return readMasterDataSnapshots()[0] || null;
+}
+
+async function ensureMasterDataUpdateSnapshot(rawMasterData) {
+  const previousVersion = localStorage.getItem(MASTER_DATA_LAST_VERSION_KEY) || "";
+  if (previousVersion !== APP_VERSION) {
+    await createMasterDataSnapshot(`before-update-${APP_VERSION}`, rawMasterData);
+    localStorage.setItem(MASTER_DATA_LAST_VERSION_KEY, APP_VERSION);
+  }
+}
+
+function stripMasterDraftFlag(item = {}) {
+  const { _draft, ...clean } = item;
+  return clean;
+}
+
+function pruneMasterDataDrafts(master) {
+  const copy = normalizeMasterData(master);
+  copy.companies = (copy.companies || []).filter((item) => !(item._draft && isEmptyMasterDraft("companies", item))).map(stripMasterDraftFlag);
+  copy.ownPersons = (copy.ownPersons || []).filter((item) => !(item._draft && isEmptyMasterDraft("ownPersons", item))).map(stripMasterDraftFlag);
+  return copy;
+}
+
+async function masterDataLossGuardCounts(nextMasterData) {
+  const nextCounts = masterDataSnapshotCounts(nextMasterData);
+  const rawSaved = await idbGet("masterData", "app");
+  const savedCounts = rawSaved ? masterDataSnapshotCounts(rawSaved) : { companies: 0, ownPersons: 0 };
+  const snapCounts = latestMasterDataSnapshot()?.counts || { companies: 0, ownPersons: 0 };
+  const previousCompanies = Math.max(savedCounts.companies || 0, snapCounts.companies || 0);
+  const previousPersons = Math.max(savedCounts.ownPersons || 0, snapCounts.ownPersons || 0);
+  return { nextCounts, previousCompanies, previousPersons };
+}
+
+async function masterDataHardLossDetected(nextMasterData) {
+  const { nextCounts, previousCompanies, previousPersons } = await masterDataLossGuardCounts(nextMasterData);
+  return (nextCounts.companies === 0 && previousCompanies > 0) || (nextCounts.ownPersons === 0 && previousPersons > 0);
+}
+
+async function masterDataSaveAllowed(nextMasterData) {
+  const { nextCounts, previousCompanies, previousPersons } = await masterDataLossGuardCounts(nextMasterData);
+  if (nextCounts.companies === 0 && previousCompanies > 0) {
+    showAppToast("Achtung: Es wurden gespeicherte Firmen gefunden, aber die aktuelle Ansicht enthält keine Firmen. Speichern wurde abgebrochen, um Datenverlust zu verhindern.", { type: "error", timeout: 9000 });
+    return false;
+  }
+  if (nextCounts.ownPersons === 0 && previousPersons > 0) {
+    showAppToast("Achtung: Es wurden gespeicherte Ansprechpartner gefunden, aber die aktuelle Ansicht enthält keine Ansprechpartner. Speichern wurde abgebrochen, um Datenverlust zu verhindern.", { type: "error", timeout: 9000 });
+    return false;
+  }
+  const strongCompanyDrop = previousCompanies >= 5 && nextCounts.companies > 0 && nextCounts.companies <= Math.floor(previousCompanies * 0.5);
+  const strongPersonDrop = previousPersons >= 5 && nextCounts.ownPersons > 0 && nextCounts.ownPersons <= Math.floor(previousPersons * 0.5);
+  if (strongCompanyDrop && !confirm(`Die Anzahl der Firmen sinkt von ${previousCompanies} auf ${nextCounts.companies}. Wirklich speichern?`)) return false;
+  if (strongPersonDrop && !confirm(`Die Anzahl der Ansprechpartner sinkt von ${previousPersons} auf ${nextCounts.ownPersons}. Wirklich speichern?`)) return false;
+  return true;
+}
+
+function renderMasterDataBackupPanel() {
+  const snapshot = latestMasterDataSnapshot();
+  const counts = masterDataSnapshotCounts(state.masterData || {});
+  const snapshotText = snapshot
+    ? `${formatDate(snapshot.createdAt)} · ${snapshot.appVersion || "Version unbekannt"} · Firmen: ${snapshot.counts?.companies || 0} · Ansprechpartner: ${snapshot.counts?.ownPersons || 0}`
+    : "Noch keine Stammdaten-Sicherung vorhanden.";
+  return `
+    <section class="panel master-section master-backup-panel">
+      <div class="section-head">
+        <div>
+          <h3>Sicherung / Wiederherstellung</h3>
+          <p class="muted">Diagnose: Firmen: ${counts.companies} · Ansprechpartner: ${counts.ownPersons} · letzte Sicherung: ${snapshot ? escapeHtml(formatDate(snapshot.createdAt)) : "keine"}</p>
+        </div>
+      </div>
+      <p class="field-hint">Letzte Stammdaten-Sicherung: ${escapeHtml(snapshotText)}</p>
+      <div class="result-actions compact">
+        <button class="secondary-btn small-btn" type="button" data-show-master-snapshot>Letzte Stammdaten-Sicherung anzeigen</button>
+        <button class="secondary-btn small-btn" type="button" data-restore-master-snapshot ${snapshot ? "" : "disabled"}>Letzte Sicherung wiederherstellen</button>
+      </div>
+    </section>
+  `;
+}
+
+function showLatestMasterDataSnapshot() {
+  const snapshot = latestMasterDataSnapshot();
+  if (!snapshot) return showAppToast("Noch keine Stammdaten-Sicherung vorhanden.", { type: "info" });
+  alert(`Letzte Stammdaten-Sicherung\n\nDatum: ${formatDate(snapshot.createdAt)}\nVersion: ${snapshot.appVersion || "unbekannt"}\nFirmen: ${snapshot.counts?.companies || 0}\nAnsprechpartner: ${snapshot.counts?.ownPersons || 0}\nGrund: ${snapshot.reason || "Snapshot"}`);
+}
+
+async function restoreLatestMasterDataSnapshot() {
+  const snapshot = latestMasterDataSnapshot();
+  if (!snapshot?.masterData) return showAppToast("Keine Stammdaten-Sicherung vorhanden.", { type: "error" });
+  if (!confirm("Letzte Stammdaten-Sicherung wiederherstellen? Aktuelle ungespeicherte Änderungen werden ersetzt.")) return;
+  await createMasterDataSnapshot("before-restore", state.masterData);
+  state.masterData = normalizeMasterData(snapshot.masterData);
+  setMasterDataDirty(true);
+  renderDatalists();
+  renderMasterData();
+  showAppToast("Stammdaten-Sicherung wiederhergestellt. Bitte Stammdaten speichern, wenn der Stand dauerhaft übernommen werden soll.", { type: "success", timeout: 7000 });
+}
+
 function normalizeMasterData(masterData = {}) {
   const source = { ...DEFAULT_MASTER_DATA, ...(masterData || {}) };
   return {
     id: "app",
     lastSavedAt: source.lastSavedAt || "",
-    ownPersons: (source.ownPersons || []).map((item) => ({
+    ownPersons: (source.ownPersons || []).filter(isLegacyPersonRecordVisible).map((item) => ({
       id: item.id || uid("person"),
-      name: item.name || "",
-      company: item.company || item.companyName || "",
+      name: item.name || item.personName || item.contact || "",
+      company: item.company || item.companyName || item.firma || "",
       companyId: item.companyId || item.company_id || "",
-      companyName: item.companyName || item.company || "",
-      role: item.role || "",
+      companyName: item.companyName || item.company || item.firma || "",
+      role: item.role || item.title || "",
       address: normalizeAddress(item.address || item.siteAddress || item.baustellenAdresse || ""),
-      phone: item.phone || "",
+      phone: item.phone || item.mobile || item.tel || "",
       email: item.email || "",
       aliases: item.aliases || item.nickname || item.nickName || "",
-      isDefault: !!item.isDefault
+      isDefault: !!item.isDefault,
+      _draft: !!item._draft
     })),
-    companies: (source.companies || []).map((item) => ({
+    companies: (source.companies || []).filter(isLegacyCompanyRecordVisible).map((item) => ({
       id: item.id || uid("company"),
-      name: item.name || "",
-      role: item.role || "",
-      contact: item.contact || "",
-      phone: item.phone || "",
+      name: item.name || item.companyName || item.firma || "",
+      role: item.role || item.trade || item.gewerk || item.category || item.companyTrade || "",
+      trade: item.trade || item.role || item.gewerk || item.category || item.companyTrade || "",
+      contact: item.contact || item.personName || "",
+      phone: item.phone || item.mobile || item.tel || "",
       email: item.email || "",
-      website: item.website || item.web || "",
-      address: normalizeAddress(item.address || item.siteAddress || item.baustellenAdresse || ""),
-      note: item.note || ""
+      website: item.website || item.web || item.url || "",
+      address: normalizeAddress(item.address || item.siteAddress || item.baustellenAdresse || { street: item.street || "", zip: item.zip || item.postalCode || "", city: item.city || "", country: item.country || "" }),
+      note: item.note || item.notes || "",
+      _draft: !!item._draft
     })),
     inspectors: (source.inspectors || []).map((item) => ({
       id: item.id || uid("inspector"),
@@ -2723,7 +2906,9 @@ function clearSiteControlItemPin(item) {
 
 
 async function saveMasterDataFromProjectDialog() {
-  const payload = normalizeMasterData({ ...state.masterData, lastSavedAt: new Date().toISOString() });
+  const payload = pruneMasterDataDrafts({ ...state.masterData, lastSavedAt: new Date().toISOString() });
+  if (!(await masterDataSaveAllowed(payload))) return false;
+  await createMasterDataSnapshot("before-project-dialog-save");
   await idbPutComplete("masterData", payload);
   state.masterData = normalizeMasterData(await idbGet("masterData", "app"));
   setMasterDataDirty(false);
@@ -3678,6 +3863,7 @@ function renderMasterDataDetail(sectionId, master) {
         <p class="muted">${escapeHtml(meta?.description || "Stammdaten bearbeiten")}</p>
       </div>
     </section>
+    ${state.masterDataSection ? renderMasterDataBackupPanel() : ""}
     ${body}
   `;
 }
@@ -3773,18 +3959,18 @@ function masterItemSummary(collection, item) {
 
 function masterItemCard(collection, item, fields) {
   const contactButton = ["ownPersons", "inspectors", "companies"].includes(collection)
-    ? `<button class="secondary-btn small-btn" type="button" data-pick-contact-master="${collection}" data-master-id="${item.id}">Kontakt vom Handy ?bernehmen</button>`
+    ? `<button class="secondary-btn small-btn" type="button" data-pick-contact-master="${collection}" data-master-id="${item.id}">Kontakt vom Handy übernehmen</button>`
     : "";
   const companyContacts = collection === "companies" ? renderCompanyContactsForMaster(item) : "";
   const companyContactButton = collection === "companies"
-    ? `<button class="secondary-btn small-btn" type="button" data-add-company-contact="${escapeAttr(item.id)}">Ansprechpartner hinzuf?gen</button>`
+    ? `<button class="secondary-btn small-btn" type="button" data-add-company-contact="${escapeAttr(item.id)}">Ansprechpartner hinzufügen</button>`
     : "";
   const body = `
       <div class="grid compact-grid">
         ${fields.map((field) => masterInput(collection, item, field)).join("")}
       </div>
       ${companyContacts}
-      <div class="result-actions compact">${companyContactButton}${contactButton}<button class="danger-btn small-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">L?schen</button></div>`;
+      <div class="result-actions compact">${companyContactButton}${contactButton}<button class="danger-btn small-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">Löschen</button></div>`;
   if (collection === "companies") {
     const shouldOpen = !item.name || pendingMasterFocus?.collection === collection && pendingMasterFocus?.id === item.id;
     return `
@@ -3806,7 +3992,7 @@ function renderCompanyContactsForMaster(company) {
   return `
     <div class="company-contact-list">
       <h4>Ansprechpartner</h4>
-      ${contacts.length ? `<ul>${contacts.map((person) => `<li><strong>${escapeHtml(person.name || "Ohne Namen")}</strong>${person.role ? ` ? ${escapeHtml(person.role)}` : ""}${person.phone ? ` ? ${escapeHtml(person.phone)}` : ""}${person.email ? ` ? ${escapeHtml(person.email)}` : ""}</li>`).join("")}</ul>` : `<p class="muted">Noch keine Ansprechpartner zugeordnet.</p>`}
+      ${contacts.length ? `<ul>${contacts.map((person) => `<li><strong>${escapeHtml(person.name || "Ohne Namen")}</strong>${person.role ? ` · ${escapeHtml(person.role)}` : ""}${person.phone ? ` · ${escapeHtml(person.phone)}` : ""}${person.email ? ` · ${escapeHtml(person.email)}` : ""}</li>`).join("")}</ul>` : `<p class="muted">Noch keine Ansprechpartner zugeordnet.</p>`}
     </div>
   `;
 }
@@ -3827,7 +4013,7 @@ function masterItemHasAddress(address = {}) {
 }
 
 function isEmptyMasterDraft(collection, item = {}) {
-  if (collection === "companies") return !(item.name || item.role || item.contact || masterItemHasAddress(item.address) || item.phone || item.email || item.website || item.note);
+  if (collection === "companies") return !(item.name || item.role || item.trade || item.gewerk || item.category || item.companyTrade || item.contact || masterItemHasAddress(item.address) || item.phone || item.email || item.website || item.note);
   if (collection === "ownPersons") return !(item.name || item.company || item.companyName || item.companyId || item.role || masterItemHasAddress(item.address) || item.phone || item.email || item.aliases);
   return false;
 }
@@ -3900,7 +4086,7 @@ function applyPostalCitySuggestion(input) {
 }
 
 function masterInput(collection, item, field) {
-  const value = collection === "ownPersons" && field.name === "company" ? (item.companyName || item.company || "") : (getPath(item, field.name) || "");
+  const value = collection === "ownPersons" && field.name === "company" ? (item.companyName || item.company || "") : (collection === "companies" && field.name === "role" ? (item.role || item.trade || item.gewerk || item.category || item.companyTrade || "") : (getPath(item, field.name) || ""));
   if (field.type === "checkbox") {
     return `<label>${escapeHtml(field.label)}<input data-master-field="${field.name}" type="checkbox" ${getPath(item, field.name) ? "checked" : ""}></label>`;
   }
@@ -4257,7 +4443,7 @@ function setContactPhotoFile(collection, file, context = "unknown") {
   if (!file.type.startsWith("image/")) return showAppToast("Bitte eine Bilddatei auswählen.", { type: "error" });
   if (file.size > 10 * 1024 * 1024) return showAppToast("Bilddatei ist größer als 10 MB.", { type: "error" });
   if (state.contactPhotoImport?.previewUrl) URL.revokeObjectURL(state.contactPhotoImport.previewUrl);
-  state.contactPhotoImport = { section: collection, file, context, previewUrl: URL.createObjectURL(file), busy: true, result: null, error: "", qrHint: "QR-Code wird gepr?ft ..." };
+  state.contactPhotoImport = { section: collection, file, context, previewUrl: URL.createObjectURL(file), busy: true, result: null, error: "", qrHint: "QR-Code wird geprüft ..." };
   renderMasterData();
   tryApplyContactQrFromPhoto(collection, file);
 }
@@ -4280,7 +4466,7 @@ async function extractContactFromPhoto(collection) {
   if (!current.file) return showAppToast("Bitte zuerst ein Bild auswählen.", { type: "error" });
   const endpoint = contactExtractEndpoint();
   if (!endpoint) return showAppToast("Kein lokaler Server-Endpunkt für die Foto-Erkennung gefunden.", { type: "error", timeout: 6500 });
-  state.contactPhotoImport = { ...current, busy: true, error: "", qrHint: current.result?.source === "qr-code" ? "Zus?tzliche Foto-Erkennung l?uft ..." : current.qrHint };
+  state.contactPhotoImport = { ...current, busy: true, error: "", qrHint: current.result?.source === "qr-code" ? "Zusätzliche Foto-Erkennung läuft ..." : current.qrHint };
   renderMasterData();
   const form = new FormData();
   form.append("image", current.file, current.file.name || "kontaktbild.jpg");
@@ -4351,7 +4537,8 @@ function duplicateChoice(label, summary) {
 
 function applyExtractToCompany(company, data) {
   if (data.companyName) company.name = data.companyName;
-  if (data.trade) company.role = data.trade;
+  if (data.trade || data.role) company.role = data.trade || data.role;
+  if (company.role) company.trade = company.role;
   if (data.personName) company.contact = data.personName;
   if (data.phone || data.mobile) company.phone = data.phone || data.mobile;
   if (data.email) company.email = data.email;
@@ -4396,7 +4583,7 @@ async function saveContactExtract(kind) {
       target = choice === "update" ? similar : null;
     }
     if (!target) {
-      target = { id: uid("company"), name: "", role: "", contact: "", address: normalizeAddress(), phone: "", email: "", website: "", note: "" };
+      target = { id: uid("company"), name: "", role: "", trade: "", contact: "", address: normalizeAddress(), phone: "", email: "", website: "", note: "" };
       master.companies.unshift(target);
     }
     savedCompany = applyExtractToCompany(target, data);
@@ -4513,26 +4700,26 @@ function addMasterItem(collection, options = {}) {
   if (collection === "ownPersons") {
     item = master.ownPersons.find((entry) => isReusablePersonDraft(entry, options.company || null));
     if (!item) {
-      item = { id: uid("person"), name: "", company: "", companyId: "", companyName: "", role: "", address: normalizeAddress(), phone: "", email: "", aliases: "", isDefault: !master.ownPersons.length };
+      item = { id: uid("person"), name: "", company: "", companyId: "", companyName: "", role: "", address: normalizeAddress(), phone: "", email: "", aliases: "", isDefault: !master.ownPersons.length, _draft: true };
       master.ownPersons.push(item);
     }
     if (options.company) applyPersonCompanySelection(item, options.company.name || options.companyName || "", options.company);
     else if (options.companyName) applyPersonCompanySelection(item, options.companyName);
-    queueMasterFocus("ownPersons", item.id, "name", options.message || "Neuer Ansprechpartner ge?ffnet.");
+    queueMasterFocus("ownPersons", item.id, "name", options.message || "Neuer Ansprechpartner geöffnet.");
     state.masterDataSection = "persons";
   }
   if (collection === "companies") {
     item = master.companies.find((entry) => isEmptyMasterDraft("companies", entry));
     if (!item) {
-      item = { id: uid("company"), name: "", role: "", contact: "", address: normalizeAddress(), phone: "", email: "", website: "", note: "" };
+      item = { id: uid("company"), name: "", role: "", trade: "", contact: "", address: normalizeAddress(), phone: "", email: "", website: "", note: "", _draft: true };
       master.companies.unshift(item);
     }
-    queueMasterFocus("companies", item.id, "name", options.message || "Neue Firma ge?ffnet.");
+    queueMasterFocus("companies", item.id, "name", options.message || "Neue Firma geöffnet.");
   }
   if (collection === "inspectors") {
     item = { id: uid("inspector"), name: "", office: "", address: normalizeAddress(), email: "", phone: "", note: "" };
     master.inspectors.push(item);
-    queueMasterFocus("inspectors", item.id, "name", "Neuer Eintrag ge?ffnet.");
+    queueMasterFocus("inspectors", item.id, "name", "Neuer Eintrag geöffnet.");
   }
   state.masterData = master;
   setMasterDataDirty(true);
@@ -4545,7 +4732,7 @@ function addCompanyContact(companyId) {
   const company = (master.companies || []).find((entry) => entry.id === companyId);
   if (!company) return showAppToast("Firma nicht gefunden.", { type: "error" });
   state.masterData = master;
-  addMasterItem("ownPersons", { company, message: "Neuer Ansprechpartner zur Firma ge?ffnet." });
+  addMasterItem("ownPersons", { company, message: "Neuer Ansprechpartner zur Firma geöffnet." });
 }
 
 
@@ -9250,7 +9437,7 @@ async function transcribeVoiceAudio(audioBlob, context = {}) {
     try { payload = responseText ? JSON.parse(responseText) : {}; } catch { payload = { error: responseText }; }
     if (!response.ok) throw new Error(payload.error || "Transkriptionsserver antwortet mit HTTP " + response.status);
     const transcriptText = cleanDictationText(extractTranscriptText(payload));
-    if (!transcriptText) throw new Error("Serverantwort enth?lt keinen Text.");
+    if (!transcriptText) throw new Error("Serverantwort enthält keinen Text.");
     updateKaiVoiceTranscriptionDebug({ fetchStatus: "Transkript empfangen" });
     return {
       transcriptText,
@@ -9266,7 +9453,7 @@ async function transcribeVoiceAudio(audioBlob, context = {}) {
     const isTimeout = error?.name === "AbortError";
     const message = isTimeout
       ? "Transkription abgebrochen: Server antwortet nicht innerhalb von 60 Sekunden."
-      : `Transkription fehlgeschlagen: ${error?.message || error}. Netzwerk/CORS pr?fen. Endpoint: ${endpoint}`;
+      : `Transkription fehlgeschlagen: ${error?.message || error}. Netzwerk/CORS prüfen. Endpoint: ${endpoint}`;
     updateKaiVoiceTranscriptionDebug({ fetchStatus: isTimeout ? "Timeout nach 60 Sekunden" : "Fehler: " + (error?.name || "Fetch"), error: message });
     return { transcriptText: "", language, provider: "configured-endpoint", createdAt, error: message };
   } finally {
@@ -10225,7 +10412,7 @@ function deleteSiteControlItem(itemId) {
     showAppToast(`${label} wurde als gelöscht markiert.`, { type: "success" });
     return;
   }
-  if (!confirm("Diese Feststellung l?schen?")) return;
+  if (!confirm("Diese Feststellung löschen?")) return;
   state.current.siteItems = siteControlActiveItems(state.current.siteItems || []).filter((entry) => entry.id !== itemId);
   ensureSiteControlItemBkNumbers(state.current);
   if (state.openSiteItemId === itemId) state.openSiteItemId = "";
@@ -11501,7 +11688,7 @@ async function printReportA4() {
     const textLength = (reportElement.innerText || "").trim().length;
     const hasReportStructure = reportElement.querySelector(".report-header") && (reportElement.querySelector(".result-box") || reportElement.querySelector(".site-report-card") || reportElement.querySelector(".info-card"));
     if (textLength < 100 || !hasReportStructure) {
-      throw new Error("Bericht enth?lt keine druckbaren Inhalte.");
+      throw new Error("Bericht enthält keine druckbaren Inhalte.");
     }
   } catch (error) {
     alert(error?.message || "Bericht enthält keine druckbaren Inhalte.");
@@ -13217,6 +13404,7 @@ function syncMasterDataFromDom() {
     card.querySelectorAll("[data-master-field]").forEach((input) => {
       setPath(item, input.dataset.masterField, input.type === "checkbox" ? input.checked : input.value);
     });
+    if (collection === "companies") item.trade = item.role || item.trade || "";
     if (collection === "ownPersons") applyPersonCompanySelection(item, item.companyName || item.company || "");
   });
   panel.querySelectorAll("[data-lookup-key]").forEach((input) => {
@@ -13243,6 +13431,7 @@ function handleMasterDataInput(event) {
     if (!item) return true;
     const field = event.target.dataset.masterField;
     setPath(item, field, event.target.type === "checkbox" ? event.target.checked : event.target.value);
+    if (collection === "companies" && field === "role") item.trade = event.target.value;
     if (collection === "ownPersons" && field === "company") applyPersonCompanySelection(item, event.target.value);
     if (collection === "ownPersons" && field === "isDefault" && item[field]) {
       state.masterData.ownPersons.forEach((person) => { if (person.id !== item.id) person.isDefault = false; });
@@ -13264,10 +13453,12 @@ function handleMasterDataInput(event) {
 async function saveMasterData({ alertSuccess = true } = {}) {
   try {
     syncMasterDataFromDom();
-    const payload = normalizeMasterData({
+    const payload = pruneMasterDataDrafts({
       ...state.masterData,
       lastSavedAt: new Date().toISOString()
     });
+    if (!(await masterDataSaveAllowed(payload))) return false;
+    await createMasterDataSnapshot("before-master-save");
     const warnings = masterDataWarnings(payload);
     await idbPutComplete("masterData", payload);
     const saved = await idbGet("masterData", "app");
@@ -14568,6 +14759,16 @@ function bindEvents() {
       state.masterDataSection = masterSectionButton.dataset.masterSection;
       renderMasterData();
       updateAppHeader("masterDataView");
+      return;
+    }
+    const showMasterSnapshotButton = event.target.closest("[data-show-master-snapshot]");
+    if (showMasterSnapshotButton) {
+      showLatestMasterDataSnapshot();
+      return;
+    }
+    const restoreMasterSnapshotButton = event.target.closest("[data-restore-master-snapshot]");
+    if (restoreMasterSnapshotButton) {
+      restoreLatestMasterDataSnapshot();
       return;
     }
     const masterOverviewButton = event.target.closest("[data-master-overview]");
