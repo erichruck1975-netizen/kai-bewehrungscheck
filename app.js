@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v186";
+const APP_VERSION = "v187";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -178,6 +178,7 @@ const state = {
   current: null,
   selectedPlanId: "",
   selectedPinId: "",
+  projectPlanUpload: { files: [], selected: 0, imported: 0, saved: 0, message: "", error: "", busy: false },
   lastPdfFileShareDebug: null,
   pinSearchQuery: "",
   reassignSampleId: "",
@@ -4932,6 +4933,57 @@ function openProjectPlanDropboxLink(protocolId, planId) {
   window.open(link, "_blank", "noopener,noreferrer");
 }
 
+
+function setProjectPlanUploadState(patch = {}) {
+  state.projectPlanUpload = {
+    files: state.projectPlanUpload?.files || [],
+    selected: state.projectPlanUpload?.selected || 0,
+    imported: state.projectPlanUpload?.imported || 0,
+    saved: state.projectPlanUpload?.saved || 0,
+    message: state.projectPlanUpload?.message || "",
+    error: state.projectPlanUpload?.error || "",
+    busy: !!state.projectPlanUpload?.busy,
+    ...patch
+  };
+}
+
+function setPendingProjectPlanFiles(files) {
+  const list = Array.from(files || []).filter(Boolean);
+  setProjectPlanUploadState({
+    files: list,
+    selected: list.length,
+    imported: 0,
+    saved: 0,
+    error: "",
+    message: list.length ? `${list.length} Datei(en) ausgewählt.` : "Keine Datei ausgewählt.",
+    busy: false
+  });
+}
+
+function renderProjectPlanUploadPanel() {
+  const upload = state.projectPlanUpload || {};
+  const files = Array.from(upload.files || []);
+  const fileItems = files.length
+    ? `<ul class="project-plan-upload-files">${files.map((file) => `<li><span>${escapeHtml(file.name || "Plan")}</span><small>${escapeHtml(formatFileSize(file.size || 0))}</small></li>`).join("")}</ul>`
+    : `<p class="muted">Noch keine Datei ausgewählt.</p>`;
+  const statusClass = upload.error ? "field-warning" : "field-hint";
+  const statusText = upload.error || upload.message || "Bitte PDF oder Bildplan auswählen.";
+  return `
+    <div class="project-plan-upload-panel">
+      <div class="project-plan-upload-head">
+        <strong>Ausgewählt:</strong>
+        <span class="badge neutral">${files.length}</span>
+      </div>
+      ${fileItems}
+      <div class="result-actions compact project-plan-upload-actions">
+        <button class="primary-btn" id="projectPlanApplyUploadBtn" type="button" ${files.length || upload.busy ? "" : "disabled"}>${upload.busy ? "Übernehme ..." : "Übernehmen"}</button>
+        ${files.length ? `<button class="secondary-btn" id="projectPlanClearUploadBtn" type="button">Auswahl leeren</button>` : ""}
+      </div>
+      <p class="${statusClass}">${escapeHtml(statusText)}</p>
+      <p class="muted project-plan-upload-diagnostics">Plan-Diagnose: ausgewählt ${Number(upload.selected || files.length || 0)} · übernommen ${Number(upload.imported || 0)} · gespeichert ${Number(upload.saved || 0)}</p>
+    </div>`;
+}
+
 function renderProjectPlansView() {
   const container = $("#projectPlansContent");
   if (!container) return;
@@ -4969,6 +5021,7 @@ function renderProjectPlansView() {
         <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Bezeichnung, Datei, Stand">
       </label>
       <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Gerät gespeichert.</p>
+      ${renderProjectPlanUploadPanel()}
       <datalist id="appPlanNameSuggestions">${APP_PLAN_NAME_SUGGESTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
       <datalist id="projectPlanFloorOptions">${PLAN_FLOOR_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
       <datalist id="projectPlanComponentOptions">${PLAN_COMPONENT_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
@@ -7500,109 +7553,144 @@ async function handlePlanFiles(files) {
 
 
 async function importProjectPlanFiles(files, projectId = state.currentProjectId) {
+  const fileList = Array.from(files || []).filter(Boolean);
+  if (!fileList.length) {
+    setProjectPlanUploadState({ files: [], selected: 0, imported: 0, saved: 0, error: "Keine Datei ausgewählt.", message: "", busy: false });
+    renderProjectPlansView();
+    showAppToast("Keine Datei ausgewählt.", { type: "error" });
+    return { selected: 0, imported: 0, saved: 0 };
+  }
   const project = projectById(projectId);
-  if (!project) return showAppToast("Bitte zuerst ein Projekt öffnen.", { type: "error" });
+  if (!project) {
+    setProjectPlanUploadState({ selected: fileList.length, imported: 0, saved: 0, error: "Kein aktives Projekt gefunden. Bitte Projekt öffnen.", busy: false });
+    renderProjectPlansView();
+    showAppToast("Kein aktives Projekt gefunden. Bitte Projekt öffnen.", { type: "error" });
+    return { selected: fileList.length, imported: 0, saved: 0 };
+  }
   state.currentProjectId = project.id;
   const protocol = ensureProjectPlanLibraryProtocol(project.id);
-  if (!protocol) return showAppToast("Projektplanablage konnte nicht vorbereitet werden.", { type: "error" });
-  const fileList = Array.from(files || []);
-  if (!fileList.length) return;
+  if (!protocol) {
+    setProjectPlanUploadState({ selected: fileList.length, imported: 0, saved: 0, error: "Projektplanablage konnte nicht vorbereitet werden.", busy: false });
+    renderProjectPlansView();
+    showAppToast("Projektplanablage konnte nicht vorbereitet werden.", { type: "error" });
+    return { selected: fileList.length, imported: 0, saved: 0 };
+  }
+  setProjectPlanUploadState({ files: fileList, selected: fileList.length, imported: 0, saved: 0, message: "Planübernahme läuft ...", error: "", busy: true });
+  renderProjectPlansView();
   let imported = 0;
+  let savedCount = 0;
   for (const file of fileList) {
     if (!file || !file.size) {
       showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { type: "error" });
       continue;
     }
-    const meta = derivePlanMeta(file.name, project.planDate || "");
-    const type = file.type || guessFileType(file.name);
-    const plan = normalizePlanMeta({
-      id: uid("plan"),
-      number: protocol.plans.length + 1,
-      fileName: file.name,
-      title: meta.title,
-      appPlanName: meta.appPlanName,
-      category: meta.category,
-      floor: meta.floor,
-      component: meta.component,
-      planNumber: meta.planNumber,
-      planNo: meta.planNumber,
-      planDate: meta.planDate,
-      planIndex: "",
-      documentStatus: "verwendet",
-      source: "uploaded",
-      dropboxPath: "",
-      dropboxSharedLink: "",
-      dropboxFileName: "",
-      dropboxFileId: "",
-      dropboxRev: "",
-      lastSyncedAt: "",
-      lastManualSync: "",
-      syncStatus: "not_configured",
-      autoMetaStatus: "",
-      planDateCandidates: [],
-      remark: "",
-      type,
-      fileSize: file.size || 0,
-      pageCount: type === "application/pdf" ? 0 : 1,
-      currentPage: 1,
-      zoom: 1,
-      renderStatus: "idle",
-      renderError: ""
-    });
-    await idbPut("plans", {
-      id: plan.id,
-      projectId: project.id,
-      acceptanceId: protocol.id,
-      protocolId: protocol.id,
-      fileName: file.name,
-      fileType: plan.type,
-      fileSize: plan.fileSize,
-      planName: plan.title,
-      appPlanName: plan.appPlanName || plan.title || "",
-      category: plan.category || "Sonstiges",
-      floor: plan.floor || "",
-      component: plan.component || "",
-      planNo: plan.planNo || plan.planNumber || "",
-      planNumber: plan.planNumber,
-      planDate: plan.planDate,
-      planIndex: plan.planIndex,
-      documentStatus: plan.documentStatus,
-      source: plan.source,
-      dropboxPath: plan.dropboxPath,
-      dropboxSharedLink: plan.dropboxSharedLink,
-      dropboxFileName: plan.dropboxFileName,
-      dropboxFileId: plan.dropboxFileId,
-      dropboxRev: plan.dropboxRev,
-      lastSyncedAt: plan.lastSyncedAt,
-      lastManualSync: plan.lastManualSync,
-      syncStatus: plan.syncStatus,
-      autoMetaStatus: plan.autoMetaStatus,
-      planDateCandidates: plan.planDateCandidates,
-      remark: plan.remark,
-      pageCount: plan.pageCount,
-      blob: file
-    });
-    const saved = await idbGet("plans", plan.id);
-    if (!saved?.blob || !saved.blob.size) {
-      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { type: "error" });
-      continue;
+    try {
+      const meta = derivePlanMeta(file.name, project.planDate || "");
+      const type = file.type || guessFileType(file.name);
+      const plan = normalizePlanMeta({
+        id: uid("plan"),
+        number: protocol.plans.length + 1,
+        fileName: file.name,
+        title: meta.title,
+        appPlanName: meta.appPlanName,
+        category: meta.category,
+        floor: meta.floor,
+        component: meta.component,
+        planNumber: meta.planNumber,
+        planNo: meta.planNumber,
+        planDate: meta.planDate,
+        planIndex: "",
+        documentStatus: "verwendet",
+        source: "uploaded",
+        dropboxPath: "",
+        dropboxSharedLink: "",
+        dropboxFileName: "",
+        dropboxFileId: "",
+        dropboxRev: "",
+        lastSyncedAt: "",
+        lastManualSync: "",
+        syncStatus: "not_configured",
+        autoMetaStatus: "",
+        planDateCandidates: [],
+        remark: "",
+        type,
+        fileSize: file.size || 0,
+        pageCount: type === "application/pdf" ? 0 : 1,
+        currentPage: 1,
+        zoom: 1,
+        renderStatus: "idle",
+        renderError: ""
+      });
+      await idbPut("plans", {
+        id: plan.id,
+        projectId: project.id,
+        acceptanceId: protocol.id,
+        protocolId: protocol.id,
+        fileName: file.name,
+        fileType: plan.type,
+        fileSize: plan.fileSize,
+        planName: plan.title,
+        appPlanName: plan.appPlanName || plan.title || "",
+        category: plan.category || "Sonstiges",
+        floor: plan.floor || "",
+        component: plan.component || "",
+        planNo: plan.planNo || plan.planNumber || "",
+        planNumber: plan.planNumber,
+        planDate: plan.planDate,
+        planIndex: plan.planIndex,
+        documentStatus: plan.documentStatus,
+        source: plan.source,
+        dropboxPath: plan.dropboxPath,
+        dropboxSharedLink: plan.dropboxSharedLink,
+        dropboxFileName: plan.dropboxFileName,
+        dropboxFileId: plan.dropboxFileId,
+        dropboxRev: plan.dropboxRev,
+        lastSyncedAt: plan.lastSyncedAt,
+        lastManualSync: plan.lastManualSync,
+        syncStatus: plan.syncStatus,
+        autoMetaStatus: plan.autoMetaStatus,
+        planDateCandidates: plan.planDateCandidates,
+        remark: plan.remark,
+        pageCount: plan.pageCount,
+        blob: file
+      });
+      const saved = await idbGet("plans", plan.id);
+      if (!saved?.blob || !saved.blob.size) {
+        showAppToast("Plan konnte nicht gespeichert werden.", { type: "error" });
+        continue;
+      }
+      savedCount += 1;
+      plan.fileSize = saved.blob.size || plan.fileSize;
+      protocol.plans.push(plan);
+      if (plan.type === "application/pdf") {
+        await preloadPdf(plan);
+        await extractPdfPlanMetadata(plan);
+      }
+      imported += 1;
+    } catch (error) {
+      console.error("Plan konnte nicht gespeichert werden", { error, fileName: file?.name });
+      showAppToast("Plan konnte nicht gespeichert werden.", { type: "error" });
     }
-    plan.fileSize = saved.blob.size || plan.fileSize;
-    protocol.plans.push(plan);
-    if (plan.type === "application/pdf") {
-      await preloadPdf(plan);
-      await extractPdfPlanMetadata(plan);
-    }
-    imported += 1;
   }
   protocol.updatedAt = new Date().toISOString();
   const projectRecord = projectById(project.id);
   if (projectRecord) projectRecord.updatedAt = protocol.updatedAt;
   await persist();
+  const message = imported === 1 ? "1 Plan übernommen." : `${imported} Pläne übernommen.`;
+  setProjectPlanUploadState({
+    files: [],
+    selected: fileList.length,
+    imported,
+    saved: savedCount,
+    message: imported ? message : "Keine Pläne übernommen.",
+    error: imported ? "" : "Plan konnte nicht gespeichert werden.",
+    busy: false
+  });
   showView("projectPlansView");
   renderProjectPlansView();
   renderDatalists();
-  showAppToast(imported === 1 ? "Plan hochgeladen und im Projekt gespeichert." : `${imported} Pläne hochgeladen und im Projekt gespeichert.`, { type: imported ? "success" : "info" });
+  showAppToast(imported ? message : "Plan konnte nicht gespeichert werden.", { type: imported ? "success" : "error" });
+  return { selected: fileList.length, imported, saved: savedCount };
 }
 
 function deleteProjectPlan(protocolId, planId) {
@@ -14582,8 +14670,9 @@ function bindEvents() {
   });
   bindOptional("#projectPlansContent", "change", (event) => {
     if (event.target.matches("#projectPlanUploadInput")) {
-      importProjectPlanFiles(event.target.files || [], state.currentProjectId);
+      setPendingProjectPlanFiles(event.target.files || []);
       event.target.value = "";
+      renderProjectPlansView();
       return;
     }
     if (event.target.matches("[data-project-plan-field]")) {
@@ -14763,6 +14852,13 @@ function bindEvents() {
     if (useProjectPlanButton) useProjectPlanForCurrentAcceptance(useProjectPlanButton.dataset.protocolId, useProjectPlanButton.dataset.useProjectPlan);
     const projectPlanUpload = event.target.closest("#projectPlanUploadBtn");
     if (projectPlanUpload) $("#projectPlanUploadInput")?.click();
+    const projectPlanApplyUpload = event.target.closest("#projectPlanApplyUploadBtn");
+    if (projectPlanApplyUpload) importProjectPlanFiles(state.projectPlanUpload?.files || [], state.currentProjectId);
+    const projectPlanClearUpload = event.target.closest("#projectPlanClearUploadBtn");
+    if (projectPlanClearUpload) {
+      setProjectPlanUploadState({ files: [], selected: 0, imported: 0, saved: 0, message: "Auswahl geleert.", error: "", busy: false });
+      renderProjectPlansView();
+    }
     const deleteProjectPlanButton = event.target.closest("[data-delete-project-plan]");
     if (deleteProjectPlanButton) deleteProjectPlan(deleteProjectPlanButton.dataset.protocolId, deleteProjectPlanButton.dataset.deleteProjectPlan);
     const projectModule = event.target.closest("[data-project-module]");
