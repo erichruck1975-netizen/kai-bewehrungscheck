@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v190";
+const APP_VERSION = "v191";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -2755,7 +2755,7 @@ async function buildProjectPlanInventory(projectId = state.currentProjectId) {
 
 function projectPlanDiagnosticsHtml(diagnostics = {}) {
   return `
-    <p class="muted project-plan-upload-diagnostics">Plan-Diagnose: Rohdaten ${Number(diagnostics.rawCount || 0)} - Aktuelles Projekt ${escapeHtml(diagnostics.currentProjectId || "keins")} - Fuer dieses Projekt sichtbar ${Number(diagnostics.visibleCount || 0)} - Ohne Projektzuordnung ${Number(diagnostics.withoutProjectId || 0)} - Andere Projektzuordnung ${Number(diagnostics.otherProjectId || 0)} - Ungueltig/ohne Name ${Number(diagnostics.invalidCount || 0)} - Nach Upload uebernommen ${Number(diagnostics.uploadedImported || 0)} - Gespeichert ${Number(diagnostics.uploadedSaved || 0)}</p>`;
+    <p class="muted project-plan-upload-diagnostics">Plan-Diagnose: Rohdaten ${Number(diagnostics.rawCount || 0)} - Aktuelles Projekt ${escapeHtml(diagnostics.currentProjectId || "keins")} - Für dieses Projekt sichtbar ${Number(diagnostics.visibleCount || 0)} - Ohne Projektzuordnung ${Number(diagnostics.withoutProjectId || 0)} - Andere Projektzuordnung ${Number(diagnostics.otherProjectId || 0)} - Ungültig/ohne Name ${Number(diagnostics.invalidCount || 0)} - Nach Upload übernommen ${Number(diagnostics.uploadedImported || 0)} - Gespeichert ${Number(diagnostics.uploadedSaved || 0)}</p>`;
 }
 
 function unassignedProjectPlanCard(item) {
@@ -2769,10 +2769,10 @@ function unassignedProjectPlanCard(item) {
 
 async function assignUnassignedPlansToCurrentProject() {
   const project = projectById(state.currentProjectId);
-  if (!project) return showAppToast("Kein aktives Projekt gefunden. Bitte Projekt oeffnen.", { type: "error" });
+  if (!project) return showAppToast("Kein aktives Projekt gefunden. Bitte Projekt öffnen.", { type: "error" });
   const inventory = await buildProjectPlanInventory(project.id);
-  if (!inventory.withoutProjectId.length) return showAppToast("Keine Plaene ohne Projektzuordnung gefunden.", { type: "info" });
-  if (!confirm(`${inventory.withoutProjectId.length} Plan/Plaene ohne Projektzuordnung dem aktuellen Projekt zuordnen?`)) return;
+  if (!inventory.withoutProjectId.length) return showAppToast("Keine Pläne ohne Projektzuordnung gefunden.", { type: "info" });
+  if (!confirm(`${inventory.withoutProjectId.length} Plan/Pläne ohne Projektzuordnung dem aktuellen Projekt zuordnen?`)) return;
   const protocol = ensureProjectPlanLibraryProtocol(project.id);
   let assigned = 0;
   for (const item of inventory.withoutProjectId) {
@@ -2784,9 +2784,9 @@ async function assignUnassignedPlansToCurrentProject() {
   }
   protocol.updatedAt = new Date().toISOString();
   await persist();
-  setProjectPlanUploadState({ message: `${assigned} Plan/Plaene aktuellem Projekt zugeordnet.`, error: "", imported: assigned, saved: assigned, busy: false });
+  setProjectPlanUploadState({ message: `${assigned} Plan/Pläne aktuellem Projekt zugeordnet.`, error: "", imported: assigned, saved: assigned, busy: false });
   renderProjectPlansView();
-  showAppToast(`${assigned} Plan/Plaene aktuellem Projekt zugeordnet.`, { type: "success" });
+  showAppToast(`${assigned} Plan/Pläne aktuellem Projekt zugeordnet.`, { type: "success" });
 }
 
 window.kaiDebugPlans = async function kaiDebugPlans() {
@@ -5240,28 +5240,77 @@ function setPendingProjectPlanFiles(files) {
   });
 }
 
+function isProjectPlanPdfCandidate(file) {
+  const name = String(file?.name || "").toLowerCase();
+  const type = String(file?.type || "").toLowerCase();
+  if (name.endsWith(".pdf")) return true;
+  return type === "application/pdf";
+}
+
+function ensureProjectPlanFileInput() {
+  let input = document.getElementById("projectPlanFileInput");
+  if (input) return input;
+  input = document.createElement("input");
+  input.id = "projectPlanFileInput";
+  input.className = "visually-hidden";
+  input.type = "file";
+  input.accept = ".pdf,application/pdf";
+  input.multiple = true;
+  input.setAttribute("aria-hidden", "true");
+  input.addEventListener("change", handleProjectPlanFileInputChange);
+  document.body.appendChild(input);
+  return input;
+}
+
+function openProjectPlanFilePicker() {
+  const input = ensureProjectPlanFileInput();
+  input.value = "";
+  input.click();
+}
+
+async function handleProjectPlanFileInputChange(event) {
+  const input = event.target;
+  const files = Array.from(input.files || []).filter(Boolean);
+  input.value = "";
+  const activeProjectId = activeProjectIdForPlanUpload();
+  state.lastProjectPlanUploadDebug = newProjectPlanUploadDebug(files, activeProjectId);
+  updateProjectPlanUploadDebug({ fileInputEventAt: new Date().toISOString(), fileInputFiles: files.length });
+  if (!files.length) {
+    pushProjectPlanUploadError("file-input", "Android-Dateiauswahl hat keine Dateien an die App übergeben.");
+    setProjectPlanUploadState({ files: [], selected: 0, imported: 0, saved: 0, message: "", error: "Android-Dateiauswahl hat keine Dateien an die App übergeben.", busy: false });
+    await renderProjectPlansView();
+    showAppToast("Android-Dateiauswahl hat keine Dateien an die App übergeben.", { type: "error", timeout: 8000 });
+    return;
+  }
+  const pdfFiles = files.filter(isProjectPlanPdfCandidate);
+  const rejected = files.filter((file) => !isProjectPlanPdfCandidate(file));
+  if (rejected.length) {
+    pushProjectPlanUploadError("file-type", `${rejected.length} Datei(en) sind keine PDF-Dateien.`, { rejected: rejected.map((file) => ({ name: file.name || "", type: file.type || "", size: file.size || 0 })) });
+  }
+  if (!pdfFiles.length) {
+    setProjectPlanUploadState({ files: [], selected: files.length, imported: 0, saved: 0, message: "", error: "Bitte PDF-Dateien auswählen.", busy: false });
+    await renderProjectPlansView();
+    showAppToast("Bitte PDF-Dateien auswählen.", { type: "error" });
+    return;
+  }
+  setProjectPlanUploadState({ files: [], selected: pdfFiles.length, imported: 0, saved: 0, message: `Importiere ${pdfFiles.length} Pläne ...`, error: "", busy: true });
+  await renderProjectPlansView();
+  await importProjectPlanFiles(pdfFiles, activeProjectId);
+}
+
 function renderProjectPlanUploadPanel() {
   const upload = state.projectPlanUpload || {};
-  const files = Array.from(upload.files || []);
-  const fileItems = files.length
-    ? `<ul class="project-plan-upload-files">${files.map((file) => `<li><span>${escapeHtml(file.name || "Plan")}</span><small>${escapeHtml(formatFileSize(file.size || 0))} - ${escapeHtml(file.type || guessFileType(file.name || "") || "Typ offen")}</small></li>`).join("")}</ul>`
-    : `<p class="muted">Noch keine Datei ausgewaehlt.</p>`;
   const statusClass = upload.error ? "field-warning" : "field-hint";
-  const statusText = upload.error || upload.message || "Bitte PDF oder Bildplan auswaehlen.";
+  const statusText = upload.error || upload.message || "PDF-Pläne auswählen und direkt importieren.";
+  const debugHtml = projectPlanUploadDebugHtml();
   return `
-    <div class="project-plan-upload-panel">
-      <div class="project-plan-upload-head">
-        <strong>Ausgewaehlt:</strong>
-        <span class="badge neutral">${files.length}</span>
-      </div>
-      ${fileItems}
-      <div class="result-actions compact project-plan-upload-actions">
-        <button class="primary-btn" id="projectPlanApplyUploadBtn" type="button" ${files.length || upload.busy ? "" : "disabled"}>${upload.busy ? "Uebernehme ..." : "Uebernehmen"}</button>
-        ${files.length ? `<button class="secondary-btn" id="projectPlanClearUploadBtn" type="button">Auswahl leeren</button>` : ""}
-      </div>
+    <div class="project-plan-upload-panel compact-upload-panel">
       <p class="${statusClass}">${escapeHtml(statusText)}</p>
-      ${projectPlanUploadDebugHtml()}
-      <p class="muted project-plan-upload-diagnostics">Plan-Diagnose: ausgewaehlt ${Number(upload.selected || files.length || 0)} - uebernommen ${Number(upload.imported || 0)} - gespeichert ${Number(upload.saved || 0)}</p>
+      <details class="plan-debug-details project-plan-upload-debug">
+        <summary>Upload-Diagnose anzeigen</summary>
+        ${debugHtml || `<p class="muted project-plan-upload-diagnostics">Noch kein Upload-Ereignis.</p>`}
+        <p class="muted project-plan-upload-diagnostics">Letzter Stand: ausgewählt ${Number(upload.selected || 0)} - importiert ${Number(upload.imported || 0)} - gespeichert ${Number(upload.saved || 0)}</p>
+      </details>
     </div>`;
 }
 
@@ -5270,7 +5319,7 @@ async function renderProjectPlansView() {
   if (!container) return;
   const project = projectById(state.currentProjectId) || null;
   if (!project) {
-    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewaehlt. Bitte zuerst ein Projekt oeffnen.</p></section>`;
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt öffnen.</p></section>`;
     return;
   }
   const searchValue = $("#projectPlanSearchInput")?.value || "";
@@ -5280,15 +5329,15 @@ async function renderProjectPlansView() {
   const visibleEntries = normalizedSearch
     ? entries.filter(({ protocol, plan }) => [plan.planNumber, plan.appPlanName, plan.title, plan.category, plan.floor, plan.component, plan.fileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase().includes(normalizedSearch))
     : entries;
-  const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Plaene")}` : "Kein Dropbox-Projektordner hinterlegt.";
+  const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
   const unassignedHtml = inventory.withoutProjectId.length ? `
     <section class="panel">
       <div class="section-head">
         <div>
-          <h3>Plaene ohne Projektzuordnung</h3>
-          <p class="muted">Diese gespeicherten Plaene haben keine projectId und wurden nicht geloescht.</p>
+          <h3>Pläne ohne Projektzuordnung</h3>
+          <p class="muted">Diese gespeicherten Pläne haben keine projectId und wurden nicht gelöscht.</p>
         </div>
-        <button class="secondary-btn" id="assignUnassignedProjectPlansBtn" type="button">Diese Plaene aktuellem Projekt zuordnen</button>
+        <button class="secondary-btn" id="assignUnassignedProjectPlansBtn" type="button">Diese Pläne aktuellem Projekt zuordnen</button>
       </div>
       ${inventory.withoutProjectId.map(unassignedProjectPlanCard).join("")}
     </section>` : "";
@@ -5304,16 +5353,15 @@ async function renderProjectPlansView() {
     <section class="panel project-plan-toolbar-card">
       <div class="section-head">
         <div>
-          <h3>Projektplaene</h3>
-          <p class="muted">Plaene werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verfuegung.</p>
+          <h3>Projektpl?ne</h3>
+          <p class="muted">Pläne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verf?gung.</p>
         </div>
-        <button class="primary-btn" id="projectPlanUploadBtn" type="button">Plan hochladen</button>
+        <button class="primary-btn" id="projectPlanUploadBtn" type="button">PDF-Pläne hochladen</button>
       </div>
-      <input id="projectPlanUploadInput" class="visually-hidden" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" multiple>
       <label>Plan suchen
         <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Bezeichnung, Datei, Stand">
       </label>
-      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird spaeter ueber eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Geraet gespeichert.</p>
+      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird sp?ter über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Ger?t gespeichert.</p>
       ${renderProjectPlanUploadPanel()}
       ${projectPlanDiagnosticsHtml(inventory.diagnostics)}
       <datalist id="appPlanNameSuggestions">${APP_PLAN_NAME_SUGGESTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
@@ -5325,7 +5373,7 @@ async function renderProjectPlansView() {
         <h3>Importierte Planunterlagen</h3>
         <span class="badge neutral">${visibleEntries.length} von ${entries.length}</span>
       </div>
-      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter pruefen." : "Keine Planunterlagen fuer dieses Projekt gefunden. Ueber Plan hochladen koennen PDF- und Bildplaene direkt im Projekt gespeichert werden."}</div>`}
+      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. über PDF-Pläne hochladen k?nnen PDF-Dateien direkt im Projekt gespeichert werden."}</div>`}
     </section>
     ${unassignedHtml}`;
 }
@@ -7880,7 +7928,7 @@ function pushProjectPlanUploadError(step, error, extra = {}) {
 function projectPlanUploadDebugHtml() {
   const debug = state.lastProjectPlanUploadDebug;
   if (!debug) return "";
-  return `<p class="muted project-plan-upload-diagnostics">Plan-Upload-Diagnose: ausgewaehlte Dateien ${Number(debug.selected || 0)} - aktives Projekt ${escapeHtml(debug.activeProjectId || "fehlt")} - erzeugte Planobjekte ${Number(debug.created || 0)} - IndexedDB gespeichert ${Number(debug.saved || 0)} - Readback erfolgreich ${Number(debug.readBack || 0)} - in Inventur gefunden ${Number(debug.inInventory || 0)} - gerendert ${Number(debug.rendered || 0)}${debug.lastError ? ` - letzter Fehler: ${escapeHtml(debug.lastError)}` : ""}</p>`;
+  return `<p class="muted project-plan-upload-diagnostics">Plan-Upload-Diagnose: ausgewählte Dateien ${Number(debug.selected || 0)} - aktives Projekt ${escapeHtml(debug.activeProjectId || "fehlt")} - erzeugte Planobjekte ${Number(debug.created || 0)} - IndexedDB gespeichert ${Number(debug.saved || 0)} - Readback erfolgreich ${Number(debug.readBack || 0)} - in Inventur gefunden ${Number(debug.inInventory || 0)} - gerendert ${Number(debug.rendered || 0)}${debug.lastError ? ` - letzter Fehler: ${escapeHtml(debug.lastError)}` : ""}</p>`;
 }
 
 function storedProjectPlanRecord(plan, file, project, protocol) {
@@ -7935,22 +7983,29 @@ function storedProjectPlanRecord(plan, file, project, protocol) {
 async function importProjectPlanFiles(files, projectId = state.currentProjectId) {
   const fileList = Array.from(files || []).filter(Boolean);
   const activeProjectId = projectId || activeProjectIdForPlanUpload();
-  state.lastProjectPlanUploadDebug = newProjectPlanUploadDebug(fileList, activeProjectId);
+  const previousUploadDebug = state.lastProjectPlanUploadDebug || {};
+  state.lastProjectPlanUploadDebug = {
+    ...newProjectPlanUploadDebug(fileList, activeProjectId),
+    fileInputEventAt: previousUploadDebug.fileInputEventAt || "",
+    fileInputFiles: previousUploadDebug.fileInputFiles ?? fileList.length,
+    errors: previousUploadDebug.errors || [],
+    lastError: previousUploadDebug.lastError || ""
+  };
 
   if (!fileList.length) {
-    pushProjectPlanUploadError("pending-files", "Keine Datei ausgewaehlt.");
-    setProjectPlanUploadState({ files: [], selected: 0, imported: 0, saved: 0, error: "Keine Datei ausgewaehlt.", message: "", busy: false });
+    pushProjectPlanUploadError("pending-files", "Keine Datei ausgewählt.");
+    setProjectPlanUploadState({ files: [], selected: 0, imported: 0, saved: 0, error: "Keine Datei ausgewählt.", message: "", busy: false });
     await renderProjectPlansView();
-    showAppToast("Keine Datei ausgewaehlt.", { type: "error" });
+    showAppToast("Keine Datei ausgewählt.", { type: "error" });
     return { selected: 0, imported: 0, saved: 0, readBack: 0, inInventory: 0, rendered: 0 };
   }
 
   const project = projectById(activeProjectId);
   if (!project) {
-    pushProjectPlanUploadError("active-project", "Kein aktives Projekt gefunden. Bitte Projekt oeffnen.", { activeProjectId });
-    setProjectPlanUploadState({ files: fileList, selected: fileList.length, imported: 0, saved: 0, error: "Kein aktives Projekt gefunden. Bitte Projekt oeffnen.", message: "", busy: false });
+    pushProjectPlanUploadError("active-project", "Kein aktives Projekt gefunden. Bitte Projekt öffnen.", { activeProjectId });
+    setProjectPlanUploadState({ files: fileList, selected: fileList.length, imported: 0, saved: 0, error: "Kein aktives Projekt gefunden. Bitte Projekt öffnen.", message: "", busy: false });
     await renderProjectPlansView();
-    showAppToast("Kein aktives Projekt gefunden. Bitte Projekt oeffnen.", { type: "error" });
+    showAppToast("Kein aktives Projekt gefunden. Bitte Projekt öffnen.", { type: "error" });
     return { selected: fileList.length, imported: 0, saved: 0, readBack: 0, inInventory: 0, rendered: 0 };
   }
 
@@ -7965,7 +8020,7 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
     return { selected: fileList.length, imported: 0, saved: 0, readBack: 0, inInventory: 0, rendered: 0 };
   }
 
-  setProjectPlanUploadState({ files: fileList, selected: fileList.length, imported: 0, saved: 0, message: "Planuebernahme laeuft ...", error: "", busy: true });
+  setProjectPlanUploadState({ files: fileList, selected: fileList.length, imported: 0, saved: 0, message: "Planübernahme l?uft ...", error: "", busy: true });
   await renderProjectPlansView();
 
   let created = 0;
@@ -7976,8 +8031,8 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
 
   for (const file of fileList) {
     if (!file || !file.size) {
-      pushProjectPlanUploadError("file-read", "Plan konnte nicht gelesen werden. Bitte Datei erneut auswaehlen.", { fileName: file?.name || "" });
-      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswaehlen.", { type: "error" });
+      pushProjectPlanUploadError("file-read", "Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { fileName: file?.name || "" });
+      showAppToast("Plan konnte nicht gelesen werden. Bitte Datei erneut auswählen.", { type: "error" });
       continue;
     }
     let plan = null;
@@ -8094,14 +8149,14 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
   const renderedCount = importedIds.filter((id) => finalInventory.entries.some(({ plan }) => plan.id === id)).length;
   updateProjectPlanUploadDebug({ rendered: renderedCount });
   const success = renderedCount > 0;
-  const message = renderedCount === 1 ? "1 Plan uebernommen und gespeichert." : `${renderedCount} Plaene uebernommen und gespeichert.`;
+  const message = renderedCount === 1 ? "1 Plan übernommen und gespeichert." : `${renderedCount} Pläne übernommen und gespeichert.`;
   const errorText = success ? "" : (state.lastProjectPlanUploadDebug?.lastError || "Plan konnte nicht gespeichert werden.");
   setProjectPlanUploadState({
     files: [],
     selected: fileList.length,
     imported: renderedCount,
     saved: savedCount,
-    message: success ? message : "Keine Plaene uebernommen.",
+    message: success ? message : "Keine Pläne übernommen.",
     error: errorText,
     busy: false
   });
@@ -15088,12 +15143,6 @@ function bindEvents() {
     if (event.target.matches("[data-project-plan-field]")) updateProjectPlanField(event.target);
   });
   bindOptional("#projectPlansContent", "change", (event) => {
-    if (event.target.matches("#projectPlanUploadInput")) {
-      setPendingProjectPlanFiles(event.target.files || []);
-      event.target.value = "";
-      renderProjectPlansView();
-      return;
-    }
     if (event.target.matches("[data-project-plan-field]")) {
       updateProjectPlanField(event.target);
       renderProjectPlansView();
@@ -15270,14 +15319,7 @@ function bindEvents() {
     const useProjectPlanButton = event.target.closest("[data-use-project-plan]");
     if (useProjectPlanButton) useProjectPlanForCurrentAcceptance(useProjectPlanButton.dataset.protocolId, useProjectPlanButton.dataset.useProjectPlan);
     const projectPlanUpload = event.target.closest("#projectPlanUploadBtn");
-    if (projectPlanUpload) $("#projectPlanUploadInput")?.click();
-    const projectPlanApplyUpload = event.target.closest("#projectPlanApplyUploadBtn");
-    if (projectPlanApplyUpload) importProjectPlanFiles(state.projectPlanUpload?.files || [], activeProjectIdForPlanUpload());
-    const projectPlanClearUpload = event.target.closest("#projectPlanClearUploadBtn");
-    if (projectPlanClearUpload) {
-      setProjectPlanUploadState({ files: [], selected: 0, imported: 0, saved: 0, message: "Auswahl geleert.", error: "", busy: false });
-      renderProjectPlansView();
-    }
+    if (projectPlanUpload) openProjectPlanFilePicker();
     const assignUnassignedProjectPlans = event.target.closest("#assignUnassignedProjectPlansBtn");
     if (assignUnassignedProjectPlans) {
       assignUnassignedPlansToCurrentProject();
