@@ -4245,3 +4245,35 @@ dialog button {
     padding: 10px 12px;
   }
 }
+
+/* v186 Stammdaten: Aktionsbuttons in geoeffneten Ansprechpartner-/Firmenkarten an Formularbreite ausrichten */
+.master-card-collapsible .result-actions.compact {
+  width: auto;
+  max-width: calc(100% - 28px);
+  box-sizing: border-box;
+}
+
+.master-card-collapsible .result-actions.compact > button {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.person-master-card .result-actions.compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+@media (max-width: 640px) {
+  .master-card-collapsible .result-actions.compact {
+    margin-left: 12px;
+    margin-right: 12px;
+    max-width: calc(100% - 24px);
+  }
+
+  .person-master-card .result-actions.compact {
+    grid-template-columns: 1fr;
+  }
+}
+

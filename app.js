@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v184";
+const APP_VERSION = "v186";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -2462,7 +2462,7 @@ function planMetaLine(plan = {}) {
     plan.component || "ohne Bauteil",
     plan.planDate ? `Stand ${plan.planDate}` : "ohne Stand",
     plan.planIndex ? `Index ${plan.planIndex}` : "ohne Index"
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(" - ");
 }
 
 function normalizePlanMeta(plan = {}) {
@@ -3951,17 +3951,17 @@ function masterSection(title, collection, items, fields) {
 function masterItemSummary(collection, item) {
   if (collection === "companies") {
     const city = addressCity(item.address);
-    return [item.name || "Neue Firma", city, item.role].filter(Boolean).join(" · ");
+    return [item.name || "Neue Firma", city, item.role].filter(Boolean).join(" - ");
   }
-  if (collection === "inspectors") return [item.name || "Neuer Prüfer", item.office].filter(Boolean).join(" · ");
-  return [item.name || "Neuer Eintrag", item.company || item.role].filter(Boolean).join(" · ");
+  if (collection === "inspectors") return [item.name || "Neuer Prüfer", item.office].filter(Boolean).join(" - ");
+  return [item.name || "Neuer Eintrag", item.company || item.role].filter(Boolean).join(" - ");
 }
 
 function personMasterSummaryLines(person = {}) {
   return {
     name: person.name || "Neuer Ansprechpartner",
-    companyRole: [person.companyName || person.company, person.role].filter(Boolean).join(" ? "),
-    contact: [person.phone, person.email].filter(Boolean).join(" ? ")
+    companyRole: [person.companyName || person.company, person.role].filter(Boolean).join(" - "),
+    contact: [person.phone, person.email].filter(Boolean).join(" - ")
   };
 }
 
@@ -4014,7 +4014,7 @@ function renderCompanyContactsForMaster(company) {
   return `
     <div class="company-contact-list">
       <h4>Ansprechpartner</h4>
-      ${contacts.length ? `<ul>${contacts.map((person) => `<li><strong>${escapeHtml(person.name || "Ohne Namen")}</strong>${person.role ? ` · ${escapeHtml(person.role)}` : ""}${person.phone ? ` · ${escapeHtml(person.phone)}` : ""}${person.email ? ` · ${escapeHtml(person.email)}` : ""}</li>`).join("")}</ul>` : `<p class="muted">Noch keine Ansprechpartner zugeordnet.</p>`}
+      ${contacts.length ? `<ul>${contacts.map((person) => `<li><strong>${escapeHtml(person.name || "Ohne Namen")}</strong>${person.role ? ` - ${escapeHtml(person.role)}` : ""}${person.phone ? ` - ${escapeHtml(person.phone)}` : ""}${person.email ? ` - ${escapeHtml(person.email)}` : ""}</li>`).join("")}</ul>` : `<p class="muted">Noch keine Ansprechpartner zugeordnet.</p>`}
     </div>
   `;
 }
@@ -5004,7 +5004,7 @@ function projectPlanCard(protocol, plan) {
     plan.planDate ? `Stand ${plan.planDate}` : "ohne Stand",
     plan.planIndex ? `Index ${plan.planIndex}` : "ohne Index",
     pins ? `${pins} Pin(s)` : "ohne Pins"
-  ].join(" · ");
+  ].join(" - ");
   return `
     <details class="project-plan-card project-plan-accordion" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
       <summary class="project-plan-summary-row">
@@ -6222,7 +6222,7 @@ function sampleSummary(sample = {}, check = null, statusOverride = "") {
   if (sample.note || sample.followupNote) parts.push("Bemerkung vorhanden");
   if (sample.pinId) parts.push("Pin vorhanden");
   if (!sampleHasDocumentation(sample)) parts.push("noch nicht dokumentiert");
-  return parts.map(escapeHtml).join(" · ");
+  return parts.map(escapeHtml).join(" - ");
 }
 
 function checkSummary(check) {
@@ -6236,7 +6236,7 @@ function checkSummary(check) {
   if (hasNote) parts.push("Bemerkung vorhanden");
   if (hasPin) parts.push("Pin vorhanden");
   if (!checkHasDocumentation(check)) parts.push("noch nicht dokumentiert");
-  return parts.map(escapeHtml).join(" · ");
+  return parts.map(escapeHtml).join(" - ");
 }
 
 function checkScopeRow(item) {
@@ -10360,7 +10360,7 @@ function siteControlItemSummary(item, pin, photos) {
   parts.push(`${photos.length} Foto${photos.length === 1 ? "" : "s"}`);
   parts.push(pin ? `Pin ${pinLabel(pin)}` : "kein Pin");
   if (item.responsible) parts.push(`Zuständig: ${item.responsible}`);
-  return parts.join(" · ");
+  return parts.join(" - ");
 }
 
 function siteControlItemCard(item) {
@@ -10791,7 +10791,7 @@ function dailyReportListCard(protocol) {
   const report = normalizeDailyReportMeta(protocol.dailyReport || {}, protocol);
   const project = projectById(protocol.projectId);
   const summary = report.workOriginal || report.workDescription || report.incidentsOriginal || "Noch keine Tätigkeiten dokumentiert.";
-  const time = [report.workStart, report.workEnd].filter(Boolean).join(" - ") || "Arbeitszeit offen";
+  const time = [report.workStart, report.workEnd].filter(Boolean).join(" · ") || "Arbeitszeit offen";
   return `<article class="acceptance-card"><div><h4>${escapeHtml(protocol.head.acceptanceTitle || "Bautagesbericht")}</h4><div class="muted">${escapeHtml(formatDate(report.date || protocol.head.createdAt || protocol.createdAt))} · ${escapeHtml(project?.name || protocol.head.projectName || "Projekt")}</div><div class="muted">${escapeHtml(time)} · ${escapeHtml(report.crew || "Kolonne offen")} · ${escapeHtml(report.status || "Entwurf")}</div><p class="muted">${escapeHtml(summary).slice(0, 180)}</p></div><div class="card-actions"><button class="secondary-btn" data-open-daily-report="${protocol.id}" type="button">Öffnen</button><button class="danger-btn" data-delete-daily-report="${protocol.id}" type="button">Löschen</button></div></article>`;
 }
 
@@ -11417,7 +11417,7 @@ async function buildDailyReportParts() {
   const originalLanguageLabel = report.original_language === "sq" ? "Albanisch" : report.original_language === "mixed" ? "Deutsch/Albanisch gemischt" : report.original_language === "auto" ? "automatisch" : "Deutsch";
   const workerHtml = workers.length ? `<table class="worker-table"><thead><tr><th>Name</th><th>Firma</th><th>Rolle</th><th>von</th><th>bis</th><th>Pause</th><th>Stunden</th><th>Bemerkung</th></tr></thead><tbody>${workers.map((worker) => `<tr><td>${escapeHtml(worker.name || "-")}</td><td>${escapeHtml(worker.company || "")}</td><td>${escapeHtml(worker.role || "")}</td><td>${escapeHtml(worker.start || "")}</td><td>${escapeHtml(worker.end || "")}</td><td>${escapeHtml(worker.breakHours || "")}</td><td>${escapeHtml(workerHours(worker) || worker.hours || "")}</td><td>${escapeHtml(worker.note || "")}</td></tr>`).join("")}</tbody></table>` : `<p class="muted">Keine einzelnen Mitarbeiter erfasst.</p>`;
   const projectRows = [["Projekt", project?.name || p.head.projectName], ["Adresse", formatAddress(p.siteControl?.address || p.head.siteAddress || p.head.siteAddressText || projectAddressText(project, { multiline: true }) || "", { multiline: true }) || "ohne Angabe"], ["Datum", formatDate(report.date || p.head.createdAt)], ["Bericht-Nr.", report.reportNumber], ["Status", report.status]];
-  const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" - ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
+  const workRows = [["Arbeitszeit", [report.workStart, report.workEnd].filter(Boolean).join(" · ")], ["Pause", report.breakHours ? `${report.breakHours} h` : ""], ["Gesamtstunden", report.totalHours || dailyReportTotalHours(report)], ["Mitarbeiter / Kolonne", report.crew], ["Firma", report.company], ["Anzahl Personen", report.personCount], ["Vorarbeiter", report.foreman]];
   const body = `<div class="report-export"><main class="report-page"><header class="report-header"><div><div class="brand">Kai BauSuite · Bautagesbericht</div><h1>Bautagesbericht</h1><p class="muted">Tagesdokumentation mit Arbeitszeiten, Tätigkeiten, Wetter, Fotos und Bestätigung.</p></div><aside class="doc-meta"><div><span>Datum</span><strong>${escapeHtml(formatDate(report.date || p.head.createdAt))}</strong></div><div><span>Status</span><strong>${escapeHtml(report.status || "Entwurf")}</strong></div></aside></header><section class="info-grid"><div class="info-card"><h3>Projekt</h3>${projectRows.map(([k,v]) => infoRow(k,v)).join("")}</div><div class="info-card"><h3>Arbeitszeit / Personal</h3>${workRows.map(([k,v]) => infoRow(k,v)).join("")}</div></section><section class="daily-card"><h3>Wetter / Bedingungen</h3><p class="text-block">${escapeHtml(report.weather || "Keine Wetterdaten erfasst.")}</p></section><section class="daily-card"><h3>Anwesende Mitarbeiter</h3>${workerHtml}</section><section class="daily-card"><h3>Tätigkeiten</h3>${infoRow("Bereich / Ort", report.area)}${infoRow("Gewerk", report.trade)}${infoRow("Originalsprache", originalLanguageLabel)}${infoRow("Übersetzungsstatus", report.translationStatus || "nicht übersetzt")}<p class="text-block">${escapeHtml(germanWorkText || "Keine Tätigkeiten dokumentiert.")}</p>${report.translation_provider ? `<p class="muted">Deutsche Fassung: ${escapeHtml(report.translation_provider)} · bitte geprüft verwenden.</p>` : ""}${showOriginalText ? `<div class="info-card"><h3>Originaltext</h3><p class="text-block">${escapeHtml(originalWorkText)}</p></div>` : ""}</section><section class="daily-card"><h3>Baustellendokumentation</h3>${infoRow("Materiallieferungen", report.materials)}${infoRow("Geräte / Maschinen", report.equipment)}${infoRow("Besondere Vorkommnisse", report.incidentsOriginal)}${infoRow("Behinderungen", report.delays)}${infoRow("Mängel / Hinweise", report.defects)}</section><section class="daily-card"><h3>Fotos</h3>${photoHtml}</section><section class="daily-card result-box"><h3>Bestätigung</h3>${infoRow("Bestätigt von", report.confirmedBy)}<p class="muted">Digitale Unterschriften können später für Bautagesberichte ergänzt werden.</p></section><footer class="footer-note"><span>${escapeHtml(project?.name || p.head.projectName || "Kai BauSuite")}</span><span>${escapeHtml(formatDate(report.date || p.head.createdAt))}</span><span>Kai BauSuite</span></footer></main></div>`;
   const title = sanitizeFileName(`Bautagesbericht_${project?.name || p.head.projectName || "Projekt"}_${report.date || (p.head.createdAt || "").slice(0,10)}`);
   return { css, body, title, fileName: `${title}.pdf` };
@@ -16413,6 +16413,9 @@ async function boot() {
 }
 
 boot();
+
+
+
 
 
 
