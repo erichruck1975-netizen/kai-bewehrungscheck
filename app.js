@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v177";
+const APP_VERSION = "v178";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -3764,11 +3764,14 @@ function masterItemSummary(collection, item) {
 }
 
 function masterItemCard(collection, item, fields) {
+  const contactButton = ["ownPersons", "inspectors", "companies"].includes(collection)
+    ? `<button class="secondary-btn small-btn" type="button" data-pick-contact-master="${collection}" data-master-id="${item.id}">Kontakt vom Handy übernehmen</button>`
+    : "";
   const body = `
       <div class="grid compact-grid">
         ${fields.map((field) => masterInput(collection, item, field)).join("")}
       </div>
-      <button class="danger-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">Löschen</button>`;
+      <div class="result-actions compact">${contactButton}<button class="danger-btn small-btn" type="button" data-delete-master="${collection}" data-master-id="${item.id}">Löschen</button></div>`;
   if (collection === "companies") {
     return `
       <details class="master-card master-card-collapsible" data-master-item="${collection}" data-master-id="${item.id}" ${item.name ? "" : "open"}>
@@ -3896,6 +3899,90 @@ function inspectorMasterFields() {
     { name: "phone", label: "Telefon" },
     { name: "note", label: "Bemerkung" }
   ];
+}
+
+function contactPickerAvailable() {
+  return !!(navigator.contacts && typeof navigator.contacts.select === "function");
+}
+
+function firstContactValue(value) {
+  if (Array.isArray(value)) return String(value[0] || "").trim();
+  return String(value || "").trim();
+}
+
+function contactNameValue(contact = {}) {
+  const value = firstContactValue(contact.name);
+  return value || firstContactValue(contact.displayName);
+}
+
+function contactAssignmentsForMaster(collection, contact = {}) {
+  const name = contactNameValue(contact);
+  const phone = firstContactValue(contact.tel);
+  const email = firstContactValue(contact.email);
+  if (collection === "companies") {
+    return [
+      { field: "contact", label: "Ansprechpartner", value: name },
+      { field: "phone", label: "Telefon", value: phone },
+      { field: "email", label: "E-Mail", value: email }
+    ].filter((entry) => entry.value);
+  }
+  return [
+    { field: "name", label: "Name", value: name },
+    { field: "phone", label: "Telefon", value: phone },
+    { field: "email", label: "E-Mail", value: email }
+  ].filter((entry) => entry.value);
+}
+
+async function pickContactForMasterItem(collection, id) {
+  if (!contactPickerAvailable()) {
+    showAppToast("Kontaktübernahme wird von diesem Browser nicht unterstützt.", { type: "error", timeout: 6500 });
+    return;
+  }
+  syncMasterDataFromDom();
+  const item = state.masterData?.[collection]?.find((entry) => entry.id === id);
+  if (!item) {
+    showAppToast("Stammdatensatz nicht gefunden.", { type: "error" });
+    return;
+  }
+  let contacts = [];
+  try {
+    contacts = await navigator.contacts.select(["name", "tel", "email"], { multiple: false });
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    console.warn("Kontaktübernahme fehlgeschlagen", error);
+    showAppToast("Kontakt konnte nicht übernommen werden: " + (error?.message || error), { type: "error", timeout: 6500 });
+    return;
+  }
+  const contact = contacts?.[0];
+  if (!contact) return;
+  const assignments = contactAssignmentsForMaster(collection, contact);
+  if (!assignments.length) {
+    showAppToast("Der ausgewählte Kontakt enthält keinen Namen, keine Telefonnummer oder E-Mail.", { type: "info", timeout: 5200 });
+    return;
+  }
+  const conflicts = assignments.filter(({ field, value }) => {
+    const existing = String(getPath(item, field) || "").trim();
+    return existing && existing !== value;
+  });
+  const overwrite = conflicts.length
+    ? confirm(`Bestehende Felder überschreiben?\n\n${conflicts.map(({ label }) => "- " + label).join("\n")}`)
+    : true;
+  let changed = 0;
+  assignments.forEach(({ field, value }) => {
+    const existing = String(getPath(item, field) || "").trim();
+    if (existing && existing !== value && !overwrite) return;
+    if (existing === value) return;
+    setPath(item, field, value);
+    changed += 1;
+  });
+  if (!changed) {
+    showAppToast(overwrite ? "Kontakt war bereits übernommen." : "Bestehende Felder wurden beibehalten.", { type: "info" });
+    return;
+  }
+  setMasterDataDirty(true);
+  renderDatalists();
+  renderMasterData();
+  showAppToast("Kontakt vom Handy übernommen. Bitte Stammdaten speichern.", { type: "success", timeout: 5200 });
 }
 
 function addMasterItem(collection) {
@@ -13937,6 +14024,11 @@ function bindEvents() {
     }
     const addMaster = event.target.closest("[data-add-master]");
     if (addMaster) addMasterItem(addMaster.dataset.addMaster);
+    const pickContactMaster = event.target.closest("[data-pick-contact-master]");
+    if (pickContactMaster) {
+      pickContactForMasterItem(pickContactMaster.dataset.pickContactMaster, pickContactMaster.dataset.masterId);
+      return;
+    }
     const deleteMaster = event.target.closest("[data-delete-master]");
     if (deleteMaster && confirm("Diesen Stammdatensatz löschen?")) deleteMasterItem(deleteMaster.dataset.deleteMaster, deleteMaster.dataset.masterId);
     const addLookup = event.target.closest("[data-add-lookup]");
