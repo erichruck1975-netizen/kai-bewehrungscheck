@@ -1,13 +1,16 @@
-﻿const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
+const STORAGE_KEY = "kai-bewehrungscheck-protocols-v01";
 const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v187";
+const APP_VERSION = "v189";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
 const MASTER_DATA_SNAPSHOT_LIMIT = 10;
+const PROJECT_SNAPSHOT_KEY = "kaiProjectSnapshots";
+const PROJECT_LAST_VERSION_KEY = "kaiProjectLastAppVersion";
+const PROJECT_SNAPSHOT_LIMIT = 10;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
 const STABLE_TAG = "v52-stable-before-v53";
@@ -287,7 +290,9 @@ function uid(prefix = "id") {
 async function load({ persistRepairs = true } = {}) {
   state.dataLoaded = false;
   state.db = await openDatabase();
-  state.projects = (await idbGetAll("projects")).map(normalizeProject);
+  const rawProjects = await idbGetAll("projects");
+  await ensureProjectUpdateSnapshot(rawProjects);
+  state.projects = rawProjects.map(normalizeProject);
   state.protocols = (await idbGetAll("protocols")).map(normalizeProtocol);
   const rawMasterData = await idbGet("masterData", "app");
   await ensureMasterDataUpdateSnapshot(rawMasterData);
@@ -338,6 +343,7 @@ async function persistAsync() {
     return;
   }
   try {
+    await createProjectSnapshot("before-persist");
     await Promise.all([
       ...state.projects.map((project) => idbPut("projects", normalizeProject(project))),
       ...state.protocols.map((protocol) => idbPut("protocols", stripRuntimeFields(protocol)))
@@ -468,7 +474,8 @@ function normalizeProjectTradeAssignments(assignments = []) {
 }
 
 function normalizeProject(project = {}) {
-  const address = normalizeAddress(project.address || project.siteAddress || project.baustellenAdresse || "");
+  const address = getProjectAddress(project);
+  const addressFields = addressToHeadFields(address);
   const clientSnapshot = project.clientSnapshot || snapshotCompany(resolveCompanyById(project.clientId) || resolveCompany(project.client || ""));
   const contractorSnapshot = project.contractorSnapshot || snapshotCompany(resolveCompanyById(project.contractorId) || resolveCompany(project.contractor || ""));
   const inspectorSnapshot = project.inspectorSnapshot || snapshotInspector(resolveInspectorById(project.inspectorId) || resolveInspector(project.inspector || ""));
@@ -478,6 +485,17 @@ function normalizeProject(project = {}) {
     name: project.name || project.projectName || "Unbenanntes Projekt",
     address,
     siteAddress: formatAddress(address),
+    projectAddress: formatAddress(address),
+    street: address.street || "",
+    siteStreet: addressFields.siteStreet || address.street || "",
+    zip: address.zip || "",
+    siteZip: address.zip || "",
+    city: address.city || "",
+    siteCity: address.city || "",
+    country: address.country || "Deutschland",
+    siteCountry: address.country || "Deutschland",
+    plans: project.plans || [],
+    planMetadata: project.planMetadata || project.projectPlanMetadata || [],
     clientId: project.clientId || clientSnapshot?.id || "",
     clientSnapshot,
     client: project.client || clientSnapshot?.name || "",
@@ -586,6 +604,89 @@ async function ensureMasterDataUpdateSnapshot(rawMasterData) {
   }
 }
 
+function compactProjectSnapshot(projects = state.projects) {
+  return (projects || []).filter(Boolean).map((project) => {
+    const address = getProjectAddress(project);
+    return normalizeProject({
+      ...project,
+      address,
+      siteAddress: formatAddress(address),
+      tradeAssignments: normalizeProjectTradeAssignments(project.tradeAssignments || project.trade_assignments || [])
+    });
+  });
+}
+
+function projectSnapshotCounts(projects = []) {
+  const normalized = compactProjectSnapshot(projects);
+  return {
+    projects: normalized.length,
+    withAddress: normalized.filter((project) => hasAddressContent(getProjectAddress(project))).length,
+    tradeAssignments: normalized.reduce((sum, project) => sum + (project.tradeAssignments || []).length, 0)
+  };
+}
+
+function readProjectSnapshots() {
+  try {
+    const data = JSON.parse(localStorage.getItem(PROJECT_SNAPSHOT_KEY) || "[]");
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeProjectSnapshots(snapshots) {
+  try {
+    localStorage.setItem(PROJECT_SNAPSHOT_KEY, JSON.stringify((snapshots || []).slice(0, PROJECT_SNAPSHOT_LIMIT)));
+  } catch (error) {
+    console.warn("Projekt-Snapshot konnte nicht gespeichert werden", error);
+  }
+}
+
+async function createProjectSnapshot(reason = "manual", sourceProjects = null) {
+  let source = sourceProjects;
+  if (!source && state.db) source = await idbGetAll("projects");
+  if (!source) source = state.projects;
+  const projects = compactProjectSnapshot(source || []);
+  const counts = projectSnapshotCounts(projects);
+  if (!counts.projects) return null;
+  const snapshot = { id: uid("projectsnap"), reason, createdAt: new Date().toISOString(), appVersion: APP_VERSION, counts, projects };
+  writeProjectSnapshots([snapshot, ...readProjectSnapshots()].slice(0, PROJECT_SNAPSHOT_LIMIT));
+  return snapshot;
+}
+
+function latestProjectSnapshot() {
+  return readProjectSnapshots()[0] || null;
+}
+
+async function ensureProjectUpdateSnapshot(rawProjects) {
+  const previousVersion = localStorage.getItem(PROJECT_LAST_VERSION_KEY) || "";
+  if (previousVersion !== APP_VERSION) {
+    await createProjectSnapshot(`before-update-${APP_VERSION}`, rawProjects || []);
+    localStorage.setItem(PROJECT_LAST_VERSION_KEY, APP_VERSION);
+  }
+}
+
+function showLatestProjectSnapshot() {
+  const snapshot = latestProjectSnapshot();
+  if (!snapshot) return showAppToast("Noch keine Projektsicherung vorhanden.", { type: "info" });
+  alert(`Letzte Projektsicherung\n\nDatum: ${formatDate(snapshot.createdAt)}\nVersion: ${snapshot.appVersion || "unbekannt"}\nProjekte: ${snapshot.counts?.projects || 0}\nMit Adresse: ${snapshot.counts?.withAddress || 0}\nGewerk-Zuordnungen: ${snapshot.counts?.tradeAssignments || 0}\nGrund: ${snapshot.reason || "Snapshot"}`);
+}
+
+async function restoreLatestProjectSnapshot() {
+  const snapshot = latestProjectSnapshot();
+  if (!snapshot?.projects?.length) return showAppToast("Keine Projektsicherung vorhanden.", { type: "error" });
+  if (!confirm("Letzte Projektsicherung wiederherstellen? Aktuelle Projekte werden nicht gelöscht, gesicherte Projektstände werden wieder eingespielt.")) return;
+  await createProjectSnapshot("before-project-restore", state.projects);
+  const byId = new Map((state.projects || []).map((project) => [project.id, normalizeProject(project)]));
+  compactProjectSnapshot(snapshot.projects).forEach((project) => byId.set(project.id, normalizeProject(project)));
+  state.projects = Array.from(byId.values());
+  await Promise.all(state.projects.map((project) => idbPut("projects", normalizeProject(project))));
+  renderHomeProjects();
+  renderProjectDirectory();
+  if ($("#projectHubView")?.classList.contains("active")) renderProjectHub();
+  if ($("#settingsView")?.classList.contains("active")) await checkStorage();
+  showAppToast("Projektsicherung wiederhergestellt.", { type: "success", timeout: 7000 });
+}
 function stripMasterDraftFlag(item = {}) {
   const { _draft, ...clean } = item;
   return clean;
@@ -732,14 +833,23 @@ function uniqueValues(values) {
 
 function getProjectAddress(project = {}) {
   if (!project) return normalizeAddress();
-  const objectAddress = normalizeAddress(project.address || "");
-  const textAddress = normalizeAddress(project.siteAddress || project.baustellenAdresse || project.baustellenadresse || project.location || project.addressText || "");
+  const projectAddressValue = project.projectAddress || project.project_address || "";
+  const objectAddress = normalizeAddress(project.address || (typeof projectAddressValue === "object" ? projectAddressValue : "") || "");
+  const textAddress = normalizeAddress(
+    project.siteAddress ||
+    (typeof projectAddressValue === "string" ? projectAddressValue : "") ||
+    project.baustellenAdresse ||
+    project.baustellenadresse ||
+    project.location ||
+    project.addressText ||
+    ""
+  );
   const fieldAddress = normalizeAddress({
-    street: project.street || project.siteStreet || project.addressStreet || project.road || "",
-    houseNumber: project.houseNumber || project.house_number || project.streetNumber || project.siteHouseNumber || project.addressNumber || "",
-    zip: project.zip || project.postalCode || project.postcode || project.siteZip || "",
-    city: project.city || project.town || project.siteCity || "",
-    country: project.country || project.siteCountry || "Deutschland"
+    street: project.street || project.siteStreet || project.projectStreet || project.addressStreet || project.road || "",
+    houseNumber: project.houseNumber || project.house_number || project.streetNumber || project.siteHouseNumber || project.projectHouseNumber || project.addressNumber || "",
+    zip: project.zip || project.postalCode || project.postcode || project.siteZip || project.projectZip || "",
+    city: project.city || project.town || project.siteCity || project.projectCity || "",
+    country: project.country || project.siteCountry || project.projectCountry || "Deutschland"
   });
   const direct = hasAddressContent(objectAddress) ? objectAddress : (hasAddressContent(textAddress) ? textAddress : fieldAddress);
   const street = direct.street || "";
@@ -749,7 +859,6 @@ function getProjectAddress(project = {}) {
   const country = direct.country || "Deutschland";
   return normalizeAddress({ street, houseNumber, zip, city, country });
 }
-
 function projectAddressText(project = {}, { multiline = false } = {}) {
   return formatAddress(getProjectAddress(project), { multiline });
 }
@@ -2046,6 +2155,10 @@ function rememberProjectPlansReturnContext() {
   }
 }
 
+function activeProjectIdForPlanUpload() {
+  return state.currentProjectId || state.current?.projectId || $("#projectIdInput")?.value || "";
+}
+
 async function returnFromProjectPlansView() {
   const target = state.projectPlansReturn;
   state.projectPlansReturn = null;
@@ -2196,7 +2309,7 @@ function openProjectDialog(projectId = "") {
   $("#projectNoteInput").value = "";
   renderProjectTradeAssignments(project?.tradeAssignments || []);
   if (project) {
-    const address = normalizeAddress(project.address || project.siteAddress);
+    const address = getProjectAddress(project);
     $("#projectNameInput").value = project.name || "";
     $("#projectStreetInput").value = address.street || "";
     $("#projectZipInput").value = address.zip || "";
@@ -2217,16 +2330,22 @@ function openProjectDialog(projectId = "") {
   $("#projectDialog").showModal();
 }
 
-function createProjectFromDialog() {
+async function createProjectFromDialog() {
   const projectId = $("#projectIdInput").value;
   const existing = projectId ? projectById(projectId) : null;
   const name = $("#projectNameInput").value.trim();
-  const address = normalizeAddress({
+  let address = normalizeAddress({
     street: $("#projectStreetInput").value.trim(),
     zip: $("#projectZipInput").value.trim(),
     city: $("#projectCityInput").value.trim(),
     country: $("#projectCountryInput").value.trim() || "Deutschland"
   });
+  const existingAddress = existing ? getProjectAddress(existing) : normalizeAddress();
+  if (existing && hasAddressContent(existingAddress) && !hasAddressContent(address)) {
+    const clearAddress = confirm("Dieses Projekt hatte bereits eine Adresse. Die aktuelle Eingabe ist leer. Adresse wirklich aus diesem Projekt entfernen?");
+    if (!clearAddress) address = existingAddress;
+  }
+  await createProjectSnapshot(existing ? "before-project-save" : "before-project-create", state.projects);
   const clientSelection = projectPartySelection("client", $("#projectClientInput").value.trim(), existing);
   const contractorSelection = projectPartySelection("contractor", $("#projectContractorInput").value.trim(), existing);
   const inspectorSelection = projectPartySelection("inspector", $("#projectInspectorInput").value.trim(), existing);
@@ -2236,6 +2355,15 @@ function createProjectFromDialog() {
     name: name || "Unbenanntes Projekt",
     address,
     siteAddress: formatAddress(address),
+    projectAddress: formatAddress(address),
+    street: address.street || "",
+    siteStreet: address.street || "",
+    zip: address.zip || "",
+    siteZip: address.zip || "",
+    city: address.city || "",
+    siteCity: address.city || "",
+    country: address.country || "Deutschland",
+    siteCountry: address.country || "Deutschland",
     client: clientSelection.text,
     clientId: clientSelection.id,
     clientSnapshot: clientSelection.snapshot,
@@ -2265,7 +2393,7 @@ function createProjectFromDialog() {
   }
   state.currentProjectId = project.id;
   protocolsForProject(project.id).forEach((protocol) => syncProtocolProjectFields(protocol, project));
-  persist();
+  await persist();
   renderHomeProjects();
   renderList();
   $("#projectDialog").close();
@@ -2277,7 +2405,6 @@ function createProjectFromDialog() {
   if (returnView === "siteControlView") renderSiteControlView();
   showView(returnView === "editorView" ? "projectHubView" : returnView);
 }
-
 function projectPartySelection(kind, value, existingProject = null) {
   if (kind === "client" || kind === "contractor") {
     const company = resolveCompany(value);
@@ -2522,6 +2649,157 @@ function projectPlanEntries(projectId = state.currentProjectId) {
   });
   return entries;
 }
+
+function isDisplayablePlanRecord(record = {}) {
+  return !!(record.id || record.planId || record.plan_id || record.blobId || record.fileName || record.filename || record.name || record.title || record.label || record.planName || record.appPlanName);
+}
+
+function planRecordProjectId(record = {}) {
+  const direct = record.projectId || record.project_id || record.activeProjectId || record.active_project_id || "";
+  if (direct) return direct;
+  const protocolId = record.protocolId || record.acceptanceId || record.acceptance_id || "";
+  return protocolId ? (state.protocols.find((protocol) => protocol.id === protocolId)?.projectId || "") : "";
+}
+
+function planFromStoreRecord(record = {}) {
+  return normalizePlanMeta({
+    id: record.id || record.planId || record.plan_id || record.blobId || uid("plan"),
+    planId: record.planId || record.plan_id || record.id || "",
+    number: record.number || 0,
+    fileName: record.fileName || record.filename || record.dropboxFileName || record.name || record.title || record.planName || "Plan",
+    title: record.title || record.planName || record.name || record.label || record.appPlanName || "",
+    appPlanName: record.appPlanName || record.displayName || record.planName || record.title || record.name || "",
+    category: record.category || record.type || record.planType || record.plan_category || "",
+    floor: record.floor || record.level || "",
+    component: record.component || record.bauteil || "",
+    planNumber: record.planNumber || record.planNo || record.plan_number || "",
+    planNo: record.planNo || record.planNumber || record.plan_number || "",
+    planDate: record.planDate || record.date || "",
+    planIndex: record.planIndex || record.index || "",
+    documentStatus: record.documentStatus || record.status || "verwendet",
+    source: record.source || (record.dropboxPath || record.dropboxSharedLink ? "dropbox_path" : "uploaded"),
+    dropboxPath: record.dropboxPath || "",
+    dropboxSharedLink: record.dropboxSharedLink || record.dropboxLink || "",
+    dropboxFileName: record.dropboxFileName || "",
+    dropboxFileId: record.dropboxFileId || "",
+    dropboxRev: record.dropboxRev || "",
+    lastSyncedAt: record.lastSyncedAt || "",
+    lastManualSync: record.lastManualSync || "",
+    syncStatus: record.syncStatus || "",
+    autoMetaStatus: record.autoMetaStatus || "",
+    planDateCandidates: record.planDateCandidates || [],
+    remark: record.remark || record.note || "",
+    type: record.fileType || record.type || guessFileType(record.fileName || record.filename || record.name || ""),
+    fileSize: record.fileSize || record.size || record.blob?.size || 0,
+    pageCount: record.pageCount || 0,
+    currentPage: record.currentPage || 1,
+    zoom: record.zoom || 1,
+    renderStatus: record.renderStatus || "",
+    renderError: record.renderError || ""
+  });
+}
+
+function projectPlanEntryKey(entry, projectId = state.currentProjectId) {
+  const plan = entry?.plan || entry || {};
+  return plan.id ? `id:${plan.id}` : `meta:${projectPlanDedupeKey(plan, projectId)}`;
+}
+
+async function buildProjectPlanInventory(projectId = state.currentProjectId) {
+  const project = projectById(projectId) || null;
+  const rawRecords = await idbGetAll("plans");
+  const rawDisplayable = rawRecords.filter(isDisplayablePlanRecord);
+  const entries = projectPlanEntries(projectId);
+  const seen = new Set(entries.map((entry) => projectPlanEntryKey(entry, projectId)));
+  const withoutProjectId = [];
+  const otherProjectId = [];
+  const invalid = rawRecords.filter((record) => !isDisplayablePlanRecord(record));
+  const libraryProtocol = project ? ensureProjectPlanLibraryProtocol(project.id) : null;
+
+  rawDisplayable.forEach((record) => {
+    const recordProjectId = planRecordProjectId(record);
+    const plan = planFromStoreRecord(record);
+    const entryKey = projectPlanEntryKey({ plan }, projectId);
+    if (recordProjectId === projectId) {
+      if (!seen.has(entryKey) && libraryProtocol) {
+        libraryProtocol.plans = libraryProtocol.plans || [];
+        if (!libraryProtocol.plans.some((item) => item.id === plan.id)) libraryProtocol.plans.push(plan);
+        entries.push({ protocol: libraryProtocol, plan });
+        seen.add(entryKey);
+      }
+      return;
+    }
+    if (!recordProjectId) {
+      withoutProjectId.push({ record, plan });
+      return;
+    }
+    otherProjectId.push({ record, plan, projectId: recordProjectId });
+  });
+
+  const upload = state.projectPlanUpload || {};
+  const diagnostics = {
+    rawCount: rawRecords.length,
+    currentProjectId: projectId || "",
+    visibleCount: entries.length,
+    withoutProjectId: withoutProjectId.length,
+    otherProjectId: otherProjectId.length,
+    invalidCount: invalid.length,
+    uploadedSelected: Number(upload.selected || 0),
+    uploadedImported: Number(upload.imported || 0),
+    uploadedSaved: Number(upload.saved || 0),
+    names: entries.map(({ plan }) => planCompactTitle(plan))
+  };
+  state.lastProjectPlanDebug = diagnostics;
+  return { project, entries, withoutProjectId, otherProjectId, invalid, diagnostics };
+}
+
+function projectPlanDiagnosticsHtml(diagnostics = {}) {
+  return `
+    <p class="muted project-plan-upload-diagnostics">Plan-Diagnose: Rohdaten ${Number(diagnostics.rawCount || 0)} - Aktuelles Projekt ${escapeHtml(diagnostics.currentProjectId || "keins")} - Fuer dieses Projekt sichtbar ${Number(diagnostics.visibleCount || 0)} - Ohne Projektzuordnung ${Number(diagnostics.withoutProjectId || 0)} - Andere Projektzuordnung ${Number(diagnostics.otherProjectId || 0)} - Ungueltig/ohne Name ${Number(diagnostics.invalidCount || 0)} - Nach Upload uebernommen ${Number(diagnostics.uploadedImported || 0)} - Gespeichert ${Number(diagnostics.uploadedSaved || 0)}</p>`;
+}
+
+function unassignedProjectPlanCard(item) {
+  const plan = item.plan || planFromStoreRecord(item.record || {});
+  return `
+    <article class="empty-card project-plan-unassigned-card">
+      <strong>${escapeHtml(planCompactTitle(plan))}</strong><br>
+      <span class="muted">Datei: ${escapeHtml(plan.fileName || plan.dropboxFileName || plan.id || "Plan")}</span>
+    </article>`;
+}
+
+async function assignUnassignedPlansToCurrentProject() {
+  const project = projectById(state.currentProjectId);
+  if (!project) return showAppToast("Kein aktives Projekt gefunden. Bitte Projekt oeffnen.", { type: "error" });
+  const inventory = await buildProjectPlanInventory(project.id);
+  if (!inventory.withoutProjectId.length) return showAppToast("Keine Plaene ohne Projektzuordnung gefunden.", { type: "info" });
+  if (!confirm(`${inventory.withoutProjectId.length} Plan/Plaene ohne Projektzuordnung dem aktuellen Projekt zuordnen?`)) return;
+  const protocol = ensureProjectPlanLibraryProtocol(project.id);
+  let assigned = 0;
+  for (const item of inventory.withoutProjectId) {
+    const plan = normalizePlanMeta({ ...item.plan });
+    await idbPut("plans", { ...(item.record || {}), id: plan.id, projectId: project.id, acceptanceId: protocol.id, protocolId: protocol.id });
+    protocol.plans = protocol.plans || [];
+    if (!protocol.plans.some((entry) => entry.id === plan.id)) protocol.plans.push(plan);
+    assigned += 1;
+  }
+  protocol.updatedAt = new Date().toISOString();
+  await persist();
+  setProjectPlanUploadState({ message: `${assigned} Plan/Plaene aktuellem Projekt zugeordnet.`, error: "", imported: assigned, saved: assigned, busy: false });
+  renderProjectPlansView();
+  showAppToast(`${assigned} Plan/Plaene aktuellem Projekt zugeordnet.`, { type: "success" });
+}
+
+window.kaiDebugPlans = async function kaiDebugPlans() {
+  const inventory = await buildProjectPlanInventory(state.currentProjectId);
+  return {
+    rawCount: inventory.diagnostics.rawCount,
+    visibleCount: inventory.diagnostics.visibleCount,
+    currentProjectId: inventory.diagnostics.currentProjectId,
+    withoutProjectId: inventory.diagnostics.withoutProjectId,
+    otherProjectId: inventory.diagnostics.otherProjectId,
+    invalidCount: inventory.diagnostics.invalidCount,
+    names: inventory.diagnostics.names
+  };
+};
 
 function syncStatusLabel(status = "") {
   return ({
@@ -4984,21 +5262,33 @@ function renderProjectPlanUploadPanel() {
     </div>`;
 }
 
-function renderProjectPlansView() {
+async function renderProjectPlansView() {
   const container = $("#projectPlansContent");
   if (!container) return;
   const project = projectById(state.currentProjectId) || null;
   if (!project) {
-    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt öffnen.</p></section>`;
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewaehlt. Bitte zuerst ein Projekt oeffnen.</p></section>`;
     return;
   }
   const searchValue = $("#projectPlanSearchInput")?.value || "";
-  const entries = projectPlanEntries(project.id);
+  const inventory = await buildProjectPlanInventory(project.id);
+  const entries = inventory.entries;
   const normalizedSearch = searchValue.trim().toLowerCase();
   const visibleEntries = normalizedSearch
     ? entries.filter(({ protocol, plan }) => [plan.planNumber, plan.appPlanName, plan.title, plan.category, plan.floor, plan.component, plan.fileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase().includes(normalizedSearch))
     : entries;
-  const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
+  const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Plaene")}` : "Kein Dropbox-Projektordner hinterlegt.";
+  const unassignedHtml = inventory.withoutProjectId.length ? `
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h3>Plaene ohne Projektzuordnung</h3>
+          <p class="muted">Diese gespeicherten Plaene haben keine projectId und wurden nicht geloescht.</p>
+        </div>
+        <button class="secondary-btn" id="assignUnassignedProjectPlansBtn" type="button">Diese Plaene aktuellem Projekt zuordnen</button>
+      </div>
+      ${inventory.withoutProjectId.map(unassignedProjectPlanCard).join("")}
+    </section>` : "";
   container.innerHTML = `
     <section class="panel project-plan-summary">
       <div>
@@ -5011,8 +5301,8 @@ function renderProjectPlansView() {
     <section class="panel project-plan-toolbar-card">
       <div class="section-head">
         <div>
-          <h3>Projektpläne</h3>
-          <p class="muted">Pläne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verfügung.</p>
+          <h3>Projektplaene</h3>
+          <p class="muted">Plaene werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verfuegung.</p>
         </div>
         <button class="primary-btn" id="projectPlanUploadBtn" type="button">Plan hochladen</button>
       </div>
@@ -5020,8 +5310,9 @@ function renderProjectPlansView() {
       <label>Plan suchen
         <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Bezeichnung, Datei, Stand">
       </label>
-      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Gerät gespeichert.</p>
+      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird spaeter ueber eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Geraet gespeichert.</p>
       ${renderProjectPlanUploadPanel()}
+      ${projectPlanDiagnosticsHtml(inventory.diagnostics)}
       <datalist id="appPlanNameSuggestions">${APP_PLAN_NAME_SUGGESTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
       <datalist id="projectPlanFloorOptions">${PLAN_FLOOR_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
       <datalist id="projectPlanComponentOptions">${PLAN_COMPONENT_OPTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
@@ -5031,8 +5322,9 @@ function renderProjectPlansView() {
         <h3>Importierte Planunterlagen</h3>
         <span class="badge neutral">${visibleEntries.length} von ${entries.length}</span>
       </div>
-      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. Über „Plan hochladen“ können PDF- und Bildpläne direkt im Projekt gespeichert werden."}</div>`}
-    </section>`;
+      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter pruefen." : "Keine Planunterlagen fuer dieses Projekt gefunden. Ueber Plan hochladen koennen PDF- und Bildplaene direkt im Projekt gespeichert werden."}</div>`}
+    </section>
+    ${unassignedHtml}`;
 }
 
 function safeProjectPlanCard(protocol, plan) {
@@ -14853,11 +15145,16 @@ function bindEvents() {
     const projectPlanUpload = event.target.closest("#projectPlanUploadBtn");
     if (projectPlanUpload) $("#projectPlanUploadInput")?.click();
     const projectPlanApplyUpload = event.target.closest("#projectPlanApplyUploadBtn");
-    if (projectPlanApplyUpload) importProjectPlanFiles(state.projectPlanUpload?.files || [], state.currentProjectId);
+    if (projectPlanApplyUpload) importProjectPlanFiles(state.projectPlanUpload?.files || [], activeProjectIdForPlanUpload());
     const projectPlanClearUpload = event.target.closest("#projectPlanClearUploadBtn");
     if (projectPlanClearUpload) {
       setProjectPlanUploadState({ files: [], selected: 0, imported: 0, saved: 0, message: "Auswahl geleert.", error: "", busy: false });
       renderProjectPlansView();
+    }
+    const assignUnassignedProjectPlans = event.target.closest("#assignUnassignedProjectPlansBtn");
+    if (assignUnassignedProjectPlans) {
+      assignUnassignedPlansToCurrentProject();
+      return;
     }
     const deleteProjectPlanButton = event.target.closest("[data-delete-project-plan]");
     if (deleteProjectPlanButton) deleteProjectPlan(deleteProjectPlanButton.dataset.protocolId, deleteProjectPlanButton.dataset.deleteProjectPlan);
@@ -14902,6 +15199,16 @@ function bindEvents() {
     const restoreMasterSnapshotButton = event.target.closest("[data-restore-master-snapshot]");
     if (restoreMasterSnapshotButton) {
       restoreLatestMasterDataSnapshot();
+      return;
+    }
+    const showProjectSnapshotButton = event.target.closest("[data-show-project-snapshot]");
+    if (showProjectSnapshotButton) {
+      showLatestProjectSnapshot();
+      return;
+    }
+    const restoreProjectSnapshotButton = event.target.closest("[data-restore-project-snapshot]");
+    if (restoreProjectSnapshotButton) {
+      restoreLatestProjectSnapshot();
       return;
     }
     const masterOverviewButton = event.target.closest("[data-master-overview]");
@@ -16021,6 +16328,7 @@ async function clearAllData() {
 async function collectDataInventory() {
   const protocols = (await idbGetAll("protocols")).map(normalizeProtocol);
   const projects = (await idbGetAll("projects")).map(normalizeProject);
+  const projectSnapshot = latestProjectSnapshot();
   const masterData = normalizeMasterData(await idbGet("masterData", "app"));
   const plans = await idbGetAll("plans");
   const photos = await idbGetAll("photos");
@@ -16032,6 +16340,8 @@ async function collectDataInventory() {
   const masterEntries = masterData.companies.length + masterData.inspectors.length + masterData.ownPersons.length + masterData.components.length + masterData.floors.length + masterData.acceptanceTypes.length + masterData.areaAxes.length + masterData.signatureRoles.length;
   return {
     projects: projects.length,
+    projectsWithAddress: projects.filter((project) => hasAddressContent(getProjectAddress(project))).length,
+    latestProjectSnapshot: projectSnapshot,
     protocols: protocols.length,
     rebar: rebar.length,
     followups: followups.length,
@@ -16054,13 +16364,19 @@ async function checkStorage() {
     const info = await collectDataInventory();
     $("#storageCheckResult").innerHTML = `
       <strong>Datenbestand</strong><br>
-      ${info.projects} Projekt(e) · ${info.rebar} Bewehrungsabnahme(n) · ${info.followups} Nachbegehung(en) · ${info.siteControls} Baustellenkontrolle(n) · ${info.dailyReports} Bautagesbericht(e)<br>
-      ${info.plans} Plan-Datei(en) · ${info.pins} Pin(s) · ${info.photos} Foto(s) · ${info.masterEntries} Stammdaten-Eintrag(e)<br>
-      DB: ${escapeHtml(info.dbName)} v${info.dbVersion} · Stores: ${escapeHtml(info.stores.join(", "))}<br>
-      App: ${escapeHtml(info.appVersion)} · letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}
+      ${info.projects} Projekt(e) - ${info.rebar} Bewehrungsabnahme(n) - ${info.followups} Nachbegehung(en) - ${info.siteControls} Baustellenkontrolle(n) - ${info.dailyReports} Bautagesbericht(e)<br>
+      ${info.plans} Plan-Datei(en) - ${info.pins} Pin(s) - ${info.photos} Foto(s) - ${info.masterEntries} Stammdaten-Eintrag(e)<br>
+      DB: ${escapeHtml(info.dbName)} v${info.dbVersion} - Stores: ${escapeHtml(info.stores.join(", "))}<br>
+      App: ${escapeHtml(info.appVersion)} - letzte Stammdaten-Speicherung: ${info.masterData.lastSavedAt ? escapeHtml(formatDate(info.masterData.lastSavedAt)) : "noch nicht manuell gespeichert"}<br>
+      Projekt-Diagnose: Projekte ${info.projects} - mit Adresse ${info.projectsWithAddress} - letzte Projektsicherung ${info.latestProjectSnapshot ? escapeHtml(formatDate(info.latestProjectSnapshot.createdAt)) : "keine"}<br>
+      <span class="field-hint">Hinweis: GitHub-Version und lokale Server-Version verwenden getrennte Browser-Speicher. Bitte Backup/Export nutzen, wenn du zwischen beiden wechselst.</span>
+      <div class="result-actions compact">
+        <button class="secondary-btn small-btn" type="button" data-show-project-snapshot>Letzte Projektsicherung anzeigen</button>
+        <button class="secondary-btn small-btn" type="button" data-restore-project-snapshot ${info.latestProjectSnapshot ? "" : "disabled"}>Letzte Projektsicherung wiederherstellen</button>
+      </div>
     `;
   } catch (error) {
-    $("#storageCheckResult").textContent = `IndexedDB verfügbar: nein oder fehlerhaft (${error?.message || error}).`;
+    $("#storageCheckResult").textContent = `IndexedDB verfuegbar: nein oder fehlerhaft (${error?.message || error}).`;
   }
 }
 
