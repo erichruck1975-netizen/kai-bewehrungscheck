@@ -163,6 +163,7 @@ const state = {
   protocols: [],
   masterData: null,
   masterDataDirty: false,
+  contactPhotoImport: { section: "", file: null, previewUrl: "", busy: false, result: null, error: "" },
   dataLoaded: false,
   masterDataSection: "",
   pendingMasterDataLeaveResolve: null,
@@ -510,6 +511,7 @@ function normalizeMasterData(masterData = {}) {
       contact: item.contact || "",
       phone: item.phone || "",
       email: item.email || "",
+      website: item.website || item.web || "",
       address: normalizeAddress(item.address || item.siteAddress || item.baustellenAdresse || ""),
       note: item.note || ""
     })),
@@ -3747,6 +3749,7 @@ function masterSection(title, collection, items, fields) {
         <h3>${escapeHtml(title)}</h3>
         <button class="secondary-btn" type="button" data-add-master="${collection}">${addLabel}</button>
       </div>
+      ${contactPhotoImportSupportedSection(collection) ? renderContactPhotoImportPanel(collection) : ""}
       <div class="master-items ${collection === "companies" ? "master-items-compact" : ""}">
         ${items.length ? items.map((item) => masterItemCard(collection, item, fields)).join("") : `<p class="muted">Noch keine Einträge.</p>`}
       </div>
@@ -3883,6 +3886,7 @@ function companyMasterFields() {
     { name: "address.country", label: "Land" },
     { name: "phone", label: "Telefon" },
     { name: "email", label: "E-Mail" },
+    { name: "website", label: "Website" },
     { name: "note", label: "Bemerkung" }
   ];
 }
@@ -3899,6 +3903,258 @@ function inspectorMasterFields() {
     { name: "phone", label: "Telefon" },
     { name: "note", label: "Bemerkung" }
   ];
+}
+
+
+function contactPhotoImportSupportedSection(collection) {
+  return ["companies", "ownPersons"].includes(collection);
+}
+
+function contactPhotoImportState(collection = "") {
+  const current = state.contactPhotoImport || {};
+  if (collection && current.section !== collection) return { section: collection, file: null, previewUrl: "", busy: false, result: null, error: "" };
+  return { section: collection || current.section || "", file: current.file || null, previewUrl: current.previewUrl || "", busy: !!current.busy, result: current.result || null, error: current.error || "" };
+}
+
+function renderContactPhotoImportPanel(collection) {
+  const current = contactPhotoImportState(collection);
+  const hasImage = !!current.previewUrl;
+  const result = current.result || null;
+  return `
+    <section class="panel master-section contact-photo-import" data-contact-photo-section="${escapeAttr(collection)}">
+      <div class="section-head">
+        <div>
+          <h3>Aus Foto erfassen</h3>
+          <p class="muted">Visitenkarte, Impressum, Bautafel, Firmenschild oder Screenshot auswerten. Es wird nichts gespeichert, bevor du bestätigst.</p>
+        </div>
+      </div>
+      <div class="result-actions compact">
+        <button class="secondary-btn small-btn" type="button" data-contact-photo-pick="camera" data-contact-section="${escapeAttr(collection)}">Visitenkarte fotografieren</button>
+        <button class="secondary-btn small-btn" type="button" data-contact-photo-pick="file" data-contact-section="${escapeAttr(collection)}">Bild auswählen</button>
+        <button class="secondary-btn small-btn" type="button" data-contact-photo-pick="file" data-contact-context="impressum" data-contact-section="${escapeAttr(collection)}">Impressum/Screenshot auswerten</button>
+      </div>
+      ${hasImage ? `<div class="contact-photo-preview"><img src="${escapeAttr(current.previewUrl)}" alt="Kontaktbild Vorschau"><div class="result-actions compact"><button class="primary-btn small-btn" type="button" data-contact-photo-extract data-contact-section="${escapeAttr(collection)}" ${current.busy ? "disabled" : ""}>${current.busy ? "Daten werden erkannt ..." : "Daten erkennen"}</button><button class="secondary-btn small-btn" type="button" data-contact-photo-discard>Bild verwerfen</button></div></div>` : `<p class="field-hint">Bild bleibt nur für die Erkennung im Browser/Server-Zwischenspeicher und wird nicht dauerhaft gespeichert.</p>`}
+      ${current.error ? `<p class="field-warning">${escapeHtml(current.error)}</p>` : ""}
+      ${result ? renderContactExtractPreview(result, collection) : ""}
+    </section>
+  `;
+}
+
+function contactExtractFields() {
+  return [
+    ["companyName", "Firma"], ["personName", "Ansprechpartner"], ["role", "Funktion"],
+    ["phone", "Telefon"], ["mobile", "Mobil"], ["email", "E-Mail"], ["website", "Website"],
+    ["street", "Straße / Hausnummer"], ["zip", "PLZ"], ["city", "Ort"], ["country", "Land"],
+    ["trade", "Gewerk / Branche"], ["notes", "Notiz"]
+  ];
+}
+
+function renderContactExtractPreview(result, collection) {
+  const warnings = Array.isArray(result.warnings) ? result.warnings.filter(Boolean) : [];
+  return `
+    <div class="master-card contact-extract-preview">
+      <h4>Erkannte Daten</h4>
+      <div class="grid compact-grid">
+        ${contactExtractFields().map(([field, label]) => `<label>${escapeHtml(label)}<input data-contact-extract-field="${escapeAttr(field)}" value="${escapeAttr(result[field] || "")}"></label>`).join("")}
+      </div>
+      ${result.rawText ? `<details><summary>Rohtext anzeigen</summary><p class="muted">${escapeHtml(result.rawText)}</p></details>` : ""}
+      ${warnings.length ? `<p class="field-warning">${escapeHtml(warnings.join(" "))}</p>` : ""}
+      <div class="result-actions compact">
+        <button class="primary-btn small-btn" type="button" data-contact-save="company">Als Firma speichern</button>
+        <button class="secondary-btn small-btn" type="button" data-contact-save="person">Als Ansprechpartner speichern</button>
+        <button class="secondary-btn small-btn" type="button" data-contact-save="both">Firma + Ansprechpartner speichern</button>
+        <button class="secondary-btn small-btn" type="button" data-contact-photo-discard>Verwerfen</button>
+      </div>
+      <p class="field-hint">Bitte Daten prüfen und korrigieren. Erst diese Buttons übernehmen Daten in die Stammdaten.</p>
+    </div>
+  `;
+}
+
+function contactExtractEndpoint() {
+  if (isLocalKaiMobileApp()) return "/api/stammdaten/extract-contact";
+  const voice = voiceTranscriptionEndpoint();
+  if (!voice) return "";
+  try {
+    const url = new URL(voice, window.location.origin);
+    url.pathname = "/api/stammdaten/extract-contact";
+    url.search = "";
+    url.hash = "";
+    return voice.startsWith("/") ? url.pathname : url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function openContactPhotoInput(collection, mode = "file", context = "business-card") {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  if (mode === "camera") input.setAttribute("capture", "environment");
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (file) setContactPhotoFile(collection, file, context || (mode === "camera" ? "business-card" : "unknown"));
+  }, { once: true });
+  input.click();
+}
+
+function setContactPhotoFile(collection, file, context = "unknown") {
+  if (!file.type.startsWith("image/")) return showAppToast("Bitte eine Bilddatei auswählen.", { type: "error" });
+  if (file.size > 10 * 1024 * 1024) return showAppToast("Bilddatei ist größer als 10 MB.", { type: "error" });
+  if (state.contactPhotoImport?.previewUrl) URL.revokeObjectURL(state.contactPhotoImport.previewUrl);
+  state.contactPhotoImport = { section: collection, file, context, previewUrl: URL.createObjectURL(file), busy: false, result: null, error: "" };
+  renderMasterData();
+}
+
+function discardContactPhotoImport() {
+  if (state.contactPhotoImport?.previewUrl) URL.revokeObjectURL(state.contactPhotoImport.previewUrl);
+  state.contactPhotoImport = { section: state.masterDataSection || "", file: null, previewUrl: "", busy: false, result: null, error: "" };
+  renderMasterData();
+}
+
+function syncContactExtractResultFromDom() {
+  const result = { ...(state.contactPhotoImport?.result || {}) };
+  document.querySelectorAll("[data-contact-extract-field]").forEach((input) => { result[input.dataset.contactExtractField] = input.value.trim(); });
+  if (state.contactPhotoImport) state.contactPhotoImport.result = result;
+  return result;
+}
+
+async function extractContactFromPhoto(collection) {
+  const current = contactPhotoImportState(collection);
+  if (!current.file) return showAppToast("Bitte zuerst ein Bild auswählen.", { type: "error" });
+  const endpoint = contactExtractEndpoint();
+  if (!endpoint) return showAppToast("Kein lokaler Server-Endpunkt für die Foto-Erkennung gefunden.", { type: "error", timeout: 6500 });
+  state.contactPhotoImport = { ...current, busy: true, error: "" };
+  renderMasterData();
+  const form = new FormData();
+  form.append("image", current.file, current.file.name || "kontaktbild.jpg");
+  form.append("context", current.context || "unknown");
+  form.append("projectId", state.currentProjectId || state.current?.projectId || "");
+  form.append("module", "master-data");
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 90000);
+  try {
+    const response = await fetch(endpoint, { method: "POST", body: form, signal: controller.signal });
+    const text = await response.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = { error: text }; }
+    if (!response.ok) throw new Error(payload.error || "Server antwortet mit HTTP " + response.status);
+    state.contactPhotoImport = { ...current, busy: false, result: payload, error: "" };
+    renderMasterData();
+    showAppToast("Kontaktdaten erkannt. Bitte prüfen und bestätigen.", { type: "success" });
+  } catch (error) {
+    const message = error?.name === "AbortError" ? "Foto-Erkennung abgebrochen: Server antwortet nicht." : "Foto-Erkennung fehlgeschlagen: " + (error?.message || error);
+    state.contactPhotoImport = { ...current, busy: false, error: message };
+    renderMasterData();
+    showAppToast(message, { type: "error", timeout: 8000 });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function normalizeContactCompare(value = "") {
+  return String(value || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/[^a-z0-9äöüß@.+-]/g, "");
+}
+
+function emailDomain(value = "") {
+  const parts = String(value || "").toLowerCase().split("@");
+  return parts.length > 1 ? parts.pop() : "";
+}
+
+function findSimilarCompany(data, master = normalizeMasterData(state.masterData)) {
+  const name = normalizeContactCompare(data.companyName);
+  const phone = normalizeContactCompare(data.phone || data.mobile);
+  const website = normalizeContactCompare(data.website);
+  const domain = emailDomain(data.email);
+  return (master.companies || []).find((item) => {
+    return (name && normalizeContactCompare(item.name) === name)
+      || (phone && normalizeContactCompare(item.phone) === phone)
+      || (website && normalizeContactCompare(item.website) === website)
+      || (domain && emailDomain(item.email) === domain);
+  }) || null;
+}
+
+function findSimilarPerson(data, master = normalizeMasterData(state.masterData)) {
+  const name = normalizeContactCompare(data.personName);
+  const phone = normalizeContactCompare(data.mobile || data.phone);
+  const email = normalizeContactCompare(data.email);
+  return (master.ownPersons || []).find((item) => {
+    return (name && normalizeContactCompare(item.name) === name)
+      || (phone && normalizeContactCompare(item.phone) === phone)
+      || (email && normalizeContactCompare(item.email) === email);
+  }) || null;
+}
+
+function duplicateChoice(label, summary) {
+  const answer = prompt(`Ähnlicher Stammdatensatz gefunden (${label}):\n${summary}\n\nBitte eingeben: aktualisieren, neu oder abbrechen`, "aktualisieren");
+  const value = String(answer || "").trim().toLowerCase();
+  if (!value || value.startsWith("ab")) return "cancel";
+  if (value.startsWith("neu")) return "new";
+  return "update";
+}
+
+function applyExtractToCompany(company, data) {
+  if (data.companyName) company.name = data.companyName;
+  if (data.trade) company.role = data.trade;
+  if (data.personName) company.contact = data.personName;
+  if (data.phone || data.mobile) company.phone = data.phone || data.mobile;
+  if (data.email) company.email = data.email;
+  if (data.website) company.website = data.website;
+  company.address = normalizeAddress({ street: data.street || company.address?.street || "", zip: data.zip || company.address?.zip || "", city: data.city || company.address?.city || "", country: data.country || company.address?.country || "Deutschland" });
+  const notes = [company.note || "", data.notes || "", data.rawText ? "Aus Foto erkannt: " + data.rawText : ""].filter(Boolean);
+  company.note = uniqueValues(notes).join("\n");
+  return company;
+}
+
+function applyExtractToPerson(person, data, companyName = "") {
+  if (data.personName) person.name = data.personName;
+  if (companyName || data.companyName) person.company = companyName || data.companyName;
+  if (data.role || data.trade) person.role = data.role || data.trade;
+  if (data.mobile || data.phone) person.phone = data.mobile || data.phone;
+  if (data.email) person.email = data.email;
+  person.address = normalizeAddress({ street: data.street || person.address?.street || "", zip: data.zip || person.address?.zip || "", city: data.city || person.address?.city || "", country: data.country || person.address?.country || "Deutschland" });
+  return person;
+}
+
+async function saveContactExtract(kind) {
+  const data = syncContactExtractResultFromDom();
+  const master = normalizeMasterData(state.masterData);
+  let companyName = data.companyName || "";
+  let savedCompany = null;
+  if (["company", "both"].includes(kind)) {
+    const similar = findSimilarCompany(data, master);
+    let target = null;
+    if (similar) {
+      const choice = duplicateChoice("Firma", companyLabel(similar));
+      if (choice === "cancel") return;
+      target = choice === "update" ? similar : null;
+    }
+    if (!target) {
+      target = { id: uid("company"), name: "", role: "", contact: "", address: normalizeAddress(), phone: "", email: "", website: "", note: "" };
+      master.companies.unshift(target);
+    }
+    savedCompany = applyExtractToCompany(target, data);
+    companyName = savedCompany.name || companyName;
+  }
+  if (["person", "both"].includes(kind)) {
+    const similar = findSimilarPerson(data, master);
+    let target = null;
+    if (similar) {
+      const choice = duplicateChoice("Ansprechpartner", personLabel(similar));
+      if (choice === "cancel") return;
+      target = choice === "update" ? similar : null;
+    }
+    if (!target) {
+      target = { id: uid("person"), name: "", company: "", role: "", address: normalizeAddress(), phone: "", email: "", aliases: "", isDefault: !master.ownPersons.length };
+      master.ownPersons.push(target);
+    }
+    applyExtractToPerson(target, data, companyName);
+  }
+  state.masterData = normalizeMasterData(master);
+  setMasterDataDirty(true);
+  await saveMasterData({ alertSuccess: false });
+  discardContactPhotoImport();
+  showAppToast("Stammdaten aus Foto gespeichert.", { type: "success", timeout: 5200 });
 }
 
 function contactPickerAvailable() {
@@ -14027,6 +14283,26 @@ function bindEvents() {
     const pickContactMaster = event.target.closest("[data-pick-contact-master]");
     if (pickContactMaster) {
       pickContactForMasterItem(pickContactMaster.dataset.pickContactMaster, pickContactMaster.dataset.masterId);
+      return;
+    }
+    const photoPick = event.target.closest("[data-contact-photo-pick]");
+    if (photoPick) {
+      openContactPhotoInput(photoPick.dataset.contactSection || state.masterDataSection, photoPick.dataset.contactPhotoPick, photoPick.dataset.contactContext || "business-card");
+      return;
+    }
+    const photoExtract = event.target.closest("[data-contact-photo-extract]");
+    if (photoExtract) {
+      extractContactFromPhoto(photoExtract.dataset.contactSection || state.masterDataSection);
+      return;
+    }
+    const photoDiscard = event.target.closest("[data-contact-photo-discard]");
+    if (photoDiscard) {
+      discardContactPhotoImport();
+      return;
+    }
+    const contactSave = event.target.closest("[data-contact-save]");
+    if (contactSave) {
+      saveContactExtract(contactSave.dataset.contactSave);
       return;
     }
     const deleteMaster = event.target.closest("[data-delete-master]");
