@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v183";
+const APP_VERSION = "v184";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -3941,7 +3941,7 @@ function masterSection(title, collection, items, fields) {
         <button class="secondary-btn" type="button" data-add-master="${collection}">${addLabel}</button>
       </div>
       ${contactPhotoImportSupportedSection(collection) ? renderContactPhotoImportPanel(collection) : ""}
-      <div class="master-items ${collection === "companies" ? "master-items-compact" : ""}">
+      <div class="master-items ${["companies", "ownPersons"].includes(collection) ? "master-items-compact" : ""}">
         ${items.length ? items.map((item) => masterItemCard(collection, item, fields)).join("") : `<p class="muted">Noch keine Einträge.</p>`}
       </div>
     </section>
@@ -3955,6 +3955,19 @@ function masterItemSummary(collection, item) {
   }
   if (collection === "inspectors") return [item.name || "Neuer Prüfer", item.office].filter(Boolean).join(" · ");
   return [item.name || "Neuer Eintrag", item.company || item.role].filter(Boolean).join(" · ");
+}
+
+function personMasterSummaryLines(person = {}) {
+  return {
+    name: person.name || "Neuer Ansprechpartner",
+    companyRole: [person.companyName || person.company, person.role].filter(Boolean).join(" ? "),
+    contact: [person.phone, person.email].filter(Boolean).join(" ? ")
+  };
+}
+
+function personMasterSummaryHtml(person = {}) {
+  const lines = personMasterSummaryLines(person);
+  return `<summary class="person-master-summary"><strong>${escapeHtml(lines.name)}</strong>${lines.companyRole ? `<small>${escapeHtml(lines.companyRole)}</small>` : ""}${lines.contact ? `<small>${escapeHtml(lines.contact)}</small>` : ""}</summary>`;
 }
 
 function masterItemCard(collection, item, fields) {
@@ -3976,6 +3989,15 @@ function masterItemCard(collection, item, fields) {
     return `
       <details class="master-card master-card-collapsible" data-master-item="${collection}" data-master-id="${item.id}" ${shouldOpen ? "open" : ""}>
         <summary><strong>${escapeHtml(masterItemSummary(collection, item))}</strong><small>${escapeHtml(item.contact || item.email || item.phone || "Details bearbeiten")}</small></summary>
+        ${body}
+      </details>
+    `;
+  }
+  if (collection === "ownPersons") {
+    const shouldOpen = item._draft || pendingMasterFocus?.collection === collection && pendingMasterFocus?.id === item.id;
+    return `
+      <details class="master-card master-card-collapsible person-master-card" data-master-item="${collection}" data-master-id="${item.id}" ${shouldOpen ? "open" : ""}>
+        ${personMasterSummaryHtml(item)}
         ${body}
       </details>
     `;
@@ -4042,6 +4064,14 @@ function applyPendingMasterFocus() {
     if (input) input.focus({ preventScroll: true });
     if (target.message) showAppToast(target.message, { type: "success", timeout: 2800 });
   }, 60);
+}
+
+
+function closeOtherMasterPersonCards(openCard) {
+  if (!openCard?.open || openCard.dataset.masterItem !== "ownPersons") return;
+  document.querySelectorAll('[data-master-item="ownPersons"][open]').forEach((card) => {
+    if (card !== openCard) card.open = false;
+  });
 }
 
 
@@ -13405,6 +13435,7 @@ function syncMasterDataFromDom() {
       setPath(item, input.dataset.masterField, input.type === "checkbox" ? input.checked : input.value);
     });
     if (collection === "companies") item.trade = item.role || item.trade || "";
+    if (collection === "companies") item.trade = item.role || item.trade || "";
     if (collection === "ownPersons") applyPersonCompanySelection(item, item.companyName || item.company || "");
   });
   panel.querySelectorAll("[data-lookup-key]").forEach((input) => {
@@ -13431,6 +13462,7 @@ function handleMasterDataInput(event) {
     if (!item) return true;
     const field = event.target.dataset.masterField;
     setPath(item, field, event.target.type === "checkbox" ? event.target.checked : event.target.value);
+    if (collection === "companies" && field === "role") item.trade = event.target.value;
     if (collection === "companies" && field === "role") item.trade = event.target.value;
     if (collection === "ownPersons" && field === "company") applyPersonCompanySelection(item, event.target.value);
     if (collection === "ownPersons" && field === "isDefault" && item[field]) {
@@ -14760,6 +14792,11 @@ function bindEvents() {
       renderMasterData();
       updateAppHeader("masterDataView");
       return;
+    }
+    const masterPersonSummary = event.target.closest(".person-master-card > summary");
+    if (masterPersonSummary) {
+      const card = masterPersonSummary.closest(".person-master-card");
+      window.setTimeout(() => closeOtherMasterPersonCards(card), 0);
     }
     const showMasterSnapshotButton = event.target.closest("[data-show-master-snapshot]");
     if (showMasterSnapshotButton) {

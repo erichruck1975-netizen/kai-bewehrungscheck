@@ -4230,3 +4230,18 @@ dialog button {
 .company-contact-list .muted {
   margin: 0;
 }
+
+
+/* v184 Stammdaten: Ansprechpartner kompakt als Accordion */
+.person-master-card summary {
+  gap: 3px;
+}
+.person-master-card summary strong,
+.person-master-card summary small {
+  display: block;
+}
+@media (max-width: 640px) {
+  .person-master-card summary {
+    padding: 10px 12px;
+  }
+}
