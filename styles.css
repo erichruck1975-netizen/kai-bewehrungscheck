@@ -4080,3 +4080,128 @@ dialog button {
 .contact-extract-preview {
   margin-top: 12px;
 }
+
+
+/* v179 mobile polish: Stammdaten/Foto-Erfassung ohne horizontalen Überstand */
+.master-section,
+.master-section *,
+.master-detail-head,
+.master-detail-head *,
+.master-card,
+.master-card *,
+.contact-photo-import,
+.contact-photo-import * {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.master-section,
+.master-card,
+.master-card-collapsible,
+.contact-photo-import,
+.contact-extract-preview {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.master-section .section-head {
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.master-section .section-head h3,
+.master-section .section-head p,
+.master-card-collapsible summary strong,
+.master-card-collapsible summary small,
+.contact-photo-import .field-hint,
+.contact-photo-import .field-warning {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.contact-photo-import .result-actions.compact,
+.contact-extract-preview .result-actions.compact,
+.master-card > .result-actions.compact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.contact-photo-import .result-actions.compact > button,
+.contact-extract-preview .result-actions.compact > button,
+.master-card > .result-actions.compact > button {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.master-card-collapsible .result-actions.compact {
+  margin: 12px 14px;
+}
+
+.master-card-collapsible .result-actions.compact .danger-btn,
+.master-card-collapsible .result-actions.compact .secondary-btn {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  html,
+  body,
+  .shell,
+  main,
+  .panel,
+  .master-section,
+  .master-items,
+  .master-card,
+  .master-card-collapsible,
+  .contact-photo-import {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .master-section .section-head {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .master-section .section-head > button,
+  .master-section .section-head .secondary-btn {
+    width: 100%;
+    justify-self: stretch;
+    white-space: normal;
+  }
+
+  .contact-photo-import .result-actions.compact,
+  .contact-extract-preview .result-actions.compact,
+  .master-card > .result-actions.compact,
+  .master-card-collapsible .result-actions.compact {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .contact-photo-import .result-actions.compact > button,
+  .contact-extract-preview .result-actions.compact > button,
+  .master-card > .result-actions.compact > button,
+  .master-card-collapsible .result-actions.compact > button {
+    width: 100%;
+    min-height: 44px;
+    text-align: center;
+  }
+
+  .contact-photo-import .contact-photo-preview img {
+    width: 100%;
+    max-height: 190px;
+  }
+
+  .master-card-collapsible summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

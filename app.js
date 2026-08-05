@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v178";
+const APP_VERSION = "v180";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const PDFJS_URL = `vendor/pdfjs/pdf.min.js?${APP_VERSION}`;
 const PDFJS_WORKER_URL = `vendor/pdfjs/pdf.worker.min.js?${APP_VERSION}`;
@@ -163,7 +163,7 @@ const state = {
   protocols: [],
   masterData: null,
   masterDataDirty: false,
-  contactPhotoImport: { section: "", file: null, previewUrl: "", busy: false, result: null, error: "" },
+  contactPhotoImport: { section: "", file: null, previewUrl: "", busy: false, result: null, error: "", qrHint: "" },
   dataLoaded: false,
   masterDataSection: "",
   pendingMasterDataLeaveResolve: null,
@@ -3912,8 +3912,8 @@ function contactPhotoImportSupportedSection(collection) {
 
 function contactPhotoImportState(collection = "") {
   const current = state.contactPhotoImport || {};
-  if (collection && current.section !== collection) return { section: collection, file: null, previewUrl: "", busy: false, result: null, error: "" };
-  return { section: collection || current.section || "", file: current.file || null, previewUrl: current.previewUrl || "", busy: !!current.busy, result: current.result || null, error: current.error || "" };
+  if (collection && current.section !== collection) return { section: collection, file: null, previewUrl: "", busy: false, result: null, error: "", qrHint: "" };
+  return { section: collection || current.section || "", file: current.file || null, previewUrl: current.previewUrl || "", busy: !!current.busy, result: current.result || null, error: current.error || "", qrHint: current.qrHint || "" };
 }
 
 function renderContactPhotoImportPanel(collection) {
@@ -3985,6 +3985,192 @@ function contactExtractEndpoint() {
   }
 }
 
+
+function emptyContactExtractResult() {
+  return Object.fromEntries(contactExtractFields().map(([field]) => [field, ""]));
+}
+
+function addContactWarning(result, message) {
+  if (!message) return result;
+  result.warnings = Array.from(new Set([...(Array.isArray(result.warnings) ? result.warnings : []), message]));
+  return result;
+}
+
+function setContactResultValue(result, field, value, { append = false } = {}) {
+  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  if (!clean) return;
+  if (append && result[field]) {
+    if (!result[field].includes(clean)) result[field] = `${result[field]} ${clean}`.trim();
+  } else if (!result[field]) {
+    result[field] = clean;
+  }
+}
+
+function unfoldVCardLines(text = "") {
+  return String(text || "").replace(/\r\n/g, "\n").replace(/\n[ \t]/g, "").split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function vCardValue(line = "") {
+  const idx = line.indexOf(":");
+  return idx >= 0 ? line.slice(idx + 1).replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\\;/g, ";").trim() : "";
+}
+
+function parseVCardQr(rawValue = "") {
+  const result = { ...emptyContactExtractResult(), source: "qr-code", rawText: rawValue };
+  const lines = unfoldVCardLines(rawValue);
+  lines.forEach((line) => {
+    const upper = line.toUpperCase();
+    const value = vCardValue(line);
+    if (!value) return;
+    if (upper.startsWith("FN")) setContactResultValue(result, "personName", value);
+    else if (upper.startsWith("N")) {
+      const parts = value.split(";").filter(Boolean);
+      const name = parts.length >= 2 ? `${parts[1]} ${parts[0]}` : parts.join(" ");
+      setContactResultValue(result, "personName", name);
+    } else if (upper.startsWith("ORG")) setContactResultValue(result, "companyName", value.split(";")[0]);
+    else if (upper.startsWith("TITLE")) setContactResultValue(result, "role", value);
+    else if (upper.startsWith("EMAIL")) setContactResultValue(result, "email", value);
+    else if (upper.startsWith("URL")) setContactResultValue(result, "website", value);
+    else if (upper.startsWith("NOTE")) setContactResultValue(result, "notes", value, { append: true });
+    else if (upper.startsWith("TEL")) {
+      const target = /CELL|MOBILE/i.test(line) ? "mobile" : "phone";
+      setContactResultValue(result, target, value);
+      if (target === "phone") setContactResultValue(result, "mobile", value);
+    } else if (upper.startsWith("ADR")) {
+      const adr = value.split(";").map((part) => part.trim()).filter(Boolean);
+      if (adr.length >= 3) {
+        setContactResultValue(result, "street", adr[0]);
+        setContactResultValue(result, "city", adr[1]);
+        const zipCandidate = adr.find((part) => /\b\d{5}\b/.test(part));
+        setContactResultValue(result, "zip", zipCandidate || "");
+        setContactResultValue(result, "country", adr[adr.length - 1]);
+      } else {
+        applyAddressTextToContactResult(result, value);
+      }
+    }
+  });
+  addContactWarning(result, "Daten aus QR-Code erkannt.");
+  return result;
+}
+
+function splitMeCardFields(rawValue = "") {
+  const body = rawValue.replace(/^MECARD:/i, "");
+  const fields = [];
+  let buffer = "";
+  let escaped = false;
+  for (const char of body) {
+    if (escaped) { buffer += char; escaped = false; continue; }
+    if (char === "\\") { escaped = true; continue; }
+    if (char === ";") { if (buffer) fields.push(buffer); buffer = ""; continue; }
+    buffer += char;
+  }
+  if (buffer) fields.push(buffer);
+  return fields;
+}
+
+function parseMeCardName(value = "") {
+  const parts = value.split(",").map((part) => part.trim()).filter(Boolean);
+  return parts.length >= 2 ? `${parts[1]} ${parts[0]}` : value;
+}
+
+function parseMeCardQr(rawValue = "") {
+  const result = { ...emptyContactExtractResult(), source: "qr-code", rawText: rawValue };
+  splitMeCardFields(rawValue).forEach((field) => {
+    const idx = field.indexOf(":");
+    if (idx < 0) return;
+    const key = field.slice(0, idx).toUpperCase();
+    const value = field.slice(idx + 1).replace(/\\,/g, ",").replace(/\\;/g, ";").trim();
+    if (key === "N") setContactResultValue(result, "personName", parseMeCardName(value));
+    if (key === "ORG") setContactResultValue(result, "companyName", value);
+    if (key === "TITLE") setContactResultValue(result, "role", value);
+    if (key === "TEL") setContactResultValue(result, result.mobile ? "phone" : "mobile", value);
+    if (key === "EMAIL") setContactResultValue(result, "email", value);
+    if (key === "URL") setContactResultValue(result, "website", value);
+    if (key === "ADR") applyAddressTextToContactResult(result, value);
+    if (key === "NOTE") setContactResultValue(result, "notes", value, { append: true });
+  });
+  addContactWarning(result, "Daten aus QR-Code erkannt.");
+  return result;
+}
+
+function applyAddressTextToContactResult(result, text = "") {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (!clean) return;
+  const match = clean.match(/^(.*?)(?:,\s*|\s+)(\d{5})\s+(.+)$/);
+  if (match) {
+    setContactResultValue(result, "street", match[1]);
+    setContactResultValue(result, "zip", match[2]);
+    setContactResultValue(result, "city", match[3]);
+  } else {
+    setContactResultValue(result, "street", clean);
+  }
+}
+
+function parsePlainContactQr(rawValue = "") {
+  const raw = String(rawValue || "").trim();
+  const result = { ...emptyContactExtractResult(), source: "qr-code", rawText: raw };
+  const lower = raw.toLowerCase();
+  const emailMatch = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const phoneMatch = raw.match(/(?:\+|00)?\d[\d\s()./-]{5,}\d/);
+  const urlMatch = raw.match(/https?:\/\/[^\s<>"]+/i) || raw.match(/www\.[^\s<>"]+/i);
+  if (lower.startsWith("mailto:")) setContactResultValue(result, "email", raw.replace(/^mailto:/i, "").split("?")[0]);
+  else if (emailMatch) setContactResultValue(result, "email", emailMatch[0]);
+  if (lower.startsWith("tel:")) setContactResultValue(result, "mobile", raw.replace(/^tel:/i, ""));
+  else if (phoneMatch) setContactResultValue(result, "phone", phoneMatch[0]);
+  if (urlMatch || /^https?:\/\//i.test(raw)) {
+    const url = (urlMatch ? urlMatch[0] : raw).replace(/[),.;]+$/, "");
+    setContactResultValue(result, "website", /^https?:\/\//i.test(url) ? url : `https://${url}`);
+    setContactResultValue(result, "notes", "Quelle: QR-Code", { append: true });
+  }
+  const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const nameLine = lines.find((line) => !/@|https?:|www\.|tel:|\d{5}/i.test(line));
+  if (nameLine && !result.website) setContactResultValue(result, "personName", nameLine);
+  addContactWarning(result, "Daten aus QR-Code erkannt.");
+  return result;
+}
+
+function parseContactQrPayload(rawValue = "") {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return null;
+  if (/BEGIN:VCARD/i.test(raw)) return parseVCardQr(raw);
+  if (/^MECARD:/i.test(raw)) return parseMeCardQr(raw);
+  return parsePlainContactQr(raw);
+}
+
+function hasContactExtractData(result) {
+  return !!result && contactExtractFields().some(([field]) => String(result[field] || "").trim());
+}
+
+async function detectContactQrFromImageFile(file) {
+  if (!("BarcodeDetector" in window)) return { supported: false, hint: "QR-Erkennung wird von diesem Browser nicht unterstützt. Foto-Erkennung wird verwendet." };
+  let formats = [];
+  try { formats = await window.BarcodeDetector.getSupportedFormats(); } catch { formats = ["qr_code"]; }
+  if (Array.isArray(formats) && formats.length && !formats.includes("qr_code")) return { supported: false, hint: "QR-Erkennung wird von diesem Browser nicht unterstützt. Foto-Erkennung wird verwendet." };
+  let bitmap = null;
+  try {
+    bitmap = await createImageBitmap(file);
+    const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+    const codes = await detector.detect(bitmap);
+    const rawValue = codes?.find((code) => code.rawValue)?.rawValue || "";
+    const result = parseContactQrPayload(rawValue);
+    if (hasContactExtractData(result)) return { supported: true, result, hint: "Daten aus QR-Code erkannt." };
+    return { supported: true, hint: "Kein QR-Code mit Kontaktdaten erkannt. Foto-Erkennung kann verwendet werden." };
+  } catch (error) {
+    return { supported: true, hint: "QR-Code konnte nicht gelesen werden. Foto-Erkennung kann verwendet werden.", error };
+  } finally {
+    if (bitmap && typeof bitmap.close === "function") bitmap.close();
+  }
+}
+
+async function tryApplyContactQrFromPhoto(collection, file) {
+  const detection = await detectContactQrFromImageFile(file);
+  const current = contactPhotoImportState(collection);
+  if (current.file !== file) return;
+  state.contactPhotoImport = { ...current, busy: false, result: detection.result || current.result || null, error: "", qrHint: detection.hint || "" };
+  renderMasterData();
+  if (detection.result) showAppToast("Daten aus QR-Code erkannt. Bitte prüfen und bestätigen.", { type: "success" });
+}
+
 function openContactPhotoInput(collection, mode = "file", context = "business-card") {
   const input = document.createElement("input");
   input.type = "file";
@@ -4002,13 +4188,14 @@ function setContactPhotoFile(collection, file, context = "unknown") {
   if (!file.type.startsWith("image/")) return showAppToast("Bitte eine Bilddatei auswählen.", { type: "error" });
   if (file.size > 10 * 1024 * 1024) return showAppToast("Bilddatei ist größer als 10 MB.", { type: "error" });
   if (state.contactPhotoImport?.previewUrl) URL.revokeObjectURL(state.contactPhotoImport.previewUrl);
-  state.contactPhotoImport = { section: collection, file, context, previewUrl: URL.createObjectURL(file), busy: false, result: null, error: "" };
+  state.contactPhotoImport = { section: collection, file, context, previewUrl: URL.createObjectURL(file), busy: true, result: null, error: "", qrHint: "QR-Code wird gepr?ft ..." };
   renderMasterData();
+  tryApplyContactQrFromPhoto(collection, file);
 }
 
 function discardContactPhotoImport() {
   if (state.contactPhotoImport?.previewUrl) URL.revokeObjectURL(state.contactPhotoImport.previewUrl);
-  state.contactPhotoImport = { section: state.masterDataSection || "", file: null, previewUrl: "", busy: false, result: null, error: "" };
+  state.contactPhotoImport = { section: state.masterDataSection || "", file: null, previewUrl: "", busy: false, result: null, error: "", qrHint: "" };
   renderMasterData();
 }
 
@@ -4024,7 +4211,7 @@ async function extractContactFromPhoto(collection) {
   if (!current.file) return showAppToast("Bitte zuerst ein Bild auswählen.", { type: "error" });
   const endpoint = contactExtractEndpoint();
   if (!endpoint) return showAppToast("Kein lokaler Server-Endpunkt für die Foto-Erkennung gefunden.", { type: "error", timeout: 6500 });
-  state.contactPhotoImport = { ...current, busy: true, error: "" };
+  state.contactPhotoImport = { ...current, busy: true, error: "", qrHint: current.result?.source === "qr-code" ? "Zus?tzliche Foto-Erkennung l?uft ..." : current.qrHint };
   renderMasterData();
   const form = new FormData();
   form.append("image", current.file, current.file.name || "kontaktbild.jpg");
@@ -4039,12 +4226,12 @@ async function extractContactFromPhoto(collection) {
     let payload = {};
     try { payload = text ? JSON.parse(text) : {}; } catch { payload = { error: text }; }
     if (!response.ok) throw new Error(payload.error || "Server antwortet mit HTTP " + response.status);
-    state.contactPhotoImport = { ...current, busy: false, result: payload, error: "" };
+    state.contactPhotoImport = { ...current, busy: false, result: payload, error: "", qrHint: "" };
     renderMasterData();
     showAppToast("Kontaktdaten erkannt. Bitte prüfen und bestätigen.", { type: "success" });
   } catch (error) {
     const message = error?.name === "AbortError" ? "Foto-Erkennung abgebrochen: Server antwortet nicht." : "Foto-Erkennung fehlgeschlagen: " + (error?.message || error);
-    state.contactPhotoImport = { ...current, busy: false, error: message };
+    state.contactPhotoImport = { ...current, busy: false, error: message, qrHint: current.qrHint || "" };
     renderMasterData();
     showAppToast(message, { type: "error", timeout: 8000 });
   } finally {
