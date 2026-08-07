@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v194";
+const APP_VERSION = "v195";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -2757,6 +2757,8 @@ function planFromStoreRecord(record = {}) {
     planDate: record.planDate || record.date || "",
     planIndex: record.planIndex || record.index || "",
     documentStatus: record.documentStatus || record.status || "verwendet",
+    archiveStatus: record.archiveStatus || "",
+    previousDocumentStatus: record.previousDocumentStatus || record.previous_document_status || "",
     categoryManual: !!(record.categoryManual || record.manualCategory),
     manualCategory: !!(record.manualCategory || record.categoryManual),
     source: record.source || (record.dropboxPath || record.dropboxSharedLink ? "dropbox_path" : "uploaded"),
@@ -2778,7 +2780,8 @@ function planFromStoreRecord(record = {}) {
     zoom: record.zoom || 1,
     renderStatus: record.renderStatus || "",
     renderError: record.renderError || "",
-    archived: !!(record.archived || record.isArchived),
+    archived: !!(record.archived || record.isArchived || String(record.archiveStatus || "").toLowerCase().includes("archiv")),
+    isArchived: !!(record.isArchived || record.archived),
     archivedAt: record.archivedAt || record.archived_at || "",
     deleted: !!(record.deleted || record.isDeleted)
   });
@@ -8269,6 +8272,9 @@ function storedProjectPlanRecord(plan, file, project, protocol) {
     planIndex: plan.planIndex,
     documentStatus: plan.documentStatus,
     archived: !!plan.archived,
+    isArchived: !!plan.isArchived,
+    archiveStatus: plan.archiveStatus || "",
+    previousDocumentStatus: plan.previousDocumentStatus || "",
     archivedAt: plan.archivedAt || "",
     deleted: !!plan.deleted,
     categoryManual: !!plan.categoryManual,
@@ -8500,6 +8506,41 @@ Trotzdem zus?tzlich importieren?`)) {
   return { selected: fileList.length, imported: renderedCount, saved: savedCount, readBack: readBackCount, inInventory: inventoryCount, rendered: renderedCount };
 }
 
+function restoredProjectPlanStatus(plan = {}) {
+  const previous = normalizeDocumentStatus(plan.previousDocumentStatus || plan.previous_document_status || "");
+  if (previous && !String(previous).toLowerCase().includes("archiv")) return previous;
+  const current = normalizeDocumentStatus(plan.documentStatus || plan.status || "");
+  if (current && !String(current).toLowerCase().includes("archiv")) return current;
+  return "verwendet";
+}
+
+function applyProjectPlanArchiveState(plan = {}, archived = false, now = new Date().toISOString()) {
+  if (!plan) return plan;
+  if (archived) {
+    const activeStatus = restoredProjectPlanStatus(plan);
+    plan.previousDocumentStatus = activeStatus;
+    plan.archived = true;
+    plan.isArchived = true;
+    plan.deleted = false;
+    plan.isDeleted = false;
+    plan.archiveStatus = "archiviert";
+    plan.documentStatus = "archiviert";
+    plan.archivedAt = now;
+    plan.archived_at = now;
+  } else {
+    plan.archived = false;
+    plan.isArchived = false;
+    plan.deleted = false;
+    plan.isDeleted = false;
+    plan.archiveStatus = "";
+    plan.documentStatus = restoredProjectPlanStatus(plan);
+    delete plan.archivedAt;
+    delete plan.archived_at;
+  }
+  plan.updatedAt = now;
+  return plan;
+}
+
 async function setProjectPlanArchived(protocolId, planId, archived) {
   const entry = findProjectPlanEntry(protocolId, planId);
   if (!entry) {
@@ -8512,41 +8553,51 @@ async function setProjectPlanArchived(protocolId, planId, archived) {
     (protocol.plans || []).forEach((plan) => {
       const ids = [plan.id, plan.planId, plan.blobId].filter(Boolean).map(String);
       if (!ids.some((id) => touchedIds.has(id))) return;
-      plan.archived = !!archived;
-      plan.documentStatus = archived ? "archiviert" : "verwendet";
-      if (archived) plan.archivedAt = now;
-      else delete plan.archivedAt;
-      plan.updatedAt = now;
+      applyProjectPlanArchiveState(plan, archived, now);
       protocol.updatedAt = now;
     });
   });
-  entry.plan.archived = !!archived;
-  entry.plan.documentStatus = archived ? "archiviert" : "verwendet";
-  if (archived) entry.plan.archivedAt = now;
-  else delete entry.plan.archivedAt;
-  entry.plan.updatedAt = now;
+  applyProjectPlanArchiveState(entry.plan, archived, now);
 
   const rawRecords = await idbGetAll("plans");
   const matchingRecords = rawRecords.filter((record) => [record.id, record.planId, record.plan_id, record.blobId].filter(Boolean).map(String).some((id) => touchedIds.has(id)));
   for (const record of matchingRecords) {
+    const updated = applyProjectPlanArchiveState({ ...record }, archived, now);
     await idbPut("plans", {
       ...record,
+      ...updated,
       archived: !!archived,
+      isArchived: !!archived,
+      deleted: false,
+      isDeleted: false,
+      archiveStatus: archived ? "archiviert" : "",
       archivedAt: archived ? now : "",
-      documentStatus: archived ? "archiviert" : (record.documentStatus && record.documentStatus !== "archiviert" ? record.documentStatus : "verwendet"),
+      archived_at: archived ? now : "",
+      documentStatus: archived ? "archiviert" : restoredProjectPlanStatus(updated),
       updatedAt: now
     });
   }
   const readback = matchingRecords.length ? await Promise.all(matchingRecords.map((record) => idbGet("plans", record.id))) : [];
-  if (matchingRecords.length && readback.some((record) => !!record?.archived !== !!archived)) {
-    showAppToast(archived ? "Plan konnte nicht zuverl?ssig archiviert werden." : "Plan konnte nicht zuverl?ssig wiederhergestellt werden.", { type: "error", timeout: 8000 });
+  const readbackFailed = readback.some((record) => {
+    if (!record) return true;
+    const statusArchived = String(record.documentStatus || "").toLowerCase().includes("archiv");
+    if (archived) return !record.archived || !statusArchived;
+    return !!record.archived || !!record.isArchived || statusArchived || !!record.archivedAt || !!record.archived_at || !!record.archiveStatus;
+  });
+  if (matchingRecords.length && readbackFailed) {
+    showAppToast(archived ? "Plan konnte nicht zuverlässig archiviert werden." : "Plan konnte nicht zuverlässig wiederhergestellt werden.", { type: "error", timeout: 8000 });
     return false;
   }
 
   const inventory = await buildProjectPlanInventory(entry.protocol.projectId || state.currentProjectId);
-  const stillActive = inventory.entries.some(({ plan }) => touchedIds.has(String(plan.id || plan.planId || plan.blobId || "")));
-  if (archived && stillActive) {
-    showAppToast("Plan wurde archiviert, ist aber noch in der aktiven Inventur sichtbar. Bitte Diagnose pr?fen.", { type: "error", timeout: 9000 });
+  const activeAfterRestore = inventory.entries.some(({ plan }) => touchedIds.has(String(plan.id || plan.planId || plan.blobId || "")));
+  const archivedAfterRestore = inventory.archived.some(({ plan }) => touchedIds.has(String(plan.id || plan.planId || plan.blobId || "")));
+  if (archived && activeAfterRestore) {
+    showAppToast("Plan wurde archiviert, ist aber noch in der aktiven Inventur sichtbar. Bitte Diagnose prüfen.", { type: "error", timeout: 9000 });
+    return false;
+  }
+  if (!archived && (!activeAfterRestore || archivedAfterRestore)) {
+    showAppToast("Plan wurde wiederhergestellt, erscheint aber noch nicht korrekt in der aktiven Inventur. Bitte Diagnose prüfen.", { type: "error", timeout: 9000 });
     return false;
   }
   await persist();
@@ -16861,6 +16912,9 @@ async function syncPlanRecord(plan) {
     planIndex: plan.planIndex || "",
     documentStatus: plan.documentStatus || "verwendet",
     archived: !!plan.archived,
+    isArchived: !!plan.isArchived,
+    archiveStatus: plan.archiveStatus || "",
+    previousDocumentStatus: plan.previousDocumentStatus || "",
     archivedAt: plan.archivedAt || "",
     deleted: !!plan.deleted,
     categoryManual: !!plan.categoryManual,
@@ -17395,6 +17449,8 @@ async function boot() {
 }
 
 boot();
+
+
 
 
 
