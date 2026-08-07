@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v199";
+const APP_VERSION = "v200";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -306,15 +306,20 @@ function uid(prefix = "id") {
 
 async function load({ persistRepairs = true } = {}) {
   state.dataLoaded = false;
-  state.db = await openDatabase();
-  const rawProjects = await idbGetAll("projects");
-  await ensureProjectUpdateSnapshot(rawProjects);
-  state.projects = rawProjects.map(normalizeProject);
-  state.protocols = (await idbGetAll("protocols")).map(normalizeProtocol);
+  try {
+    state.db = await openDatabase();
+  } catch (error) {
+    error.isIndexedDbOpenError = true;
+    throw error;
+  }
   const rawMasterData = await idbGet("masterData", "app");
   await ensureMasterDataUpdateSnapshot(rawMasterData);
   state.masterData = normalizeMasterData(rawMasterData);
+  const rawProjects = await idbGetAll("projects");
+  await ensureProjectUpdateSnapshot(rawProjects);
+  state.projects = rawProjects.map(normalizeProject);
   state.settings = await idbGet("settings", "app") || JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  state.protocols = (await idbGetAll("protocols")).map(normalizeProtocol);
   let migrated = false;
   if (!state.protocols.length) {
     await migrateLocalStorageData();
@@ -1700,6 +1705,25 @@ function normalizeProtocol(protocol) {
   return protocol;
 }
 
+function syncResultLookupFields(protocol) {
+  if (!protocol) return protocol;
+  protocol.head = protocol.head || {};
+  protocol.result = protocol.result || {};
+  const existingSnapshot = protocol.result.inspectorPersonSnapshot || protocol.head.inspectorPersonSnapshot || null;
+  const sourceName = protocol.result.inspectorName || protocol.head.inspectorName || existingSnapshot?.name || "";
+  const selection = ownPersonSelection(sourceName);
+  const inspectorName = protocol.result.inspectorName || selection.text || protocol.head.inspectorName || existingSnapshot?.name || "";
+  protocol.result.inspectorName = inspectorName;
+  protocol.result.inspectorPersonId = protocol.result.inspectorPersonId || protocol.head.inspectorPersonId || selection.id || existingSnapshot?.id || "";
+  protocol.result.inspectorPersonSnapshot = protocol.result.inspectorPersonSnapshot || protocol.head.inspectorPersonSnapshot || selection.snapshot || existingSnapshot || null;
+  protocol.head.inspectorName = protocol.head.inspectorName || inspectorName;
+  protocol.head.inspectorPersonId = protocol.head.inspectorPersonId || protocol.result.inspectorPersonId || "";
+  protocol.head.inspectorPersonSnapshot = protocol.head.inspectorPersonSnapshot || protocol.result.inspectorPersonSnapshot || null;
+  protocol.result.resultStatus = protocol.result.resultStatus || "Zur Betonage freigegeben";
+  protocol.result.finalNote = protocol.result.finalNote || "";
+  protocol.result.signatureText = protocol.result.signatureText || "";
+  return protocol;
+}
 function isSiteControlProtocol(protocol = state.current) {
   return (protocol?.kind || PROTOCOL_KIND_REBAR) === PROTOCOL_KIND_SITE_CONTROL;
 }
@@ -16717,7 +16741,12 @@ async function boot() {
   try {
     await load();
   } catch (error) {
-    showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`);
+    if (error?.isIndexedDbOpenError) {
+      showStorageWarning(`IndexedDB konnte nicht gestartet werden: ${error.message || error}`);
+    } else {
+      console.error("App-Initialisierung fehlgeschlagen", error);
+      showStorageWarning(`App-Initialisierung fehlgeschlagen: ${error.message || error}`);
+    }
     return;
   }
   try {
@@ -16754,6 +16783,9 @@ async function boot() {
 }
 
 boot();
+
+
+
 
 
 
