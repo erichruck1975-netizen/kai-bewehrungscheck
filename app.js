@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v196";
+const APP_VERSION = "v197";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -197,6 +197,7 @@ const state = {
   selectedPlanId: "",
   selectedPinId: "",
   projectPlanUpload: { files: [], selected: 0, imported: 0, saved: 0, message: "", error: "", busy: false },
+  openProjectPlanCategories: new Set(),
   lastProjectPlanUploadDebug: null,
   lastPdfFileShareDebug: null,
   pinSearchQuery: "",
@@ -2717,6 +2718,24 @@ function projectPlanMatchesSearch(entry, normalizedSearch = "") {
   return projectPlanSearchText(entry.protocol, entry.plan).includes(normalizedSearch);
 }
 
+function projectPlanCategoryStateKey(projectId = state.currentProjectId, category = "") {
+  return `${projectId || ""}::${String(category || "").trim().toLowerCase()}`;
+}
+
+function isProjectPlanCategoryOpen(projectId = state.currentProjectId, category = "") {
+  return state.openProjectPlanCategories instanceof Set && state.openProjectPlanCategories.has(projectPlanCategoryStateKey(projectId, category));
+}
+
+function projectPlanCategoryOpenAttr(projectId = state.currentProjectId, category = "") {
+  return isProjectPlanCategoryOpen(projectId, category) ? " open" : "";
+}
+
+function setProjectPlanCategoryOpen(projectId = state.currentProjectId, category = "", open = false) {
+  if (!(state.openProjectPlanCategories instanceof Set)) state.openProjectPlanCategories = new Set();
+  const key = projectPlanCategoryStateKey(projectId, category);
+  if (open) state.openProjectPlanCategories.add(key);
+  else state.openProjectPlanCategories.delete(key);
+}
 function groupedProjectPlanEntries(entries = []) {
   const groups = new Map(PLAN_CATEGORIES.map((category) => [category, []]));
   entries.forEach((entry) => {
@@ -5545,7 +5564,7 @@ async function renderProjectPlansView() {
   if (!container) return;
   const project = projectById(state.currentProjectId) || null;
   if (!project) {
-    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gew?hlt. Bitte zuerst ein Projekt ?ffnen.</p></section>`;
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt öffnen.</p></section>`;
     return;
   }
   const searchValue = $("#projectPlanSearchInput")?.value || "";
@@ -5556,25 +5575,25 @@ async function renderProjectPlansView() {
   const groupedEntries = groupedProjectPlanEntries(visibleEntries);
   const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
   const unassignedHtml = inventory.withoutProjectId.length ? `
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h3>Pläne ohne Projektzuordnung</h3>
-          <p class="muted">Diese gespeicherten Pläne haben keine projectId und wurden nicht gelöscht.</p>
-        </div>
+    <details class="panel project-plan-category project-plan-unassigned" data-project-plan-category="${escapeAttr(projectPlanCategoryStateKey(project.id, "__unassigned"))}"${projectPlanCategoryOpenAttr(project.id, "__unassigned")}>
+      <summary>Pläne ohne Projektzuordnung (${inventory.withoutProjectId.length})</summary>
+      <div class="project-plan-category-list">
+        <p class="muted">Diese gespeicherten Pläne haben keine projectId und wurden nicht gelöscht.</p>
         <button class="secondary-btn" id="assignUnassignedProjectPlansBtn" type="button">Diese Pläne aktuellem Projekt zuordnen</button>
+        ${inventory.withoutProjectId.map(unassignedProjectPlanCard).join("")}
       </div>
-      ${inventory.withoutProjectId.map(unassignedProjectPlanCard).join("")}
-    </section>` : "";
+    </details>` : "";
   const archiveHtml = inventory.archived?.length ? `
-    <details class="panel project-plan-archive">
+    <details class="panel project-plan-category project-plan-archive" data-project-plan-category="${escapeAttr(projectPlanCategoryStateKey(project.id, "__archive"))}"${projectPlanCategoryOpenAttr(project.id, "__archive")}>
       <summary>Archivierte Pläne (${inventory.archived.length})</summary>
-      <p class="muted">Archivierte Pläne bleiben erhalten, werden aber in den Modulen nicht als aktive Projektpläne angeboten.</p>
-      ${inventory.archived.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan, { archived: true })).join("")}
+      <div class="project-plan-category-list">
+        <p class="muted">Archivierte Pläne bleiben erhalten, werden aber in den Modulen nicht als aktive Projektpläne angeboten.</p>
+        ${inventory.archived.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan, { archived: true })).join("")}
+      </div>
     </details>` : "";
   const groupedHtml = groupedEntries.length
     ? groupedEntries.map(([category, items]) => `
-      <details class="project-plan-category" open>
+      <details class="project-plan-category" data-project-plan-category="${escapeAttr(projectPlanCategoryStateKey(project.id, category))}"${projectPlanCategoryOpenAttr(project.id, category)}>
         <summary>${escapeHtml(category)} (${items.length})</summary>
         <div class="project-plan-category-list">${items.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("")}</div>
       </details>`).join("")
@@ -5592,7 +5611,7 @@ async function renderProjectPlansView() {
       <div class="section-head">
         <div>
           <h3>Projektpläne</h3>
-          <p class="muted">Ein Projekt, ein Planbestand: diese finale Planliste steht Bewehrungsabnahme und Baustellenkontrolle zur Verf?gung.</p>
+          <p class="muted">Ein Projekt, ein Planbestand: diese finale Planliste steht Bewehrungsabnahme und Baustellenkontrolle zur Verfügung.</p>
         </div>
         <button class="primary-btn" id="projectPlanUploadBtn" type="button">PDF-Pläne hochladen</button>
       </div>
@@ -15595,6 +15614,14 @@ function bindEvents() {
     }
   });
   bindOptional("#projectPlansContent", "toggle", (event) => {
+    const category = event.target?.closest?.(".project-plan-category[data-project-plan-category]");
+    if (category && event.target === category) {
+      const key = category.dataset.projectPlanCategory || "";
+      if (!(state.openProjectPlanCategories instanceof Set)) state.openProjectPlanCategories = new Set();
+      if (category.open) state.openProjectPlanCategories.add(key);
+      else state.openProjectPlanCategories.delete(key);
+      return;
+    }
     const details = event.target?.closest?.(".project-plan-accordion");
     if (!details || !details.open) return;
     $$(".project-plan-accordion", $("#projectPlansContent")).forEach((item) => {
@@ -17453,6 +17480,9 @@ async function boot() {
 }
 
 boot();
+
+
+
 
 
 
