@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v195";
+const APP_VERSION = "v196";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -2698,17 +2698,16 @@ function projectPlanEntries(projectId = state.currentProjectId, options = {}) {
       plan.projectId = plan.projectId || protocol.projectId || projectId || "";
       plan.protocolId = plan.protocolId || protocol.id || "";
       if (!includeArchived && isArchivedPlan(plan)) return;
-      const idKey = plan.id ? `id:${plan.id}` : "";
-      const metaKey = `meta:${projectPlanDedupeKey(plan, projectId)}`;
-      if ((idKey && seen.has(idKey)) || seen.has(metaKey)) return;
-      if (idKey) seen.add(idKey);
-      seen.add(metaKey);
+      const entryKey = projectPlanEntryKey({ plan }, projectId);
+      const legacyMetaKey = projectPlanLegacyMetaKey(plan, projectId);
+      if (seen.has(entryKey) || (legacyMetaKey && seen.has(legacyMetaKey))) return;
+      seen.add(entryKey);
+      if (legacyMetaKey) seen.add(legacyMetaKey);
       entries.push({ protocol, plan });
     });
   });
   return entries;
 }
-
 function projectPlanSearchText(protocol, plan = {}) {
   return [plan.planNumber, plan.planNo, plan.appPlanName, plan.title, plan.category, plan.floor, plan.component, plan.fileName, plan.dropboxFileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase();
 }
@@ -2799,6 +2798,13 @@ function projectPlanStableIdentityKeys(plan = {}) {
   return keys;
 }
 
+function projectPlanHasStableIdentity(plan = {}) {
+  return projectPlanStableIdentityKeys(plan).size > 0;
+}
+
+function projectPlanLegacyMetaKey(plan = {}, projectId = state.currentProjectId) {
+  return projectPlanHasStableIdentity(plan) ? "" : `meta:${projectPlanDedupeKey(plan, projectId)}`;
+}
 function projectPlanFileSizeKey(plan = {}, projectId = state.currentProjectId) {
   const normalized = normalizePlanMeta(plan);
   const pid = normalized.projectId || projectId || "";
@@ -2837,24 +2843,22 @@ function projectPlanMatchesArchiveKeys(plan = {}, archiveKeys = new Set(), proje
 
 function projectPlanMatchesArchivedCanonical(plan = {}, archiveKeys = new Set(), activeRawStableKeys = new Set(), projectId = state.currentProjectId, options = {}) {
   if (projectPlanMatchesArchiveKeys(plan, archiveKeys, projectId, { includeFileSize: false, includeFileNameFallback: false })) return true;
+  if (projectPlanHasStableIdentity(plan)) return false;
   if (projectPlanHasActiveRawTwin(plan, activeRawStableKeys)) return false;
   const sizeKey = projectPlanFileSizeKey(plan, projectId);
   if (sizeKey && archiveKeys.has(sizeKey)) return true;
-  const hasStableKey = projectPlanStableIdentityKeys(plan).size > 0;
   const fileKey = projectPlanFileNameKey(plan, projectId);
-  return !!(options.allowLooseFileNameFallback && !hasStableKey && fileKey && archiveKeys.has(fileKey));
+  return !!(options.allowLooseFileNameFallback && fileKey && archiveKeys.has(fileKey));
 }
-
 function addProjectPlanEntryOnce(entries, seen, protocol, plan, projectId = state.currentProjectId) {
   const entryKey = projectPlanEntryKey({ plan }, projectId);
-  const metaKey = `meta:${projectPlanDedupeKey(plan, projectId)}`;
-  if (seen.has(entryKey) || seen.has(metaKey)) return false;
+  const legacyMetaKey = projectPlanLegacyMetaKey(plan, projectId);
+  if (seen.has(entryKey) || (legacyMetaKey && seen.has(legacyMetaKey))) return false;
   seen.add(entryKey);
-  seen.add(metaKey);
+  if (legacyMetaKey) seen.add(legacyMetaKey);
   entries.push({ protocol, plan });
   return true;
 }
-
 
 async function buildProjectPlanInventory(projectId = state.currentProjectId) {
   const project = projectById(projectId) || null;
@@ -17449,6 +17453,9 @@ async function boot() {
 }
 
 boot();
+
+
+
 
 
 
