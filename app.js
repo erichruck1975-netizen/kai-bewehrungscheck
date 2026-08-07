@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v200";
+const APP_VERSION = "v201";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -2393,6 +2393,176 @@ function openProjectDialog(projectId = "") {
   $("#projectDialog").showModal();
 }
 
+function projectTradeAssignmentSummary(assignment = {}) {
+  const trade = assignment.trade || "Gewerk ohne Angabe";
+  const company = assignment.companyName || "Firma auswählen";
+  return { trade, company };
+}
+
+function projectTradeAssignmentMeta(assignment = {}) {
+  return [
+    assignment.contactName ? `Ansprechpartner: ${assignment.contactName}` : "",
+    assignment.phone || "",
+    assignment.email || "",
+    assignment.defaultDeadlineDays ? `Frist ${assignment.defaultDeadlineDays} Tage` : "",
+    assignment.defaultPriority ? `Priorität ${assignment.defaultPriority}` : ""
+  ].filter(Boolean).join(" - ");
+}
+
+function renderProjectTradeAssignments(assignments = []) {
+  const target = $("#projectTradeAssignmentsList");
+  if (!target) return;
+  const normalized = (assignments || []).map((entry) => normalizeProjectTradeAssignments([entry])[0] || { id: entry.id || uid("tradeassign"), trade: entry.trade || "", companyName: entry.companyName || entry.company || "", contactName: entry.contactName || entry.contact || "", email: entry.email || "", phone: entry.phone || "", defaultPriority: entry.defaultPriority || "normal", defaultDeadlineDays: entry.defaultDeadlineDays || "", notes: entry.notes || "" });
+  const openId = state.openProjectTradeAssignmentId || normalized[0]?.id || "";
+  target.innerHTML = normalized.length ? normalized.map((assignment) => {
+    const summary = projectTradeAssignmentSummary(assignment);
+    const meta = projectTradeAssignmentMeta(assignment);
+    const isOpen = assignment.id === openId;
+    return `
+      <article class="project-trade-assignment-card ${isOpen ? "is-open" : ""}" data-project-trade-assignment="${escapeAttr(assignment.id)}">
+        <button class="project-trade-assignment-toggle" type="button" data-project-trade-toggle="${escapeAttr(assignment.id)}" aria-expanded="${isOpen ? "true" : "false"}">
+          <span class="assignment-main"><strong>${escapeHtml(summary.trade)}</strong><span>${escapeHtml(summary.company)}</span><span class="assignment-arrow">${isOpen ? "▲" : "▼"}</span></span>
+          ${meta ? `<span class="assignment-meta">${escapeHtml(meta)}</span>` : ""}
+        </button>
+        ${isOpen ? `<div class="project-trade-assignment-details grid compact-grid">
+          <input type="hidden" data-project-trade-field="id" value="${escapeAttr(assignment.id)}">
+          <label>Gewerk<input data-project-trade-field="trade" list="tradeRoleOptions" value="${escapeAttr(assignment.trade)}"></label>
+          <label>Firma<input data-project-trade-field="companyName" list="companyOptions" value="${escapeAttr(assignment.companyName)}"></label>
+          <label>Ansprechpartner<input data-project-trade-field="contactName" list="responsibleOptions" value="${escapeAttr(assignment.contactName)}"></label>
+          <label>E-Mail<input data-project-trade-field="email" type="email" value="${escapeAttr(assignment.email)}"></label>
+          <label>Telefon / WhatsApp<input data-project-trade-field="phone" value="${escapeAttr(assignment.phone)}"></label>
+          <label>Standardfrist Tage<input data-project-trade-field="defaultDeadlineDays" inputmode="numeric" value="${escapeAttr(assignment.defaultDeadlineDays)}"></label>
+          <label>Priorität<select data-project-trade-field="defaultPriority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, assignment.defaultPriority || "normal")}</select></label>
+          <label class="wide">Bemerkung<textarea data-project-trade-field="notes" rows="2">${escapeHtml(assignment.notes)}</textarea></label>
+          <div class="result-actions compact wide"><button class="danger-btn small-btn" type="button" data-project-trade-delete="${escapeAttr(assignment.id)}">Löschen</button></div>
+        </div>` : ""}
+      </article>`;
+  }).join("") : `<p class="muted">Noch keine Gewerk-Zuständigkeiten für dieses Projekt hinterlegt.</p>`;
+}
+
+function projectTradeAssignmentCards() {
+  return Array.from(document.querySelectorAll("#projectTradeAssignmentsList [data-project-trade-assignment]"));
+}
+
+function collectProjectTradeAssignmentsFromDialog() {
+  return projectTradeAssignmentCards().map((card) => {
+    const read = (field) => card.querySelector(`[data-project-trade-field="${field}"]`)?.value?.trim() || "";
+    return {
+      id: read("id") || card.dataset.projectTradeAssignment || uid("tradeassign"),
+      trade: read("trade"),
+      companyName: read("companyName"),
+      contactName: read("contactName"),
+      email: read("email"),
+      phone: read("phone"),
+      defaultDeadlineDays: read("defaultDeadlineDays"),
+      defaultPriority: read("defaultPriority") || "normal",
+      notes: read("notes")
+    };
+  }).filter((entry) => entry.trade || entry.companyName || entry.contactName || entry.email || entry.phone || entry.notes).map((entry) => normalizeProjectTradeAssignments([entry])[0]).filter(Boolean);
+}
+
+function applyProjectTradeCompanySnapshot(element) {
+  const card = element?.closest?.("[data-project-trade-assignment]");
+  if (!card) return;
+  const companyInput = card.querySelector('[data-project-trade-field="companyName"]');
+  const contactInput = card.querySelector('[data-project-trade-field="contactName"]');
+  const emailInput = card.querySelector('[data-project-trade-field="email"]');
+  const phoneInput = card.querySelector('[data-project-trade-field="phone"]');
+  if (element.dataset.projectTradeField === "companyName") {
+    const company = resolveCompany(companyInput?.value || "");
+    if (company) {
+      if (emailInput && !emailInput.value) emailInput.value = company.email || "";
+      if (phoneInput && !phoneInput.value) phoneInput.value = company.phone || "";
+      if (contactInput && !contactInput.value) contactInput.value = company.contact || "";
+    }
+  }
+  if (element.dataset.projectTradeField === "contactName") {
+    const contact = resolveOwnPerson(contactInput?.value || "");
+    if (contact) {
+      if (emailInput && !emailInput.value) emailInput.value = contact.email || "";
+      if (phoneInput && !phoneInput.value) phoneInput.value = contact.phone || contact.mobile || "";
+      if (companyInput && !companyInput.value) companyInput.value = contact.companyName || contact.company || "";
+    }
+  }
+}
+
+function handleProjectTradeAssignmentAction(event) {
+  const target = event.target;
+  if (!target?.closest) return false;
+  if (event.type === "pointerup" && target.closest("#projectDialog")) return false;
+  const addButton = target.closest("#addProjectTradeAssignmentBtn");
+  if (addButton) {
+    event.preventDefault();
+    const assignments = collectProjectTradeAssignmentsFromDialog();
+    const entry = { id: uid("tradeassign"), trade: "", companyName: "", contactName: "", email: "", phone: "", defaultPriority: "normal", defaultDeadlineDays: "", notes: "" };
+    assignments.push(entry);
+    state.openProjectTradeAssignmentId = entry.id;
+    renderProjectTradeAssignments(assignments);
+    const firstInput = projectTradeAssignmentCards().find((card) => card.dataset.projectTradeAssignment === entry.id)?.querySelector('[data-project-trade-field="trade"]');
+    firstInput?.focus?.();
+    return true;
+  }
+  const toggleButton = target.closest("[data-project-trade-toggle]");
+  if (toggleButton) {
+    event.preventDefault();
+    const assignments = collectProjectTradeAssignmentsFromDialog();
+    const id = toggleButton.dataset.projectTradeToggle || "";
+    state.openProjectTradeAssignmentId = state.openProjectTradeAssignmentId === id ? "" : id;
+    renderProjectTradeAssignments(assignments);
+    return true;
+  }
+  const deleteButton = target.closest("[data-project-trade-delete]");
+  if (deleteButton) {
+    event.preventDefault();
+    const id = deleteButton.dataset.projectTradeDelete || "";
+    if (!confirm("Diese Gewerk-Zuständigkeit löschen?")) return true;
+    const assignments = collectProjectTradeAssignmentsFromDialog().filter((entry) => entry.id !== id);
+    if (state.openProjectTradeAssignmentId === id) state.openProjectTradeAssignmentId = assignments[0]?.id || "";
+    renderProjectTradeAssignments(assignments);
+    return true;
+  }
+  return false;
+}
+
+function currentProjectTradeAssignments() {
+  const project = projectById(state.currentProjectId || state.current?.projectId || "");
+  return normalizeProjectTradeAssignments(project?.tradeAssignments || []);
+}
+
+function projectTradeAssignmentForTrade(trade = "") {
+  const normalizedTrade = normalizeLookupText(trade);
+  if (!normalizedTrade) return null;
+  return currentProjectTradeAssignments().find((assignment) => normalizeLookupText(assignment.trade) === normalizedTrade) || null;
+}
+
+function siteControlTradeAssignmentControls(item = {}) {
+  const assignment = projectTradeAssignmentForTrade(item.trade || "");
+  const hint = item.tradeAssignmentHint || (assignment ? [assignment.companyName, assignment.contactName].filter(Boolean).join(" - ") : "");
+  if (!assignment && !hint) return "";
+  return `<div class="assignment-hint wide"><strong>Projekt-Zuständigkeit</strong><span>${escapeHtml(hint || "Keine passende Zuordnung gefunden.")}</span></div>`;
+}
+
+function applyProjectTradeAssignmentToSiteItem(item = {}) {
+  const assignment = projectTradeAssignmentForTrade(item.trade || "");
+  if (!assignment) {
+    item.tradeAssignmentHint = "";
+    return item;
+  }
+  const responsible = [assignment.companyName, assignment.contactName].filter(Boolean).join(" - ");
+  if (!item.responsible) item.responsible = responsible;
+  if (!item.priority || item.priority === "normal") item.priority = assignment.defaultPriority || item.priority || "normal";
+  if (!item.dueDate && assignment.defaultDeadlineDays) {
+    const days = Number.parseInt(assignment.defaultDeadlineDays, 10);
+    if (Number.isFinite(days) && days > 0) {
+      const date = new Date();
+      date.setDate(date.getDate() + days);
+      item.dueDate = date.toISOString().slice(0, 10);
+    }
+  }
+  item.tradeAssignmentId = assignment.id || "";
+  item.tradeAssignmentHint = responsible || assignment.email || assignment.phone || "";
+  return item;
+}
 async function createProjectFromDialog() {
   const projectId = $("#projectIdInput").value;
   const existing = projectId ? projectById(projectId) : null;
@@ -3506,6 +3676,490 @@ function clearSiteControlItemSinglePin(item, pinId) {
   item.pageNumber = primary?.pageNumber || 1;
   item.planReference = primary ? siteControlPlanReference(item) : "";
   item.updatedAt = new Date().toISOString();
+}
+async function saveLookupFromAcceptanceDialog(key, inputSelector, label) {
+  const input = $(inputSelector);
+  const value = input?.value?.trim() || "";
+  if (!value) return alert(`Bitte zuerst ${label} eintragen.`);
+  const master = normalizeMasterData(state.masterData);
+  if ((master[key] || []).some((item) => String(item || "").toLowerCase() === value.toLowerCase())) return alert("Dieser Stammdatenwert ist bereits vorhanden.");
+  master[key] = uniqueValues([...(master[key] || []), value]);
+  state.masterData = master;
+  await saveMasterData({ alertSuccess: false });
+  renderDatalists();
+  if (input) input.value = value;
+}
+
+async function refreshMasterDataFromDb() {
+  const raw = await idbGet("masterData", "app");
+  if (raw) state.masterData = normalizeMasterData(raw);
+  renderDatalists();
+}
+
+async function openAcceptanceDialog(projectId) {
+  const project = projectById(projectId);
+  if (!project) return;
+  await refreshMasterDataFromDb();
+  state.pendingAcceptanceProjectId = project.id;
+  state.currentProjectId = project.id;
+  state.acceptanceDialogReturnFocus = document.activeElement;
+  const typeValues = state.masterData?.acceptanceTypes || DEFAULT_MASTER_DATA.acceptanceTypes || [];
+  $("#acceptanceTitleInput").value = "";
+  $("#acceptanceTypeInput").value = typeValues.includes("Erstabnahme") ? "Erstabnahme" : (typeValues[0] || "Erstabnahme");
+  $("#acceptanceComponentInput").value = "";
+  $("#acceptanceFloorInput").value = "";
+  $("#acceptanceAreaInput").value = "";
+  $("#acceptanceContractorInput").value = project.contractor || state.settings.defaultCompany || "";
+  $("#acceptanceInspectorInput").value = project.defaultInspector || defaultOwnPerson()?.name || state.settings.defaultInspector || "";
+  const sourceSelect = $("#acceptancePlanSourceInput");
+  if (sourceSelect) {
+    const acceptances = rebarProtocolsForProject(project.id);
+    sourceSelect.innerHTML = `<option value="">Keine Planunterlagen übernehmen</option>${acceptances.map((protocol) => `<option value="${escapeAttr(protocol.id)}">${escapeHtml(protocol.head?.acceptanceTitle || protocol.head?.component || formatDate(protocol.head?.createdAt || protocol.createdAt))}</option>`).join("")}`;
+  }
+  $("#acceptanceDialog")?.showModal?.();
+}
+
+function closeAcceptanceDialog() {
+  const dialog = $("#acceptanceDialog");
+  state.pendingAcceptanceProjectId = "";
+  if (dialog?.open) dialog.close("cancel");
+  const returnFocus = state.acceptanceDialogReturnFocus;
+  state.acceptanceDialogReturnFocus = null;
+  if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
+}
+
+async function createProtocolFromDialog() {
+  const projectId = state.pendingAcceptanceProjectId;
+  if (!projectId) return;
+  const dialog = $("#acceptanceDialog");
+  const confirmButton = $("#createAcceptanceConfirmBtn");
+  if (confirmButton) confirmButton.disabled = true;
+  try {
+    const contractor = companySelection($("#acceptanceContractorInput")?.value || "");
+    const inspector = ownPersonSelection($("#acceptanceInspectorInput")?.value || "");
+    const acceptanceType = $("#acceptanceTypeInput")?.value?.trim() || "Erstabnahme";
+    const component = $("#acceptanceComponentInput")?.value?.trim() || "";
+    const floor = $("#acceptanceFloorInput")?.value?.trim() || "";
+    await createProtocol(projectId, {
+      head: {
+        acceptanceTitle: $("#acceptanceTitleInput")?.value?.trim() || "",
+        acceptanceType,
+        acceptanceTypeId: lookupSelection("acceptanceTypes", acceptanceType).id,
+        acceptanceTypeSnapshot: lookupSelection("acceptanceTypes", acceptanceType).snapshot,
+        component,
+        componentId: lookupSelection("components", component).id,
+        componentSnapshot: lookupSelection("components", component).snapshot,
+        floor,
+        floorId: lookupSelection("floors", floor).id,
+        floorSnapshot: lookupSelection("floors", floor).snapshot,
+        areaAxes: $("#acceptanceAreaInput")?.value?.trim() || "",
+        contractor: contractor.text,
+        contractorId: contractor.id,
+        contractorSnapshot: contractor.snapshot,
+        inspectorName: inspector.text,
+        inspectorPersonId: inspector.id,
+        inspectorPersonSnapshot: inspector.snapshot
+      },
+      planSourceId: $("#acceptancePlanSourceInput")?.value || ""
+    });
+    state.pendingAcceptanceProjectId = "";
+    state.acceptanceDialogReturnFocus = null;
+    if (dialog?.open) dialog.close("created");
+  } finally {
+    if (confirmButton) confirmButton.disabled = false;
+  }
+}
+
+async function createProtocol(projectId = state.currentProjectId, options = {}) {
+  const project = projectById(projectId);
+  if (!project) {
+    alert("Bitte zuerst ein Projekt öffnen. Abnahmen können nur innerhalb eines Projekts angelegt werden.");
+    return;
+  }
+  const protocol = blankProtocol(project, { head: options.head || {} });
+  if (options.planSourceId) {
+    const source = state.protocols.find((item) => item.id === options.planSourceId);
+    if (source) protocol.plans = await duplicatePlanRecords(source, protocol);
+    protocol.activePlanId = protocol.plans[0]?.id || "";
+  }
+  state.protocols.unshift(protocol);
+  state.currentProjectId = project.id;
+  await persist();
+  openProtocol(protocol);
+}
+function saveFromForm({ persistNow = true } = {}) {
+  if (!state.current || isSiteControlProtocol(state.current) || isDailyReportProtocol(state.current) || isProjectPlanLibraryProtocol(state.current)) return;
+  const form = $("#protocolForm");
+  if (!form) return;
+  const data = new FormData(form);
+  state.current.head = state.current.head || {};
+  state.current.weather = state.current.weather || {};
+  state.current.result = state.current.result || {};
+  Object.keys(state.current.head).forEach((key) => {
+    if (["acceptanceTypeId", "acceptanceTypeSnapshot", "componentId", "componentSnapshot", "floorId", "floorSnapshot", "contractorId", "contractorSnapshot", "inspectorPersonId", "inspectorPersonSnapshot"].includes(key)) return;
+    if (data.has(key)) state.current.head[key] = data.get(key) || "";
+  });
+  syncAcceptanceLookupFieldsFromHead(state.current.head);
+  Object.keys(state.current.weather).forEach((key) => { if (data.has(key)) state.current.weather[key] = data.get(key) || ""; });
+  Object.keys(state.current.result).forEach((key) => { if (data.has(key)) state.current.result[key] = data.get(key) || ""; });
+  syncResultLookupFields(state.current);
+  const siteAddress = normalizeAddress({
+    street: state.current.head.siteStreet,
+    zip: state.current.head.siteZip,
+    city: state.current.head.siteCity,
+    country: state.current.head.siteCountry || "Deutschland"
+  });
+  state.current.head.siteStreet = siteAddress.street;
+  state.current.head.siteZip = siteAddress.zip;
+  state.current.head.siteCity = siteAddress.city;
+  state.current.head.siteCountry = siteAddress.country;
+  state.current.head.siteAddress = formatAddress(siteAddress);
+  const project = projectById(state.current.projectId);
+  if (project) {
+    if (state.current.head.projectName) project.name = state.current.head.projectName;
+    project.address = siteAddress;
+    project.siteAddress = formatAddress(siteAddress);
+    project.projectAddress = formatAddress(siteAddress);
+    project.street = siteAddress.street || "";
+    project.siteStreet = siteAddress.street || "";
+    project.zip = siteAddress.zip || "";
+    project.siteZip = siteAddress.zip || "";
+    project.city = siteAddress.city || "";
+    project.siteCity = siteAddress.city || "";
+    project.country = siteAddress.country || "Deutschland";
+    project.siteCountry = siteAddress.country || "Deutschland";
+    project.updatedAt = new Date().toISOString();
+    protocolsForProject(project.id).forEach((protocol) => {
+      if (protocol.id !== state.current.id) syncProtocolProjectFields(protocol, project, { overwriteProtocol: false });
+    });
+  }
+  state.current.activePlanId = state.selectedPlanId;
+  state.current.updatedAt = new Date().toISOString();
+  if (persistNow) persist();
+  else schedulePersist();
+}
+
+function syncAcceptanceLookupFieldsFromHead(head = {}) {
+  const type = lookupSelection("acceptanceTypes", head.acceptanceType || "Erstabnahme");
+  const component = lookupSelection("components", head.component || "");
+  const floor = lookupSelection("floors", head.floor || "");
+  const contractor = companySelection(head.contractor || "");
+  head.acceptanceType = type.text || "Erstabnahme";
+  head.acceptanceTypeId = type.id;
+  head.acceptanceTypeSnapshot = type.snapshot;
+  head.component = component.text;
+  head.componentId = component.id;
+  head.componentSnapshot = component.snapshot;
+  head.floor = floor.text;
+  head.floorId = floor.id;
+  head.floorSnapshot = floor.snapshot;
+  head.contractor = contractor.text;
+  head.contractorId = contractor.id;
+  head.contractorSnapshot = contractor.snapshot;
+}
+
+function fillForm() {
+  if (!state.current) return;
+  const p = state.current;
+  const values = { ...(p.head || {}), ...(p.weather || {}), ...(p.result || {}) };
+  Object.entries(values).forEach(([key, value]) => {
+    const field = $(`[name="${key}"]`);
+    if (field) field.value = value || "";
+  });
+  renderFollowupContextBanner();
+  renderOverviewPhotos();
+  renderSignatures();
+}
+
+function renderFollowupContextBanner() {
+  const banner = document.getElementById("followupContextBanner");
+  if (!banner) return;
+  if (!isFollowupProtocol(state.current)) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+  banner.hidden = false;
+  banner.innerHTML = `<strong>Nachbegehung / Nachkontrolle</strong><span>Bezug: ${escapeHtml(followupSourceLabel(state.current))}</span>`;
+}
+
+function renderOverviewPhotos() {
+  const list = $("#overviewPhotoList");
+  if (!list || !state.current) return;
+  state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
+  const photos = state.current.overviewPhotos;
+  if (!photos.length) {
+    list.innerHTML = `<div class="overview-photo-empty"><p class="muted">Noch keine Übersichtsfotos zur Baustelle erfasst.</p></div>`;
+    return;
+  }
+  list.innerHTML = photos.map((item, index) => `
+    <article class="overview-photo-card" data-overview-photo-id="${escapeAttr(item.id)}">
+      <div class="overview-photo-preview"><img data-photo-thumb="${escapeAttr(item.photoId)}" alt="${escapeAttr(item.caption || "Übersichtsfoto Baustelle")}">${item.isCover ? `<span class="cover-badge">Titelbild</span>` : ""}</div>
+      <div class="overview-photo-fields">
+        <label>Bildbeschreibung / Kommentar<textarea data-overview-caption="${escapeAttr(item.id)}" rows="2" placeholder="z. B. Bodenplatte Übersicht">${escapeHtml(item.caption)}</textarea></label>
+        <div class="overview-photo-tools">
+          <button class="small-btn" type="button" data-overview-up="${escapeAttr(item.id)}" ${index === 0 ? "disabled" : ""}>Nach oben</button>
+          <button class="small-btn" type="button" data-overview-down="${escapeAttr(item.id)}" ${index === photos.length - 1 ? "disabled" : ""}>Nach unten</button>
+          <button class="small-btn" type="button" data-overview-cover="${escapeAttr(item.id)}">${item.isCover ? "Titelbild entfernen" : "Als Titelbild"}</button>
+          <button class="danger-btn" type="button" data-overview-delete="${escapeAttr(item.id)}">Foto löschen</button>
+        </div>
+      </div>
+    </article>`).join("");
+  hydratePhotoThumbs(list);
+}
+
+function overviewPhotoById(id) {
+  return state.current?.overviewPhotos?.find((item) => item.id === id) || null;
+}
+
+function reorderOverviewPhotos() {
+  state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
+}
+
+function moveOverviewPhoto(id, direction) {
+  reorderOverviewPhotos();
+  const photos = state.current?.overviewPhotos || [];
+  const index = photos.findIndex((item) => item.id === id);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= photos.length) return;
+  [photos[index], photos[nextIndex]] = [photos[nextIndex], photos[index]];
+  photos.forEach((item, orderIndex) => { item.order = orderIndex + 1; item.updatedAt = new Date().toISOString(); });
+  persist();
+  renderOverviewPhotos();
+}
+
+async function deleteOverviewPhoto(id) {
+  const photo = overviewPhotoById(id);
+  if (!photo) return;
+  state.current.overviewPhotos = (state.current.overviewPhotos || []).filter((item) => item.id !== id);
+  reorderOverviewPhotos();
+  if (photo.photoId) await idbDelete("photos", photo.photoId);
+  persist();
+  renderOverviewPhotos();
+}
+
+function toggleOverviewCover(id) {
+  const target = overviewPhotoById(id);
+  if (!target) return;
+  const nextValue = !target.isCover;
+  (state.current.overviewPhotos || []).forEach((item) => { item.isCover = nextValue && item.id === id; item.updatedAt = new Date().toISOString(); });
+  persist();
+  renderOverviewPhotos();
+}
+
+function renderSignatures() {
+  const list = $("#signatureList");
+  if (!list || !state.current) return;
+  const signatures = state.current.signatures || [];
+  if (!signatures.length) {
+    list.innerHTML = `<div class="signature-card"><p class="muted">Noch keine digitale Unterschrift erfasst.</p></div>`;
+    return;
+  }
+  list.innerHTML = signatures.map((signature) => signatureCard(signature)).join("");
+  requestAnimationFrame(() => initSignaturePads(list));
+}
+
+function signatureCard(signature) {
+  const isEditing = state.signatureEditId === signature.id;
+  const hasSignature = !!signature.signatureData;
+  return `
+    <article class="signature-card" data-signature="${escapeAttr(signature.id)}">
+      <div class="section-head"><h4>${escapeHtml(signature.name || "Neue Unterschrift")}</h4><button class="danger-btn" type="button" data-delete-signature="${escapeAttr(signature.id)}">Eintrag löschen</button></div>
+      <div class="grid compact-grid">
+        ${comboField({ label: "Name", field: "name", list: "personOptions", value: signature.name, placeholder: "Name" })}
+        ${comboField({ label: "Firma", field: "company", list: "companyOptions", value: signature.company, placeholder: "Firma" })}
+        ${comboField({ label: "Funktion / Rolle", field: "role", list: "signatureRoleOptions", value: signature.role, placeholder: "z. B. Polier" })}
+        ${comboField({ label: "Unterschrift für", field: "category", list: "signatureCategoryOptions", value: signature.category, placeholder: "z. B. Verantwortlicher vor Ort" })}
+        ${comboField({ label: "Datum / Uhrzeit", field: "signedAt", type: "datetime-local", value: signature.signedAt })}
+        ${comboField({ label: "Bemerkung", field: "note", rows: 2, value: signature.note, placeholder: "optional" })}
+      </div>
+      <div class="signature-pad-wrap ${hasSignature ? "signed" : ""} ${isEditing ? "editing" : "locked"}">
+        <canvas class="signature-pad" data-signature-pad="${escapeAttr(signature.id)}" aria-label="Unterschriftsfeld"></canvas>
+        <div class="signature-placeholder">${isEditing ? "Unterschriftsmodus aktiv - bitte unterschreiben" : (hasSignature ? "" : "Noch keine Unterschrift")}</div><div class="signature-line"></div>
+      </div>
+      <p class="muted signature-mode-hint">${isEditing ? "Unterschriftsmodus aktiv. Beim Zeichnen wird das Scrollen im Feld blockiert." : "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche."}</p>
+      <div class="result-actions">${isEditing ? `<button class="primary-btn" type="button" data-save-signature="${escapeAttr(signature.id)}">Fertig</button><button class="small-btn" type="button" data-reset-signature="${escapeAttr(signature.id)}">Zurücksetzen</button>` : `<button class="primary-btn" type="button" data-edit-signature="${escapeAttr(signature.id)}">${hasSignature ? "Unterschrift bearbeiten" : "Unterschreiben"}</button>${hasSignature ? `<button class="small-btn" type="button" data-reset-signature="${escapeAttr(signature.id)}">Unterschrift löschen</button>` : ""}`}</div>
+    </article>`;
+}
+
+function initSignaturePads(root = document) {
+  $$('[data-signature-pad]', root).forEach((canvas) => initSignaturePad(canvas));
+}
+
+function initSignaturePad(canvas) {
+  const id = canvas.dataset.signaturePad;
+  const signature = findSignature(id);
+  if (!signature || canvas.dataset.ready === "true") return;
+  canvas.dataset.ready = "true";
+  resizeSignatureCanvas(canvas, signature.signatureData);
+  const ctx = canvas.getContext("2d");
+  let drawing = false;
+  let last = null;
+  const drawTo = (event) => {
+    if (!drawing) return;
+    if (state.signatureEditId !== id) { drawing = false; return; }
+    const point = signatureCanvasPoint(canvas, event);
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    last = point;
+    event.preventDefault();
+  };
+  canvas.addEventListener("pointerdown", (event) => {
+    if (state.signatureEditId !== id) return;
+    canvas.setPointerCapture?.(event.pointerId);
+    canvas.closest(".signature-pad-wrap")?.classList.add("signed");
+    drawing = true;
+    last = signatureCanvasPoint(canvas, event);
+    event.preventDefault();
+  });
+  canvas.addEventListener("pointermove", drawTo);
+  const finish = (event) => {
+    if (!drawing) return;
+    if (state.signatureEditId !== id) { drawing = false; return; }
+    drawing = false;
+    signature.signatureData = canvas.toDataURL("image/png");
+    signature.signedAt = signature.signedAt || nowLocalInput();
+    persist();
+    event.preventDefault();
+  };
+  canvas.addEventListener("pointerup", finish);
+  canvas.addEventListener("pointercancel", finish);
+}
+
+function resizeSignatureCanvas(canvas, signatureData = "") {
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(320, Math.floor(rect.width || canvas.parentElement?.clientWidth || 320));
+  const height = Math.max(180, Math.floor(rect.height || 220));
+  canvas.width = Math.floor(width * ratio);
+  canvas.height = Math.floor(height * ratio);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform?.(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, height);
+  if (signatureData) {
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0, width, height);
+    img.src = signatureData;
+  }
+}
+
+function signatureCanvasPoint(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+
+function findSignature(id) {
+  return state.current?.signatures?.find((signature) => signature.id === id) || null;
+}
+
+function addSignature() {
+  if (!state.current) return;
+  saveFromForm();
+  state.current.signatures.push(normalizeSignature({ signedAt: nowLocalInput() }));
+  persist();
+  renderSignatures();
+}
+
+function resetSignature(id) {
+  const signature = findSignature(id);
+  if (!signature) return;
+  signature.signatureData = "";
+  signature.signedAt = signature.signedAt || nowLocalInput();
+  persist();
+  renderSignatures();
+}
+
+function editSignature(id) {
+  if (!findSignature(id)) return;
+  state.signatureEditId = id;
+  renderSignatures();
+}
+
+function saveSignature(id, event = null) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  const card = $(`[data-signature="${id}"]`);
+  const signature = findSignature(id);
+  if (!card || !signature) return;
+  $$('[data-signature-field]', card).forEach((field) => { signature[field.dataset.signatureField] = field.value || ""; });
+  syncSignatureSnapshots(signature);
+  const canvas = $(`[data-signature-pad="${id}"]`, card);
+  const wasEditing = state.signatureEditId === id;
+  if (canvas && wasEditing) signature.signatureData = canvas.toDataURL("image/png");
+  signature.signedAt = signature.signedAt || nowLocalInput();
+  state.signatureEditId = "";
+  lockSignatureCardNow(card, canvas);
+  persist();
+  renderSignatures();
+}
+
+function lockSignatureCardNow(card, canvas = null) {
+  const wrap = card?.querySelector?.(".signature-pad-wrap");
+  if (wrap) { wrap.classList.remove("editing"); wrap.classList.add("locked"); }
+  const pad = canvas || card?.querySelector?.(".signature-pad");
+  if (pad) { pad.style.pointerEvents = "none"; pad.style.touchAction = "auto"; }
+  const hint = card?.querySelector?.(".signature-mode-hint");
+  if (hint) hint.textContent = "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche.";
+}
+
+function syncSignatureSnapshots(signature) {
+  const person = ownPersonSelection(signature.name || "");
+  const company = companySelection(signature.company || person.snapshot?.company || "");
+  signature.personId = person.id;
+  signature.personSnapshot = person.snapshot;
+  if (person.snapshot) {
+    signature.name = person.snapshot.name || signature.name;
+    signature.company = signature.company || person.snapshot.company || "";
+    signature.role = signature.role || person.snapshot.role || "";
+  }
+  signature.companyId = company.id;
+  signature.companySnapshot = company.snapshot;
+  signature.roleSnapshot = signature.role ? { value: signature.role, label: signature.role } : null;
+}
+
+function applySignatureMasterSelection(signature, field, value) {
+  signature[field] = value || "";
+  if (field === "name") {
+    const person = ownPersonSelection(value);
+    signature.personId = person.id;
+    signature.personSnapshot = person.snapshot;
+    if (person.snapshot) {
+      signature.name = person.snapshot.name || value;
+      signature.company = signature.company || person.snapshot.company || "";
+      signature.role = signature.role || person.snapshot.role || "";
+    }
+  }
+  if (field === "company") {
+    const company = companySelection(value);
+    signature.company = company.text;
+    signature.companyId = company.id;
+    signature.companySnapshot = company.snapshot;
+  }
+  if (field === "role" || field === "category") signature[`${field}Snapshot`] = value ? { value, label: value } : null;
+}
+
+function deleteSignature(id) {
+  if (!state.current) return;
+  state.current.signatures = state.current.signatures.filter((signature) => signature.id !== id);
+  persist();
+  renderSignatures();
+}
+
+function selectedPlan() {
+  const plan = state.current?.plans?.find((entry) => entry.id === state.selectedPlanId) || null;
+  return plan ? normalizePlanMeta(plan) : null;
+}
+
+function acceptanceLabel(protocol) {
+  return protocol?.head?.acceptanceTitle || protocol?.head?.component || formatDate(protocol?.head?.createdAt || protocol?.createdAt) || "Abnahme";
 }
 function projectStats(project) {
   const acceptances = rebarProtocolsForProject(project.id);
@@ -16783,6 +17437,12 @@ async function boot() {
 }
 
 boot();
+
+
+
+
+
+
 
 
 
