@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --ink: #1d252d;
   --muted: #66717d;
@@ -4375,3 +4375,24 @@ dialog button {
   cursor: pointer;
   font-weight: 800;
 }
+
+/* v198: mehrere Baustellenkontrolle-Pins pro Feststellung */
+.site-pin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.site-pin-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .site-pin-row {
+    grid-template-columns: 1fr;
+  }
+  .site-pin-row .small-btn {
+    width: 100%;
+  }
+}
+

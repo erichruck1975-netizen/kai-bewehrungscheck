@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v197";
+const APP_VERSION = "v198";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -1738,6 +1738,7 @@ function normalizeSiteControlItems(items = [], protocolId = "") {
     description: item.description || item.note || "",
     planReference: item.planReference || "",
     pinId: item.pinId || "",
+    pinIds: [...new Set([...(Array.isArray(item.pinIds) ? item.pinIds : []), item.pinId].filter(Boolean))],
     planId: item.planId || "",
     pageNumber: Math.max(1, Number(item.pageNumber) || 1),
     photos: (item.photos || []).map(normalizePhotoRef),
@@ -3260,11 +3261,40 @@ function setPlanRotation(delta) {
   renderPlan();
 }
 
-function siteControlPinForItem(item) {
-  if (!item?.pinId || !state.current?.pins) return null;
-  return state.current.pins.find((pin) => pin.id === item.pinId) || null;
+function siteControlPinsForItem(item = {}, protocol = state.current) {
+  if (!item || !protocol?.pins) return [];
+  const ids = new Set([...(Array.isArray(item.pinIds) ? item.pinIds : []), item.pinId].filter(Boolean).map(String));
+  const pins = (protocol.pins || []).filter((pin) => {
+    if (!pin) return false;
+    if (ids.has(String(pin.id))) return true;
+    return String(pin.itemId || pin.siteItemId || "") === String(item.id || "");
+  });
+  return [...new Map(pins.map((pin) => [pin.id, pin])).values()].sort((a, b) => {
+    const na = Number(a.siteControlPinIndex || a.number || 0) || 0;
+    const nb = Number(b.siteControlPinIndex || b.number || 0) || 0;
+    if (na && nb && na !== nb) return na - nb;
+    return String(a.createdAt || a.updatedAt || "").localeCompare(String(b.createdAt || b.updatedAt || ""));
+  });
 }
 
+function siteControlPinForItem(item) {
+  return siteControlPinsForItem(item)[0] || null;
+}
+
+function siteControlPinDisplayLabel(pin, item = null) {
+  if (!pin) return "Pin";
+  const siteItem = item || (pin.itemId ? findSiteControlItem(pin.itemId) : null);
+  if (!siteItem) return pinLabel(pin);
+  const pins = siteControlPinsForItem(siteItem);
+  const index = Math.max(0, pins.findIndex((entry) => entry.id === pin.id));
+  return `${siteControlItemBkLabel(siteItem)}.${index + 1}`;
+}
+
+function siteControlPinSummary(item = {}) {
+  const count = siteControlPinsForItem(item).length;
+  if (!count) return "kein Pin";
+  return `${count} Pin${count === 1 ? "" : "s"}`;
+}
 function siteControlItemBkNumberRaw(item = {}) {
   const raw = item.bkNo || item.bkNumber || item.number || item.bkLabel || "";
   const normalized = String(raw || "").replace(/^BK/i, "").trim();
@@ -3395,21 +3425,25 @@ function siteControlPinStatus(status = "") {
   return "Hinweis";
 }
 function siteControlPlanReference(item = {}, pin = siteControlPinForItem(item)) {
-  const planId = pin?.planId || item.planId || "";
+  const pins = pin ? [pin] : siteControlPinsForItem(item);
+  if (pins.length > 1) return `${pins.length} Planmarkierungen`;
+  const effectivePin = pins[0] || null;
+  const planId = effectivePin?.planId || item.planId || "";
   const plan = planById(planId);
-  if (!pin && !planId && !item.planReference) return "";
-  const page = pin?.pageNumber || item.pageNumber || 1;
-  const label = pin ? pinLabel(pin) : "Pin";
+  if (!effectivePin && !planId && !item.planReference) return "";
+  const page = effectivePin?.pageNumber || item.pageNumber || 1;
+  const label = effectivePin ? siteControlPinDisplayLabel(effectivePin, item) : "Pin";
   const planName = plan ? (plan.planNumber || plan.title || plan.fileName || "Plan") : (item.planReference || "Plan");
-  return `${planName} \u00b7 Seite ${page} \u00b7 ${label}`;
+  return `${planName} · Seite ${page} · ${label}`;
 }
-
 function syncSiteControlItemPinReference(item, pin) {
   if (!item || !pin) return;
-  item.pinId = pin.id;
-  item.planId = pin.planId || "";
-  item.pageNumber = Math.max(1, Number(pin.pageNumber) || 1);
-  item.planReference = siteControlPlanReference(item, pin);
+  item.pinIds = [...new Set([...(Array.isArray(item.pinIds) ? item.pinIds : []), item.pinId, pin.id].filter(Boolean))];
+  item.pinId = item.pinId || pin.id;
+  const primaryPin = siteControlPinsForItem(item)[0] || pin;
+  item.planId = primaryPin.planId || pin.planId || "";
+  item.pageNumber = Math.max(1, Number(primaryPin.pageNumber || pin.pageNumber) || 1);
+  item.planReference = siteControlPlanReference(item);
   if (pin.note && (!item.description || item.description === item.planReference)) item.description = pin.note;
   if (pin.title && !item.location) item.location = pin.title;
   item.photos = item.photos || [];
@@ -3418,816 +3452,26 @@ function syncSiteControlItemPinReference(item, pin) {
   });
   item.updatedAt = new Date().toISOString();
 }
-
 function clearSiteControlItemPin(item) {
   if (!item) return;
   item.pinId = "";
+  item.pinIds = [];
   item.planId = "";
   item.pageNumber = 1;
   item.planReference = "";
   item.updatedAt = new Date().toISOString();
 }
 
-
-async function saveMasterDataFromProjectDialog() {
-  const payload = pruneMasterDataDrafts({ ...state.masterData, lastSavedAt: new Date().toISOString() });
-  if (!(await masterDataSaveAllowed(payload))) return false;
-  await createMasterDataSnapshot("before-project-dialog-save");
-  await idbPutComplete("masterData", payload);
-  state.masterData = normalizeMasterData(await idbGet("masterData", "app"));
-  setMasterDataDirty(false);
-  renderDatalists();
-}
-
-async function addProjectFieldToMaster(kind) {
-  const master = normalizeMasterData(state.masterData);
-  if (kind === "client" || kind === "contractor") {
-    const input = kind === "client" ? $("#projectClientInput") : $("#projectContractorInput");
-    const value = input.value.trim();
-    if (!value) return alert("Bitte zuerst einen Namen eintragen.");
-    const existing = resolveCompany(value);
-    if (existing) return alert("Dieser Stammdatensatz ist bereits vorhanden.");
-    const company = { id: uid("company"), name: value, role: kind === "client" ? "Auftraggeber" : "Ausführende Firma", contact: "", address: normalizeAddress(), phone: "", email: "", note: "" };
-    master.companies.push(company);
-    state.masterData = master;
-    await saveMasterDataFromProjectDialog();
-    input.value = companyLabel(company);
-    return;
-  }
-  if (kind === "inspector") {
-    const value = $("#projectInspectorInput").value.trim();
-    if (!value) return alert("Bitte zuerst einen Namen oder Sachbearbeiter eintragen.");
-    if (resolveInspector(value)) return alert("Dieser Stammdatensatz ist bereits vorhanden.");
-    const inspector = { id: uid("inspector"), name: value, office: "", address: normalizeAddress(), email: "", phone: "", note: "" };
-    master.inspectors.push(inspector);
-    state.masterData = master;
-    await saveMasterDataFromProjectDialog();
-    $("#projectInspectorInput").value = inspectorLabel(inspector);
-    return;
-  }
-  const value = $("#projectDefaultInspectorInput").value.trim();
-  if (!value) return alert("Bitte zuerst einen Namen eintragen.");
-  if (resolveOwnPerson(value)) return alert("Dieser Stammdatensatz ist bereits vorhanden.");
-  const person = { id: uid("person"), name: value, company: "", role: "Abnehmender / Bewehrungskontrolle", address: normalizeAddress(), phone: "", email: "", isDefault: !master.ownPersons.length };
-  master.ownPersons.push(person);
-  state.masterData = master;
-  await saveMasterDataFromProjectDialog();
-  $("#projectDefaultInspectorInput").value = personLabel(person);
-}
-
-function lookupSelection(key, value) {
-  const text = String(value || "").trim();
-  return {
-    text,
-    id: text,
-    snapshot: text ? { id: text, value: text, label: text } : null
-  };
-}
-
-async function saveLookupFromAcceptanceDialog(key, inputSelector, label) {
-  const value = $(inputSelector).value.trim();
-  if (!value) return alert(`Bitte zuerst ${label} eintragen.`);
-  const master = normalizeMasterData(state.masterData);
-  if ((master[key] || []).some((item) => item.toLowerCase() === value.toLowerCase())) {
-    return alert("Dieser Stammdatenwert ist bereits vorhanden.");
-  }
-  master[key] = uniqueValues([...(master[key] || []), value]);
-  state.masterData = master;
-  await saveMasterDataFromProjectDialog();
-  $(inputSelector).value = value;
-}
-
-async function refreshMasterDataFromDb() {
-  state.masterData = normalizeMasterData(await idbGet("masterData", "app"));
-  renderDatalists();
-}
-
-async function openAcceptanceDialog(projectId) {
-  const project = projectById(projectId);
-  if (!project) return;
-  await refreshMasterDataFromDb();
-  state.pendingAcceptanceProjectId = project.id;
-  state.currentProjectId = project.id;
-  state.acceptanceDialogReturnFocus = document.activeElement;
-  $("#acceptanceTitleInput").value = "";
-  const typeInput = $("#acceptanceTypeInput");
-  typeInput.value = (state.masterData?.acceptanceTypes || DEFAULT_MASTER_DATA.acceptanceTypes).includes("Erstabnahme") ? "Erstabnahme" : (state.masterData?.acceptanceTypes?.[0] || "Erstabnahme");
-  $("#acceptanceComponentInput").value = "";
-  $("#acceptanceFloorInput").value = "";
-  $("#acceptanceAreaInput").value = "";
-  $("#acceptanceContractorInput").value = project.contractor || state.settings.defaultCompany || "";
-  $("#acceptanceInspectorInput").value = project.defaultInspector || defaultOwnPerson()?.name || state.settings.defaultInspector || "";
-  const sourceSelect = $("#acceptancePlanSourceInput");
-  const acceptances = rebarProtocolsForProject(project.id);
-  sourceSelect.innerHTML = `<option value="">Keine Planunterlagen übernehmen</option>${acceptances.map((protocol) => `<option value="${protocol.id}">${escapeHtml(protocol.head.acceptanceTitle || protocol.head.component || formatDate(protocol.head.createdAt))}</option>`).join("")}`;
-  $("#acceptanceDialog").showModal();
-}
-
-function closeAcceptanceDialog() {
-  const dialog = $("#acceptanceDialog");
-  state.pendingAcceptanceProjectId = "";
-  if (dialog?.open) dialog.close("cancel");
-  const returnFocus = state.acceptanceDialogReturnFocus;
-  state.acceptanceDialogReturnFocus = null;
-  if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
-}
-
-async function createProtocolFromDialog() {
-  const projectId = state.pendingAcceptanceProjectId;
-  if (!projectId) return;
-  const dialog = $("#acceptanceDialog");
-  const confirmButton = $("#createAcceptanceConfirmBtn");
-  confirmButton.disabled = true;
-  try {
-    const contractor = companySelection($("#acceptanceContractorInput").value);
-    const inspector = ownPersonSelection($("#acceptanceInspectorInput").value);
-    await createProtocol(projectId, {
-      head: {
-        acceptanceTitle: $("#acceptanceTitleInput").value.trim(),
-        acceptanceType: $("#acceptanceTypeInput").value.trim() || "Erstabnahme",
-        acceptanceTypeId: lookupSelection("acceptanceTypes", $("#acceptanceTypeInput").value).id,
-        acceptanceTypeSnapshot: lookupSelection("acceptanceTypes", $("#acceptanceTypeInput").value).snapshot,
-        component: $("#acceptanceComponentInput").value.trim(),
-        componentId: lookupSelection("components", $("#acceptanceComponentInput").value).id,
-        componentSnapshot: lookupSelection("components", $("#acceptanceComponentInput").value).snapshot,
-        floor: $("#acceptanceFloorInput").value.trim(),
-        floorId: lookupSelection("floors", $("#acceptanceFloorInput").value).id,
-        floorSnapshot: lookupSelection("floors", $("#acceptanceFloorInput").value).snapshot,
-        areaAxes: $("#acceptanceAreaInput").value.trim(),
-        contractor: contractor.text,
-        contractorId: contractor.id,
-        contractorSnapshot: contractor.snapshot,
-        inspectorName: inspector.text,
-        inspectorPersonId: inspector.id,
-        inspectorPersonSnapshot: inspector.snapshot
-      },
-      planSourceId: $("#acceptancePlanSourceInput").value
-    });
-    state.pendingAcceptanceProjectId = "";
-    state.acceptanceDialogReturnFocus = null;
-    if (dialog?.open) dialog.close("created");
-  } finally {
-    confirmButton.disabled = false;
-  }
-}
-
-async function createProtocol(projectId = state.currentProjectId, options = {}) {
-  let project = projectById(projectId);
-  if (!project) {
-    alert("Bitte zuerst ein Projekt öffnen. Abnahmen können nur innerhalb eines Projekts angelegt werden.");
-    return;
-  }
-  const protocol = blankProtocol(project, { head: options.head || {} });
-  if (options.planSourceId) {
-    const source = state.protocols.find((item) => item.id === options.planSourceId);
-    if (source) protocol.plans = await duplicatePlanRecords(source, protocol);
-    protocol.activePlanId = protocol.plans[0]?.id || "";
-  }
-  state.protocols.unshift(protocol);
-  state.currentProjectId = project.id;
-  await persist();
-  openProtocol(protocol);
-}
-
-function saveFromForm({ persistNow = true } = {}) {
-  if (!state.current) return;
-  const form = $("#protocolForm");
-  const data = new FormData(form);
-  Object.keys(state.current.head).forEach((key) => {
-    if (["acceptanceTypeId", "acceptanceTypeSnapshot", "componentId", "componentSnapshot", "floorId", "floorSnapshot", "contractorId", "contractorSnapshot", "inspectorPersonId", "inspectorPersonSnapshot", "siteAddressSource"].includes(key)) return;
-    state.current.head[key] = data.get(key) || "";
-  });
-  syncAcceptanceLookupFieldsFromHead(state.current.head);
-  Object.keys(state.current.weather).forEach((key) => state.current.weather[key] = data.get(key) || "");
-  Object.keys(state.current.result).forEach((key) => state.current.result[key] = data.get(key) || "");
-  syncResultLookupFields(state.current);
-  const siteAddress = normalizeAddress({
-    street: state.current.head.siteStreet,
-    zip: state.current.head.siteZip,
-    city: state.current.head.siteCity,
-    country: state.current.head.siteCountry || "Deutschland"
-  });
-  state.current.head.siteStreet = siteAddress.street;
-  state.current.head.siteZip = siteAddress.zip;
-  state.current.head.siteCity = siteAddress.city;
-  state.current.head.siteCountry = siteAddress.country;
-  state.current.head.siteAddress = formatAddress(siteAddress);
-  const project = projectById(state.current.projectId);
-  if (project) {
-    project.name = state.current.head.projectName || project.name;
-    if (state.current.head.siteAddressSource !== "site-control-fallback") {
-      project.address = siteAddress;
-      project.siteAddress = formatAddress(siteAddress);
-    }
-    project.updatedAt = new Date().toISOString();
-    protocolsForProject(project.id).forEach((protocol) => {
-      if (protocol.id !== state.current.id) syncProtocolProjectFields(protocol, project);
-    });
-  }
-  state.current.activePlanId = state.selectedPlanId;
-  state.current.updatedAt = new Date().toISOString();
-  if (persistNow) persist();
-  else schedulePersist();
-}
-
-function syncAcceptanceLookupFieldsFromHead(head) {
-  const type = lookupSelection("acceptanceTypes", head.acceptanceType || "Erstabnahme");
-  const component = lookupSelection("components", head.component || "");
-  const floor = lookupSelection("floors", head.floor || "");
-  const contractor = companySelection(head.contractor || "");
-  head.acceptanceType = type.text || "Erstabnahme";
-  head.acceptanceTypeId = type.id;
-  head.acceptanceTypeSnapshot = type.snapshot;
-  head.component = component.text;
-  head.componentId = component.id;
-  head.componentSnapshot = component.snapshot;
-  head.floor = floor.text;
-  head.floorId = floor.id;
-  head.floorSnapshot = floor.snapshot;
-  head.contractor = contractor.text;
-  head.contractorId = contractor.id;
-  head.contractorSnapshot = contractor.snapshot;
-}
-
-function syncResultLookupFields(protocol) {
-  const inspector = ownPersonSelection(protocol.result?.inspectorName || "");
-  protocol.head.inspectorPersonId = inspector.id;
-  protocol.head.inspectorPersonSnapshot = inspector.snapshot;
-  if (inspector.text) protocol.result.inspectorName = inspector.text;
-}
-
-function fillForm() {
-  const p = state.current;
-  const project = resolveProtocolProject(p);
-  const clientCompany = resolveCompany(project?.client || "");
-  const contractorCompany = resolveCompany(p.head.contractor || project?.contractor || "");
-  const projectInspector = resolveInspector(project?.inspector || "");
-  const values = { ...p.head, ...p.weather, ...p.result };
-  Object.assign(values, addressToHeadFields(protocolHeadAddress(p, project)));
-  Object.entries(values).forEach(([key, value]) => {
-    const field = $(`[name="${key}"]`);
-    if (field) field.value = value || "";
-  });
-  updateRebarAddressTools();
-  renderFollowupContextBanner();
-  renderOverviewPhotos();
-  renderSignatures();
-}
-
-function renderFollowupContextBanner() {
-  const banner = document.getElementById("followupContextBanner");
-  if (!banner) return;
-  if (!isFollowupProtocol(state.current)) {
-    banner.hidden = true;
-    banner.innerHTML = "";
-    return;
-  }
-  banner.hidden = false;
-  banner.innerHTML = `
-    <strong>Nachbegehung / Nachkontrolle</strong>
-    <span>Bezug: ${escapeHtml(followupSourceLabel(state.current))}</span>
-  `;
-}
-
-function renderOverviewPhotos() {
-  const summary = $("#photoBackupSummary");
-  if (summary) summary.innerHTML = photoBackupSummaryHtml();
-  const list = $("#overviewPhotoList");
-  if (!list || !state.current) return;
-  state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
-  const photos = state.current.overviewPhotos;
-  if (!photos.length) {
-    list.innerHTML = `<div class="overview-photo-empty"><p class="muted">Noch keine Übersichtsfotos zur Baustelle erfasst.</p></div>`;
-    return;
-  }
-  list.innerHTML = photos.map((item, index) => `
-    <article class="overview-photo-card" data-overview-photo-id="${item.id}">
-      <div class="overview-photo-preview">
-        <img data-photo-thumb="${item.photoId}" alt="${escapeAttr(item.caption || "Übersichtsfoto Baustelle")}">
-        ${item.isCover ? `<span class="cover-badge">Titelbild</span>` : ""}
-      </div>
-      <div class="overview-photo-fields">
-        <label>Bildbeschreibung / Kommentar
-          <textarea data-overview-caption="${item.id}" rows="2" placeholder="z. B. Bodenplatte Übersicht">${escapeHtml(item.caption)}</textarea>
-        </label>
-        ${photoBackupActions({ ...item, id: item.photoId, name: item.caption || "Übersichtsfoto" })}
-        <div class="overview-photo-tools">
-          <button class="small-btn" type="button" data-overview-up="${item.id}" ${index === 0 ? "disabled" : ""}>Nach oben</button>
-          <button class="small-btn" type="button" data-overview-down="${item.id}" ${index === photos.length - 1 ? "disabled" : ""}>Nach unten</button>
-          <button class="small-btn" type="button" data-overview-cover="${item.id}">${item.isCover ? "Titelbild entfernen" : "Als Titelbild"}</button>
-          <button class="danger-btn" type="button" data-overview-delete="${item.id}">Foto löschen</button>
-        </div>
-      </div>
-    </article>
-  `).join("");
-  hydratePhotoThumbs(list);
-}
-
-function overviewPhotoById(id) {
-  return state.current?.overviewPhotos?.find((item) => item.id === id) || null;
-}
-
-function reorderOverviewPhotos() {
-  state.current.overviewPhotos = normalizeOverviewPhotos(state.current.overviewPhotos || [], state.current.id);
-}
-
-function moveOverviewPhoto(id, direction) {
-  reorderOverviewPhotos();
-  const photos = state.current?.overviewPhotos || [];
-  const index = photos.findIndex((item) => item.id === id);
-  const nextIndex = index + direction;
-  if (index < 0 || nextIndex < 0 || nextIndex >= photos.length) return;
-  [photos[index], photos[nextIndex]] = [photos[nextIndex], photos[index]];
-  photos.forEach((item, orderIndex) => {
-    item.order = orderIndex + 1;
-    item.updatedAt = new Date().toISOString();
-  });
-  persist();
-  renderOverviewPhotos();
-}
-
-async function deleteOverviewPhoto(id) {
-  const photo = overviewPhotoById(id);
-  if (!photo) return;
-  state.current.overviewPhotos = (state.current.overviewPhotos || []).filter((item) => item.id !== id);
-  reorderOverviewPhotos();
-  if (photo.photoId) await idbDelete("photos", photo.photoId);
-  persist();
-  renderOverviewPhotos();
-}
-
-function toggleOverviewCover(id) {
-  const target = overviewPhotoById(id);
-  if (!target) return;
-  const nextValue = !target.isCover;
-  (state.current.overviewPhotos || []).forEach((item) => {
-    item.isCover = nextValue && item.id === id;
-    item.updatedAt = new Date().toISOString();
-  });
-  persist();
-  renderOverviewPhotos();
-}
-
-function renderSignatures() {
-  const list = $("#signatureList");
-  if (!list || !state.current) return;
-  const signatures = state.current.signatures || [];
-  if (!signatures.length) {
-    list.innerHTML = `<div class="signature-card"><p class="muted">Noch keine digitale Unterschrift erfasst.</p></div>`;
-    return;
-  }
-  list.innerHTML = signatures.map((signature) => signatureCard(signature)).join("");
-  requestAnimationFrame(() => initSignaturePads(list));
-}
-
-function signatureCard(signature) {
-  const isEditing = state.signatureEditId === signature.id;
-  const hasSignature = !!signature.signatureData;
-  return `
-    <article class="signature-card" data-signature="${signature.id}">
-      <div class="section-head">
-        <h4>${escapeHtml(signature.name || "Neue Unterschrift")}</h4>
-        <button class="danger-btn" type="button" data-delete-signature="${signature.id}">Eintrag löschen</button>
-      </div>
-      <div class="grid compact-grid">
-        ${comboField({ label: "Name", field: "name", list: "personOptions", value: signature.name, placeholder: "Name" })}
-        ${comboField({ label: "Firma", field: "company", list: "companyOptions", value: signature.company, placeholder: "Firma" })}
-        ${comboField({ label: "Funktion / Rolle", field: "role", list: "signatureRoleOptions", value: signature.role, placeholder: "z. B. Polier" })}
-        ${comboField({ label: "Unterschrift für", field: "category", list: "signatureCategoryOptions", value: signature.category, placeholder: "z. B. Verantwortlicher vor Ort" })}
-        ${comboField({ label: "Datum / Uhrzeit", field: "signedAt", type: "datetime-local", value: signature.signedAt })}
-        ${comboField({ label: "Bemerkung", field: "note", rows: 2, value: signature.note, placeholder: "optional" })}
-      </div>
-      <div class="signature-pad-wrap ${hasSignature ? "signed" : ""} ${isEditing ? "editing" : "locked"}">
-        <canvas class="signature-pad" data-signature-pad="${signature.id}" aria-label="Unterschriftsfeld"></canvas>
-        <div class="signature-placeholder">${isEditing ? "Unterschriftsmodus aktiv - bitte unterschreiben" : (hasSignature ? "" : "Noch keine Unterschrift")}</div>
-        <div class="signature-line"></div>
-      </div>
-      <p class="muted signature-mode-hint">${isEditing ? "Unterschriftsmodus aktiv. Beim Zeichnen wird das Scrollen im Feld blockiert." : "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche."}</p>
-      <div class="result-actions">
-        ${isEditing
-          ? `<button class="primary-btn" type="button" data-save-signature="${signature.id}">Fertig</button>
-             <button class="small-btn" type="button" data-reset-signature="${signature.id}">Zurücksetzen</button>`
-          : `<button class="primary-btn" type="button" data-edit-signature="${signature.id}">${hasSignature ? "Unterschrift bearbeiten" : "Unterschreiben"}</button>
-             ${hasSignature ? `<button class="small-btn" type="button" data-reset-signature="${signature.id}">Unterschrift löschen</button>` : ""}`}
-      </div>
-    </article>
-  `;
-}
-function initSignaturePads(root = document) {
-  $$("[data-signature-pad]", root).forEach((canvas) => initSignaturePad(canvas));
-}
-
-function initSignaturePad(canvas) {
-  const id = canvas.dataset.signaturePad;
-  const signature = findSignature(id);
-  if (!signature || canvas.dataset.ready === "true") return;
-  canvas.dataset.ready = "true";
-  resizeSignatureCanvas(canvas, signature.signatureData);
-  const ctx = canvas.getContext("2d");
-  let drawing = false;
-  let last = null;
-  const drawTo = (event) => {
-    if (!drawing) return;
-    if (state.signatureEditId !== id) {
-      drawing = false;
-      return;
-    }
-    const point = signatureCanvasPoint(canvas, event);
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = 3;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(last.x, last.y);
-    ctx.lineTo(point.x, point.y);
-    ctx.stroke();
-    last = point;
-    event.preventDefault();
-  };
-  canvas.addEventListener("pointerdown", (event) => {
-    if (state.signatureEditId !== id) return;
-    canvas.setPointerCapture(event.pointerId);
-    canvas.closest(".signature-pad-wrap")?.classList.add("signed");
-    drawing = true;
-    last = signatureCanvasPoint(canvas, event);
-    event.preventDefault();
-  });
-  canvas.addEventListener("pointermove", drawTo);
-  const finish = (event) => {
-    if (!drawing) return;
-    if (state.signatureEditId !== id) {
-      drawing = false;
-      return;
-    }
-    drawing = false;
-    signature.signatureData = canvas.toDataURL("image/png");
-    signature.signedAt = signature.signedAt || nowLocalInput();
-    persist();
-    event.preventDefault();
-  };
-  canvas.addEventListener("pointerup", finish);
-  canvas.addEventListener("pointercancel", finish);
-}
-
-function resizeSignatureCanvas(canvas, signatureData = "") {
-  const rect = canvas.getBoundingClientRect();
-  const ratio = window.devicePixelRatio || 1;
-  const width = Math.max(320, Math.floor(rect.width || canvas.parentElement?.clientWidth || 320));
-  const height = Math.max(300, Math.floor(rect.height || 320));
-  canvas.width = Math.floor(width * ratio);
-  canvas.height = Math.floor(height * ratio);
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, width, height);
-  if (signatureData) {
-    const img = new Image();
-    img.onload = () => ctx.drawImage(img, 0, 0, width, height);
-    img.src = signatureData;
-  }
-}
-
-function signatureCanvasPoint(canvas, event) {
-  const rect = canvas.getBoundingClientRect();
-  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-}
-
-function findSignature(id) {
-  return state.current?.signatures.find((signature) => signature.id === id) || null;
-}
-
-function addSignature() {
-  if (!state.current) return;
-  saveFromForm();
-  state.current.signatures.push(normalizeSignature({ signedAt: nowLocalInput() }));
-  persist();
-  renderSignatures();
-}
-
-function resetSignature(id) {
-  const signature = findSignature(id);
-  if (!signature) return;
-  signature.signatureData = "";
-  signature.signedAt = signature.signedAt || nowLocalInput();
-  persist();
-  renderSignatures();
-}
-
-function editSignature(id) {
-  if (!findSignature(id)) return;
-  state.signatureEditId = id;
-  renderSignatures();
-}
-
-function saveSignature(id, event = null) {
-  event?.preventDefault?.();
-  event?.stopPropagation?.();
-  const card = $(`[data-signature="${id}"]`);
-  const signature = findSignature(id);
-  if (!card || !signature) return;
-  $$('[data-signature-field]', card).forEach((field) => {
-    signature[field.dataset.signatureField] = field.value || "";
-  });
-  syncSignatureSnapshots(signature);
-  const canvas = $(`[data-signature-pad="${id}"]`, card);
-  const wasEditing = state.signatureEditId === id;
-  if (canvas && wasEditing) signature.signatureData = canvas.toDataURL("image/png");
-  signature.signedAt = signature.signedAt || nowLocalInput();
-  state.signatureEditId = "";
-  lockSignatureCardNow(card, canvas);
-  persist();
-  renderSignatures();
-}
-
-function lockSignatureCardNow(card, canvas = null) {
-  const wrap = card?.querySelector?.(".signature-pad-wrap");
-  if (wrap) {
-    wrap.classList.remove("editing");
-    wrap.classList.add("locked");
-  }
-  const pad = canvas || card?.querySelector?.(".signature-pad");
-  if (pad) {
-    pad.style.pointerEvents = "none";
-    pad.style.touchAction = "auto";
-  }
-  const hint = card?.querySelector?.(".signature-mode-hint");
-  if (hint) hint.textContent = "Unterschriftsfeld ist gesperrt. Scrollen über dem Feld erzeugt keine Striche.";
-}
-function syncSignatureSnapshots(signature) {
-  const person = ownPersonSelection(signature.name || "");
-  const company = companySelection(signature.company || person.snapshot?.company || "");
-  signature.personId = person.id;
-  signature.personSnapshot = person.snapshot;
-  if (person.snapshot) {
-    signature.name = person.snapshot.name || signature.name;
-    signature.company = signature.company || person.snapshot.company || "";
-    signature.role = signature.role || person.snapshot.role || "";
-  }
-  signature.companyId = company.id;
-  signature.companySnapshot = company.snapshot;
-  signature.roleSnapshot = signature.role ? { value: signature.role, label: signature.role } : null;
-}
-
-function applySignatureMasterSelection(signature, field, value) {
-  signature[field] = value || "";
-  if (field === "name") {
-    const person = ownPersonSelection(value);
-    signature.personId = person.id;
-    signature.personSnapshot = person.snapshot;
-    if (person.snapshot) {
-      signature.name = person.snapshot.name || value;
-      signature.company = signature.company || person.snapshot.company || "";
-      signature.role = signature.role || person.snapshot.role || "";
-    }
-  }
-  if (field === "company") {
-    const company = companySelection(value);
-    signature.company = company.text;
-    signature.companyId = company.id;
-    signature.companySnapshot = company.snapshot;
-  }
-  if (field === "role" || field === "category") {
-    signature[`${field}Snapshot`] = value ? { value, label: value } : null;
-  }
-}
-
-function deleteSignature(id) {
-  if (!state.current) return;
-  state.current.signatures = state.current.signatures.filter((signature) => signature.id !== id);
-  persist();
-  renderSignatures();
-}
-
-
-
-function selectedPlan() {
-  if (!state.current) return null;
-  const plans = plansForCurrentProtocol();
-  let plan = plans.find((item) => item.id === state.selectedPlanId) || null;
-  if (!plan && plans.length) {
-    plan = plans[0];
-    state.selectedPlanId = plan.id;
-    state.current.activePlanId = plan.id;
-  }
-  return plan || null;
-}
-
-function acceptanceLabel(protocol) {
-  return protocol?.head?.acceptanceTitle || protocol?.head?.component || formatDate(protocol?.head?.createdAt) || "Abnahme";
-}
-
-
-
-function projectTradeAssignments(project = {}) {
-  return normalizeProjectTradeAssignments(project?.tradeAssignments || project?.trade_assignments || []);
-}
-
-function resolveResponsibleCompanyForTrade(project, trade) {
-  const normalizedTrade = normalizeLookupText(trade || "");
-  if (!project || !normalizedTrade) return { status: "none", assignments: [] };
-  const assignments = projectTradeAssignments(project).filter((entry) => normalizeLookupText(entry.trade || "") === normalizedTrade);
-  if (!assignments.length) return { status: "none", assignments: [] };
-  if (assignments.length === 1) return { status: "single", assignment: assignments[0], assignments };
-  return { status: "multiple", assignments };
-}
-
-function datePlusDays(days = 0) {
-  if (!days) return "";
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function applyProjectTradeAssignmentToSiteItem(item, { force = false } = {}) {
-  if (!item || !isSiteControlProtocol()) return null;
-  const project = projectById(state.current?.projectId || state.currentProjectId);
-  const result = resolveResponsibleCompanyForTrade(project, item.trade);
-  item.tradeAssignmentHint = "";
-  if (result.status === "single") {
-    const assignment = result.assignment;
-    if (force || !String(item.responsible || "").trim()) {
-      item.responsible = assignment.companyName || assignment.contactName || item.responsible || "";
-      item.responsibleCompanyId = assignment.companyId || "";
-      item.responsibleContactId = assignment.contactId || "";
-      if (assignment.defaultPriority && (!item.priority || force)) item.priority = assignment.defaultPriority;
-      if (assignment.defaultDeadlineDays && (!item.dueDate || force)) item.dueDate = datePlusDays(Number(assignment.defaultDeadlineDays) || 0);
-      item.tradeAssignmentHint = "Zuständig aus Projekt-Gewerk-Zuordnung übernommen.";
-    } else {
-      item.tradeAssignmentHint = "Vorschlag aus Projekt: " + (assignment.companyName || assignment.contactName) + ".";
-    }
-  }
-  if (result.status === "multiple") item.tradeAssignmentHint = "Mehrere Zuständigkeiten für Gewerk " + item.trade + " gefunden.";
-  return result;
-}
-
-function displayProjectTradeAssignment(entry = {}) {
-  const normalized = normalizeProjectTradeAssignments([entry])[0] || {};
-  return {
-    id: entry.id || normalized.id || uid("tradeassign"),
-    trade: entry.trade || entry.gewerk || normalized.trade || "",
-    companyId: entry.companyId || entry.company_id || normalized.companyId || "",
-    companyName: entry.companyName || entry.company || normalized.companyName || "",
-    contactId: entry.contactId || entry.contact_id || normalized.contactId || "",
-    contactName: entry.contactName || entry.contact || normalized.contactName || "",
-    email: entry.email || normalized.email || "",
-    phone: entry.phone || normalized.phone || "",
-    defaultPriority: entry.defaultPriority || entry.default_priority || normalized.defaultPriority || "normal",
-    defaultDeadlineDays: entry.defaultDeadlineDays || entry.default_deadline_days || normalized.defaultDeadlineDays || "",
-    notes: entry.notes || entry.note || normalized.notes || "",
-    _expanded: !!entry._expanded
-  };
-}
-
-function projectTradeAssignmentRow(entry = {}) {
-  const item = displayProjectTradeAssignment(entry);
-  const expanded = !!item._expanded;
-  const tradeLabel = item.trade || "Gewerk wählen";
-  const companyLabel = item.companyName || item.contactName || "Firma wählen";
-  const meta = [item.defaultDeadlineDays ? "Frist " + item.defaultDeadlineDays + " T" : "", item.defaultPriority && item.defaultPriority !== "normal" ? "Priorität " + item.defaultPriority : ""].filter(Boolean).join(" · ");
-  return '<article class="project-trade-assignment-card ' + (expanded ? 'is-open' : 'is-collapsed') + '" data-project-trade-assignment="' + escapeAttr(item.id) + '">'
-    + '<button class="project-trade-assignment-toggle" type="button" data-action="toggle-trade-assignment" data-trade-assignment-id="' + escapeAttr(item.id) + '" aria-expanded="' + String(expanded) + '">'
-    + '<span class="assignment-main"><strong>' + escapeHtml(tradeLabel) + '</strong><span class="assignment-arrow">→</span><span>' + escapeHtml(companyLabel) + '</span></span>'
-    + '<span class="assignment-meta">' + escapeHtml(meta || (expanded ? "Details geöffnet" : "Details")) + '</span><span class="assignment-chevron">' + (expanded ? '▾' : '▸') + '</span></button>'
-    + '<div class="project-trade-assignment-details"' + (expanded ? '' : ' hidden') + '><div class="grid compact-grid">'
-    + '<label>Gewerk<input data-project-trade-field="trade" list="tradeOptions" value="' + escapeAttr(item.trade) + '" placeholder="z. B. Heizung"></label>'
-    + '<label>Zuständige Firma<input data-project-trade-field="companyName" list="companyOptions" value="' + escapeAttr(item.companyName) + '" placeholder="Firma aus Stammdaten oder Freitext"></label>'
-    + '<label>Ansprechpartner<input data-project-trade-field="contactName" list="personOptions" value="' + escapeAttr(item.contactName) + '" placeholder="optional"></label>'
-    + '<label>E-Mail<input data-project-trade-field="email" type="email" value="' + escapeAttr(item.email) + '" placeholder="optional"></label>'
-    + '<label>Telefon / WhatsApp<input data-project-trade-field="phone" type="tel" value="' + escapeAttr(item.phone) + '" placeholder="optional"></label>'
-    + '<label>Standardfrist Tage<input data-project-trade-field="defaultDeadlineDays" type="number" min="0" inputmode="numeric" value="' + escapeAttr(item.defaultDeadlineDays) + '" placeholder="z. B. 7"></label>'
-    + '<label>Standardpriorität<select data-project-trade-field="defaultPriority">' + siteControlOptions(state.masterData?.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.defaultPriority || "normal") + '</select></label>'
-    + '<label>Bemerkung<textarea data-project-trade-field="notes" rows="2">' + escapeHtml(item.notes) + '</textarea></label></div>'
-    + '<div class="result-actions compact"><button class="small-btn" type="button" data-action="save-trade-assignment">Zuordnung speichern</button><button class="danger-btn small-btn" type="button" data-action="delete-trade-assignment" data-delete-project-trade-assignment="' + escapeAttr(item.id) + '">Entfernen</button></div></div></article>';
-}
-
-function collectProjectTradeAssignmentRowsFromDialog() {
-  return Array.from(document.querySelectorAll("[data-project-trade-assignment]")).map((card) => {
-    const entry = { id: card.dataset.projectTradeAssignment || uid("tradeassign"), _expanded: card.classList.contains("is-open") };
-    card.querySelectorAll("[data-project-trade-field]").forEach((field) => { entry[field.dataset.projectTradeField] = field.value || ""; });
-    return entry;
-  });
-}
-
-function renderProjectTradeAssignments(assignments = []) {
-  const target = document.getElementById("projectTradeAssignmentsList");
-  if (!target) return;
-  const rawRows = Array.isArray(assignments) ? assignments : [];
-  const rows = rawRows.length ? rawRows.map((entry) => displayProjectTradeAssignment({ id: entry.id || uid("tradeassign"), ...entry })) : [];
-  target.innerHTML = rows.length ? rows.map(projectTradeAssignmentRow).join("") : '<div class="empty-state compact"><p class="muted">Noch keine projektbezogenen Zuständigkeiten hinterlegt.</p><button class="secondary-btn small-btn" type="button" data-action="add-trade-assignment">Erste Zuordnung anlegen</button></div>';
-}
-
-function collectProjectTradeAssignmentsFromDialog() {
-  return normalizeProjectTradeAssignments(collectProjectTradeAssignmentRowsFromDialog().map((entry) => {
-    const company = resolveCompany(entry.companyName || "");
-    if (company) { entry.companyId = company.id; entry.companyName = company.name; entry.email = entry.email || company.email || ""; entry.phone = entry.phone || company.phone || ""; }
-    const contact = resolveOwnPerson(entry.contactName || "");
-    if (contact) { entry.contactId = contact.id; entry.contactName = contact.name; entry.email = entry.email || contact.email || ""; entry.phone = entry.phone || contact.phone || ""; }
-    return entry;
-  }));
-}
-
-function addProjectTradeAssignmentRow() {
-  const current = collectProjectTradeAssignmentRowsFromDialog().map((entry) => ({ ...entry, _expanded: false }));
-  const id = uid("tradeassign");
-  current.push({ id, trade: "", companyName: "", defaultPriority: "normal", _expanded: true });
-  renderProjectTradeAssignments(current);
-  requestAnimationFrame(() => {
-    const selector = '[data-project-trade-assignment="' + CSS.escape(id) + '"]';
-    const card = document.querySelector(selector);
-    card?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    card?.querySelector('[data-project-trade-field="trade"]')?.focus({ preventScroll: true });
-  });
-  showAppToast("Neue Gewerk-Zuordnung angelegt.", { type: "success" });
-}
-
-function toggleProjectTradeAssignmentRow(id) {
-  const current = collectProjectTradeAssignmentRowsFromDialog();
-  const target = current.find((entry) => entry.id === id);
-  const shouldOpen = !target?._expanded;
-  renderProjectTradeAssignments(current.map((entry) => ({ ...entry, _expanded: shouldOpen && entry.id === id })));
-}
-
-function deleteProjectTradeAssignmentRow(id) {
-  renderProjectTradeAssignments(collectProjectTradeAssignmentRowsFromDialog().filter((entry) => entry.id !== id));
-  showAppToast("Gewerk-Zuordnung entfernt.", { type: "info" });
-}
-
-let lastProjectTradeAssignmentPointerAction = 0;
-
-function handleProjectTradeAssignmentAction(event) {
-  const target = event.target?.closest?.('[data-action="add-trade-assignment"], [data-action="toggle-trade-assignment"], [data-action="delete-trade-assignment"], [data-action="save-trade-assignment"]');
-  if (!target) return false;
-  const dialog = document.getElementById("projectDialog");
-  if (dialog && !dialog.contains(target)) return false;
-  event.preventDefault?.();
-  event.stopPropagation?.();
-  if (event.type === "click" && Date.now() - lastProjectTradeAssignmentPointerAction < 450) return true;
-  if (event.type === "pointerup" || event.type === "touchend") lastProjectTradeAssignmentPointerAction = Date.now();
-  try {
-    const action = target.dataset.action;
-    if (action === "add-trade-assignment") {
-      addProjectTradeAssignmentRow();
-      return true;
-    }
-    if (action === "toggle-trade-assignment") {
-      toggleProjectTradeAssignmentRow(target.dataset.tradeAssignmentId || target.closest("[data-project-trade-assignment]")?.dataset.projectTradeAssignment || "");
-      return true;
-    }
-    if (action === "delete-trade-assignment") {
-      deleteProjectTradeAssignmentRow(target.dataset.deleteProjectTradeAssignment || "");
-      return true;
-    }
-    if (action === "save-trade-assignment") {
-      createProjectFromDialog();
-      showAppToast("Gewerk-Zuordnung gespeichert.", { type: "success" });
-      return true;
-    }
-  } catch (error) {
-    showAppToast("Zuordnung konnte nicht angelegt werden: " + (error?.message || error), { type: "error", timeout: 6500 });
-    console.error("Projekt-Gewerk-Zuordnung fehlgeschlagen", error);
-  }
-  return true;
-}
-
-function applyProjectTradeCompanySnapshot(field) {
-  const card = field.closest("[data-project-trade-assignment]");
-  if (!card || field.dataset.projectTradeField !== "companyName") return;
-  const company = resolveCompany(field.value || "");
-  if (!company) return;
-  const email = card.querySelector('[data-project-trade-field="email"]');
-  const phone = card.querySelector('[data-project-trade-field="phone"]');
-  const contact = card.querySelector('[data-project-trade-field="contactName"]');
-  if (email && !email.value) email.value = company.email || "";
-  if (phone && !phone.value) phone.value = company.phone || "";
-  if (contact && !contact.value) contact.value = company.contact || "";
-}
-
-function siteControlTradeAssignmentControls(item = {}) {
-  const project = projectById(state.current?.projectId || state.currentProjectId);
-  const result = resolveResponsibleCompanyForTrade(project, item.trade);
-  const hint = item.tradeAssignmentHint || (result.status === "multiple" ? "Mehrere Zuständigkeiten für Gewerk " + item.trade + " gefunden." : "");
-  if (result.status !== "multiple") return hint ? '<p class="muted site-assignment-hint">' + escapeHtml(hint) + '</p>' : "";
-  return '<label class="site-assignment-choice">Zuständigkeit wählen<select data-site-responsible-choice="' + escapeAttr(item.id) + '"><option value="">Bitte auswählen</option>' + result.assignments.map((entry) => '<option value="' + escapeAttr(entry.id) + '">' + escapeHtml(entry.companyName || entry.contactName || entry.trade) + '</option>').join("") + '</select></label><p class="muted site-assignment-hint">' + escapeHtml(hint) + '</p>';
-}
-
-function applySiteControlResponsibleChoice(itemId, assignmentId) {
-  const item = findSiteControlItem(itemId);
-  if (!item) return;
-  const project = projectById(state.current?.projectId || state.currentProjectId);
-  const assignment = projectTradeAssignments(project).find((entry) => entry.id === assignmentId);
-  if (!assignment) return;
-  item.responsible = assignment.companyName || assignment.contactName || item.responsible || "";
-  item.responsibleCompanyId = assignment.companyId || "";
-  item.responsibleContactId = assignment.contactId || "";
-  if (assignment.defaultPriority) item.priority = assignment.defaultPriority;
-  if (assignment.defaultDeadlineDays && !item.dueDate) item.dueDate = datePlusDays(Number(assignment.defaultDeadlineDays) || 0);
-  item.tradeAssignmentHint = "Zuständigkeit aus Projekt-Gewerk-Zuordnung übernommen.";
+function clearSiteControlItemSinglePin(item, pinId) {
+  if (!item || !pinId) return;
+  item.pinIds = (Array.isArray(item.pinIds) ? item.pinIds : [item.pinId]).filter((id) => id && id !== pinId);
+  if (item.pinId === pinId) item.pinId = item.pinIds[0] || "";
+  const primary = siteControlPinForItem(item);
+  item.planId = primary?.planId || "";
+  item.pageNumber = primary?.pageNumber || 1;
+  item.planReference = primary ? siteControlPlanReference(item) : "";
   item.updatedAt = new Date().toISOString();
-  persist();
-  renderSiteControlItems();
 }
-
 function projectStats(project) {
   const acceptances = rebarProtocolsForProject(project.id);
   const siteControls = siteControlProtocolsForProject(project.id);
@@ -6549,10 +5793,12 @@ function planById(planId) {
 }
 
 function pinLabel(pin) {
+  if (pin?.module === "site-control" || pin?.itemId || pin?.siteItemId) {
+    const item = pin.itemId || pin.siteItemId ? findSiteControlItem(pin.itemId || pin.siteItemId) : null;
+    if (item) return siteControlPinDisplayLabel(pin, item);
+  }
   return `P${pin.number || state.current.pins.findIndex((p) => p.id === pin.id) + 1}`;
 }
-
-
 function rectsOverlap(a, b, gap = 0) {
   return !(a.right + gap <= b.left || a.left >= b.right + gap || a.bottom + gap <= b.top || a.top >= b.bottom + gap);
 }
@@ -9208,19 +8454,20 @@ function openPlanMarkDialog(sampleId) {
   if (pin) requestAnimationFrame(() => { state.selectedPinId = pin.id; renderMarkPins(); renderMarkPinSheet(pin.id); });
 }
 
-function openSiteControlPlanMarkDialog(itemId, { reset = false } = {}) {
+function openSiteControlPlanMarkDialog(itemId, { reset = false, pinId = "", add = false } = {}) {
   const item = findSiteControlItem(itemId);
   if (!item) return;
   const plans = markPlansForCurrentContext();
   if (!plans.length) {
-    alert("Keine Projektpl\u00e4ne vorhanden. Bitte in der Projektzentrale oder in einer Bewehrungsabnahme zuerst einen Plan hinzuf\u00fcgen.");
+    alert("Keine Projektpläne vorhanden. Bitte in der Projektzentrale oder in einer Bewehrungsabnahme zuerst einen Plan hinzufügen.");
     return;
   }
   if (isAndroidFirefox()) alert(androidFirefoxWarningText());
-  const pin = item.pinId ? state.current.pins.find((entry) => entry.id === item.pinId) : null;
+  const itemPins = siteControlPinsForItem(item);
+  const pin = pinId ? state.current.pins.find((entry) => entry.id === pinId) : (!add ? itemPins[0] : null);
   const preferredPlanId = pin?.planId || item.planId || state.mark.planId || plans[0].id;
   const selectedMarkPlan = planById(preferredPlanId) || plans[0];
-  state.markTarget = { kind: "site-control", itemId: item.id };
+  state.markTarget = { kind: "site-control", itemId: item.id, addPin: !!add };
   state.mark = {
     ...state.mark,
     sampleId: "",
@@ -9230,7 +8477,7 @@ function openSiteControlPlanMarkDialog(itemId, { reset = false } = {}) {
     zoom: 1,
     panX: 0,
     panY: 0,
-    active: reset || !pin,
+    active: add || reset || !pin,
     movePinId: "",
     isPinching: false,
     pinchStartDistance: 0,
@@ -9243,9 +8490,8 @@ function openSiteControlPlanMarkDialog(itemId, { reset = false } = {}) {
   renderMarkSelectors();
   $("#planMarkDialog").showModal();
   renderMarkPlan();
-  if (pin && !reset) renderMarkPinSheet(pin.id);
+  if (pin && !reset && !add) renderMarkPinSheet(pin.id);
 }
-
 function closePlanMarkDialog() {
   state.mark.active = false;
   state.mark.movePinId = "";
@@ -9804,8 +9050,8 @@ function placeSiteControlPin(clientX, clientY) {
   if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return;
   const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
   const y = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
-  let pin = item.pinId ? state.current.pins.find((entry) => entry.id === item.pinId) : null;
   const now = new Date().toISOString();
+  let pin = !state.markTarget?.addPin && state.selectedPinId ? state.current.pins.find((entry) => entry.id === state.selectedPinId) : null;
   if (!pin) {
     pin = {
       id: uid("pin"),
@@ -9813,7 +9059,9 @@ function placeSiteControlPin(clientX, clientY) {
       projectId: state.current.projectId,
       protocolId: state.current.id,
       itemId: item.id,
+      siteItemId: item.id,
       number: nextPinNumber(),
+      siteControlPinIndex: siteControlPinsForItem(item).length + 1,
       planId: plan.id,
       pageNumber: state.mark.pageNumber,
       x,
@@ -9834,6 +9082,7 @@ function placeSiteControlPin(clientX, clientY) {
   pin.projectId = state.current.projectId;
   pin.protocolId = state.current.id;
   pin.itemId = item.id;
+  pin.siteItemId = item.id;
   pin.planId = plan.id;
   pin.pageNumber = state.mark.pageNumber;
   pin.x = x;
@@ -9851,13 +9100,13 @@ function placeSiteControlPin(clientX, clientY) {
   state.selectedPinId = pin.id;
   state.selectedPlanId = plan.id;
   state.mark.active = false;
+  state.markTarget.addPin = false;
   saveSiteControlForm();
   renderMarkSelectors();
   renderMarkPins();
   renderMarkPinSheet(pin.id);
   renderSiteControlEditor();
 }
-
 function barCountSummary(photo) {
   const analysis = normalizeBarCountAnalysis(photo?.barCountAnalysis);
   if (!analysis) return `<small class="muted">Fotoanalyse noch nicht erfasst.</small>`;
@@ -11384,20 +10633,27 @@ function siteControlItemSummary(item, pin, photos) {
   if (item.location) parts.push(item.location);
   if (item.trade) parts.push(item.trade);
   parts.push(`${photos.length} Foto${photos.length === 1 ? "" : "s"}`);
-  parts.push(pin ? `Pin ${pinLabel(pin)}` : "kein Pin");
+  parts.push(siteControlPinSummary(item));
   if (item.responsible) parts.push(`Zuständig: ${item.responsible}`);
   return parts.join(" - ");
 }
 
 function siteControlItemCard(item) {
   const photos = siteControlItemPhotos(item);
-  const pin = siteControlPinForItem(item);
-  const planReference = siteControlPlanReference(item, pin) || item.planReference || "";
+  const itemPins = siteControlPinsForItem(item);
+  const pin = itemPins[0] || null;
+  const planReference = siteControlPlanReference(item) || item.planReference || "";
   const isOpen = state.openSiteItemId === item.id;
   const displayStatus = siteControlReportStatus(item, pin);
   const statusClass = siteControlReportStatusClass(displayStatus);
   const descriptionText = String(item.description || "").trim();
   const teaser = descriptionText ? (descriptionText.length > 130 ? descriptionText.slice(0, 127) + "..." : descriptionText) : "Noch keine Beschreibung.";
+  const pinRows = itemPins.map((entry) => {
+    const plan = planById(entry.planId);
+    const label = siteControlPinDisplayLabel(entry, item);
+    const ref = siteControlPlanReference({ ...item, pinId: entry.id, pinIds: [entry.id] }, entry) || [planDisplayName(plan), `S.${entry.pageNumber || 1}`].filter(Boolean).join(" / ");
+    return `<div class="site-pin-row"><span><strong>${escapeHtml(label)}</strong> · ${escapeHtml(ref || "Planmarkierung")}</span><button class="small-btn" type="button" data-show-site-pin-id="${entry.id}" data-site-item-id="${item.id}">Anzeigen</button></div>`;
+  }).join("");
   return `
     <article class="site-item-card site-item-accordion ${isOpen ? "open" : ""}" data-site-item="${item.id}">
       <button class="site-item-toggle" type="button" data-toggle-site-item="${item.id}" aria-expanded="${isOpen ? "true" : "false"}">
@@ -11414,13 +10670,13 @@ function siteControlItemCard(item) {
           <label>Frist<input data-site-item-field="dueDate" type="date" value="${escapeAttr(item.dueDate)}"></label>
           <label>Priorität<select data-site-item-field="priority">${siteControlOptions(state.masterData.siteControlPriorities || SITE_CONTROL_PRIORITIES, item.priority)}</select></label>
           <label>Status<select data-site-item-field="status">${siteControlOptions(SITE_CONTROL_STATUSES, item.status)}</select></label>
-          <label>Planbezug / Pin<input data-site-item-field="planReference" value="${escapeAttr(item.planReference)}" placeholder="z. B. Plan B-002, P3"></label>
+          <label>Planbezug / Pin<input data-site-item-field="planReference" value="${escapeAttr(item.planReference)}" placeholder="z. B. Plan B-002, BK3.1"></label>
         </div>
-        <div class="site-plan-reference ${pin ? "has-pin" : ""}">
-          <div><strong>${pin ? "Planmarkierung" : "Kein Pin gesetzt"}</strong><span>${pin ? escapeHtml(planReference) : "Diese Feststellung kann auf einem Projektplan markiert werden."}</span></div>
+        <div class="site-plan-reference ${itemPins.length ? "has-pin" : ""}">
+          <div><strong>${itemPins.length ? `Planmarkierungen (${itemPins.length})` : "Kein Pin gesetzt"}</strong><span>${itemPins.length ? escapeHtml(planReference) : "Diese Feststellung kann auf einem oder mehreren Projektplänen markiert werden."}</span></div>
+          ${itemPins.length ? `<div class="site-pin-list compact-list">${pinRows}</div>` : ""}
           <div class="site-plan-actions">
-            <button class="secondary-btn" type="button" data-mark-site-item="${item.id}">${pin ? "Pin neu setzen" : "Auf Plan markieren"}</button>
-            ${pin ? `<button class="secondary-btn" type="button" data-show-site-pin="${item.id}">Pin anzeigen / bearbeiten</button><button class="danger-btn" type="button" data-remove-site-pin="${item.id}">Planbezug entfernen</button>` : ""}
+            <button class="secondary-btn" type="button" data-add-site-pin="${item.id}">${itemPins.length ? "Weiteren Pin setzen" : "Pin setzen"}</button>
           </div>
         </div>
         <label class="voice-field">Beschreibung / Feststellung
@@ -11524,9 +10780,9 @@ function siteControlItemDescription(item = {}) {
 }
 
 function siteControlItemPhotos(item = {}) {
-  const pin = siteControlPinForItem(item);
+  const pins = siteControlPinsForItem(item);
   const seen = new Set();
-  return [...(item.photos || []), ...(pin?.photos || [])].filter((photo) => {
+  return [...(item.photos || []), ...pins.flatMap((pin) => pin.photos || [])].filter((photo) => {
     if (!photo?.id || seen.has(photo.id)) return false;
     seen.add(photo.id);
     return true;
@@ -11566,12 +10822,13 @@ function siteControlReportMetaMap(items = []) {
   const map = new Map();
   const orderedItems = siteControlSortByBk(items);
   orderedItems.forEach((item, index) => {
-    const pin = siteControlPinForItem(item);
+    const pins = siteControlPinsForItem(item);
+    const pin = pins[0] || null;
     const status = siteControlReportStatus(item, pin);
-    const pinText = pin ? pinLabel(pin) : "";
+    const pinText = pins.length ? siteControlPinSummary(item) : "";
     const context = [item.trade, item.location].filter(Boolean).join(" / ") || item.location || item.trade || "ohne Zuordnung";
     const number = siteControlItemBkLabel(item, index);
-    map.set(item.id, { number, pin, pinText, status, context, title: [number, pinText, status, context].filter(Boolean).join(" · ") });
+    map.set(item.id, { number, pin, pins, pinText, status, context, title: [number, status, context].filter(Boolean).join(" · ") });
   });
   return map;
 }
@@ -11585,31 +10842,39 @@ function siteControlReportPhotoGrid(cards = [], { compact = false } = {}) {
     </figure>`).join("")}</div>`;
 }
 function siteControlPlanReferencesReport(items = []) {
-  const rows = items
-    .map((item) => ({ item, pin: siteControlPinForItem(item), ref: siteControlPlanReference(item) || item.planReference || "" }))
-    .filter(({ ref }) => ref);
+  const rows = [];
+  for (const item of items) {
+    const pins = siteControlPinsForItem(item);
+    if (pins.length) {
+      pins.forEach((pin) => rows.push({ item, pin, ref: siteControlPlanReference({ ...item, pinId: pin.id, pinIds: [pin.id] }, pin) || item.planReference || "" }));
+    } else {
+      const ref = siteControlPlanReference(item) || item.planReference || "";
+      if (ref) rows.push({ item, pin: null, ref });
+    }
+  }
   if (!rows.length) return "";
-  return `<div class="site-report-card"><div class="site-item-body">${rows.map(({ item, pin, ref }) => `<div class="info-row"><strong>${escapeHtml(pin ? pinLabel(pin) : "Planbezug")}</strong><span>${escapeHtml(ref)}<br><span class="muted">${escapeHtml(siteControlItemContext(item))}</span></span></div>`).join("")}</div></div>`;
+  return `<div class="site-report-card"><div class="site-item-body">${rows.map(({ item, pin, ref }) => `<div class="info-row"><strong>${escapeHtml(pin ? siteControlPinDisplayLabel(pin, item) : "Planbezug")}</strong><span>${escapeHtml(ref)}<br><span class="muted">${escapeHtml(siteControlItemContext(item))}</span></span></div>`).join("")}</div></div>`;
 }
 
 function siteControlPinReportEntries(items = []) {
   const entries = [];
   for (const item of items) {
-    const pin = siteControlPinForItem(item);
-    if (!pin) continue;
-    const placements = pinPlacements(pin);
-    for (const placement of placements) {
-      const planId = placement.planId || pin.planId || item.planId || "";
-      if (!planId) continue;
-      const plan = planById(planId);
-      entries.push({
-        item,
-        pin,
-        plan,
-        planId,
-        pageNumber: Math.max(1, Number(placement.pageNumber || pin.pageNumber || item.pageNumber) || 1),
-        placement
-      });
+    const pins = siteControlPinsForItem(item);
+    for (const pin of pins) {
+      const placements = pinPlacements(pin);
+      for (const placement of placements) {
+        const planId = placement.planId || pin.planId || item.planId || "";
+        if (!planId) continue;
+        const plan = planById(planId);
+        entries.push({
+          item,
+          pin,
+          plan,
+          planId,
+          pageNumber: Math.max(1, Number(placement.pageNumber || pin.pageNumber || item.pageNumber) || 1),
+          placement
+        });
+      }
     }
   }
   return entries;
@@ -11652,15 +10917,18 @@ function siteControlCompactPlanTitle(plan) {
 }
 
 function siteControlReportItemCard(item, meta = {}, photos = [], { pin = null } = {}) {
-  const effectivePin = pin || meta.pin || siteControlPinForItem(item);
+  const pins = siteControlPinsForItem(item);
+  const effectivePin = pin || meta.pin || pins[0] || null;
   const status = meta.status || siteControlReportStatus(item, effectivePin);
-  const title = meta.title || [meta.number, effectivePin ? pinLabel(effectivePin) : "", status, meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
-  const planRef = siteControlPlanReference(item, effectivePin) || item.planReference || "";
+  const title = meta.title || [meta.number, status, meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
+  const planMarks = pins.length
+    ? pins.map((entry) => `${siteControlPinDisplayLabel(entry, item)}: ${siteControlPlanReference({ ...item, pinId: entry.id, pinIds: [entry.id] }, entry) || "Planmarkierung"}`).join("; ")
+    : siteControlPlanReference(item, effectivePin) || item.planReference || "";
   return `
     <article class="site-report-card ${photos.length ? "has-photos" : ""}">
       <div class="site-item-title"><div><strong>${escapeHtml(title)}</strong></div><span class="status-badge ${siteControlReportStatusClass(status)}">${escapeHtml(status)}</span></div>
       <div class="site-item-body">
-        ${infoRow("Zuständig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("Priorität", item.priority)}${infoRow("Planbezug / Pin", planRef)}
+        ${infoRow("Zuständig", item.responsible)}${infoRow("Frist", item.dueDate)}${infoRow("Priorität", item.priority)}${infoRow("Planmarkierungen", planMarks)}
         <p>${escapeHtml(siteControlItemDescription(item) || "Keine Beschreibung erfasst.")}</p>
         ${photos.length ? `<p class="muted">${photos.length} Foto${photos.length === 1 ? "" : "s"}</p>${siteControlReportPhotoGrid(photos)}` : ""}
       </div>
@@ -11671,9 +10939,9 @@ function siteControlCompactItemOverview(items = [], reportMeta = new Map()) {
   if (!items.length) return `<p class="muted">Keine offenen Punkte dokumentiert.</p>`;
   return `<div class="site-compact-list">${items.map((item) => {
     const meta = reportMeta.get(item.id) || {};
-    const pin = meta.pin || siteControlPinForItem(item);
-    const title = [meta.number, pin ? pinLabel(pin) : "", meta.status || siteControlReportStatus(item, pin), meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
-    const facts = [`Zuständig: ${item.responsible || "offen"}`, `Frist: ${item.dueDate || "offen"}`].join(" · ");
+    const pinInfo = siteControlPinSummary(item);
+    const title = [meta.number, meta.status || siteControlReportStatus(item, meta.pin), meta.context || siteControlItemContext(item)].filter(Boolean).join(" · ");
+    const facts = [`Zuständig: ${item.responsible || "offen"}`, `Frist: ${item.dueDate || "offen"}`, pinInfo].join(" · ");
     return `<article class="site-report-card compact"><div class="site-item-body"><strong>${escapeHtml(title)}</strong><br><span class="muted">${escapeHtml(facts)}</span></div></article>`;
   }).join("")}</div>`;
 }
@@ -11688,13 +10956,17 @@ function siteControlPlanAppendixReport(items = [], reportMeta = new Map(), itemP
     groups.get(key).rows.push(entry);
   }
   return [...groups.values()].sort((a, b) => Math.min(...a.rows.map((row) => siteControlItemBkNumberRaw(row.item))) - Math.min(...b.rows.map((row) => siteControlItemBkNumberRaw(row.item)))).map((group, index) => {
-    group.rows = siteControlSortByBk(group.rows.map((row) => row.item)).map((item) => group.rows.find((row) => row.item.id === item.id));
+    group.rows = [...group.rows].sort((a, b) => {
+      const diff = siteControlItemBkNumberRaw(a.item) - siteControlItemBkNumberRaw(b.item);
+      if (diff) return diff;
+      return siteControlPinDisplayLabel(a.pin, a.item).localeCompare(siteControlPinDisplayLabel(b.pin, b.item), "de", { numeric: true });
+    });
     const plan = group.plan;
     const pins = [...new Map(group.rows.map((row) => [row.pin.id, row.pin])).values()];
     const linkedRows = siteControlSortByBk([...new Map(group.rows.map((row) => [row.item.id, row])).values()].map((row) => row.item)).map((item) => group.rows.find((row) => row.item.id === item.id));
     const image = state.reportPlanImages.get(`${group.planId}:${group.pageNumber}`);
     const title = siteControlCompactPlanTitle(plan);
-    const linkedItems = linkedRows.map(({ item, pin }) => siteControlReportItemCard(item, reportMeta.get(item.id) || {}, itemPhotoCards.get(item.id) || [], { pin })).join("");
+    const linkedItems = linkedRows.map(({ item }) => siteControlReportItemCard(item, reportMeta.get(item.id) || {}, itemPhotoCards.get(item.id) || [])).join("");
     return `
       <section class="appendix-block site-plan-appendix ${index ? "page-break" : ""}">
         <h3>${index === 0 ? "Plananlagen / Markierungen &middot; " : ""}Plananlage ${index + 1} &ndash; ${escapeHtml(title)} &ndash; Seite ${group.pageNumber}</h3>
@@ -15752,21 +15024,12 @@ function bindEvents() {
       }
     }
     const markSiteItem = event.target.closest("[data-mark-site-item]");
-    if (markSiteItem) openSiteControlPlanMarkDialog(markSiteItem.dataset.markSiteItem, { reset: true });
-    const showSitePin = event.target.closest("[data-show-site-pin]");
-    if (showSitePin) {
-      const item = findSiteControlItem(showSitePin.dataset.showSitePin);
-      if (item?.pinId) openSiteControlPlanMarkDialog(item.id, { reset: false });
-    }
-    const removeSitePinButton = event.target.closest("[data-remove-site-pin]");
-    if (removeSitePinButton && confirm("Planbezug dieser Feststellung entfernen?")) {
-      const item = findSiteControlItem(removeSitePinButton.dataset.removeSitePin);
-      if (item?.pinId) removeMarkPin(item.pinId);
-      else if (item) {
-        clearSiteControlItemPin(item);
-        persist();
-        renderSiteControlEditor();
-      }
+    if (markSiteItem) openSiteControlPlanMarkDialog(markSiteItem.dataset.markSiteItem, { reset: true, add: false });
+    const addSitePin = event.target.closest("[data-add-site-pin]");
+    if (addSitePin) openSiteControlPlanMarkDialog(addSitePin.dataset.addSitePin, { add: true });
+    const showSitePinById = event.target.closest("[data-show-site-pin-id]");
+    if (showSitePinById) {
+      openSiteControlPlanMarkDialog(showSitePinById.dataset.siteItemId, { pinId: showSitePinById.dataset.showSitePinId, reset: false });
     }
     const deleteSiteItem = event.target.closest("[data-delete-site-item]");
     if (deleteSiteItem) deleteSiteControlItem(deleteSiteItem.dataset.deleteSiteItem);
@@ -17480,6 +16743,14 @@ async function boot() {
 }
 
 boot();
+
+
+
+
+
+
+
+
 
 
 
