@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v193";
+const APP_VERSION = "v194";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -2571,7 +2571,7 @@ function planTextSource(plan = {}) {
 function inferPlanCategory(plan = {}) {
   const source = planTextSource(plan).toLowerCase();
   if (/arbeitspl(?:a|\u00e4)ne?|arbeitsplan/.test(source)) return "Arbeitsplan";
-  if (/positionspl(?:a|\u00e4)ne?|positionsplan|\bpp\b/.test(source)) return "Positionsplan";
+  if (/positionspl(?:a|\u00e4)ne?|positionsplaene|positionsplan|positionsplanung|\bpp\b/.test(source)) return "Positionsplan";
   if (/schalplan|schalung|\bschal\b|\bs[-\s]?\d{2,4}/i.test(source)) return "Schalplan";
   if (/baugesuch|eingabeplan|eingabeplanung|genehmigungsplan/.test(source)) return "Baugesuch";
   if (/bewe\b|bewehr|bewehrungsplan|\bb[-\s]?\d{2,4}/i.test(source)) return "Bewehrungsplan";
@@ -2641,12 +2641,21 @@ function normalizePlanMeta(plan = {}) {
   plan.planNo = plan.planNo || plan.planNumber || "";
   plan.appPlanName = planAppName(plan);
   plan.title = plan.title || plan.appPlanName || "";
-  plan.category = plan.category || plan.plan_category || inferPlanCategory(plan);
+  const categoryWasManual = !!(plan.manualCategory || plan.categoryManual);
+  const currentCategory = String(plan.category || plan.plan_category || "").trim();
+  if (!currentCategory || (currentCategory === "Sonstiges" && !categoryWasManual)) {
+    plan.category = inferPlanCategory(plan);
+  } else {
+    plan.category = currentCategory;
+  }
+  plan.manualCategory = categoryWasManual;
+  plan.categoryManual = categoryWasManual;
   plan.floor = plan.floor || inferPlanFloor(plan);
   plan.component = plan.component || inferPlanComponent(plan);
   plan.projectId = plan.projectId || plan.project_id || "";
   plan.protocolId = plan.protocolId || plan.acceptanceId || plan.acceptance_id || "";
   plan.archived = !!(plan.archived || plan.isArchived || String(plan.documentStatus || "").toLowerCase().includes("archiv"));
+  plan.archivedAt = plan.archivedAt || plan.archived_at || "";
   plan.deleted = !!(plan.deleted || plan.isDeleted);
   if (plan.archived && !String(plan.documentStatus || "").toLowerCase().includes("archiv")) plan.documentStatus = "archiviert";
   plan.dropboxPath = plan.dropboxPath || "";
@@ -2748,6 +2757,8 @@ function planFromStoreRecord(record = {}) {
     planDate: record.planDate || record.date || "",
     planIndex: record.planIndex || record.index || "",
     documentStatus: record.documentStatus || record.status || "verwendet",
+    categoryManual: !!(record.categoryManual || record.manualCategory),
+    manualCategory: !!(record.manualCategory || record.categoryManual),
     source: record.source || (record.dropboxPath || record.dropboxSharedLink ? "dropbox_path" : "uploaded"),
     dropboxPath: record.dropboxPath || "",
     dropboxSharedLink: record.dropboxSharedLink || record.dropboxLink || "",
@@ -2768,6 +2779,7 @@ function planFromStoreRecord(record = {}) {
     renderStatus: record.renderStatus || "",
     renderError: record.renderError || "",
     archived: !!(record.archived || record.isArchived),
+    archivedAt: record.archivedAt || record.archived_at || "",
     deleted: !!(record.deleted || record.isDeleted)
   });
 }
@@ -2777,29 +2789,146 @@ function projectPlanEntryKey(entry, projectId = state.currentProjectId) {
   return plan.id ? `id:${plan.id}` : `meta:${projectPlanDedupeKey(plan, projectId)}`;
 }
 
+function projectPlanStableIdentityKeys(plan = {}) {
+  const keys = new Set();
+  [plan.id, plan.planId, plan.plan_id].filter(Boolean).forEach((id) => keys.add(`id:${String(id).trim()}`));
+  [plan.blobId, plan.blob_id].filter(Boolean).forEach((id) => keys.add(`blob:${String(id).trim()}`));
+  return keys;
+}
+
+function projectPlanFileSizeKey(plan = {}, projectId = state.currentProjectId) {
+  const normalized = normalizePlanMeta(plan);
+  const pid = normalized.projectId || projectId || "";
+  const fileName = String(normalized.fileName || normalized.filename || normalized.dropboxFileName || "").trim().toLowerCase();
+  const size = Number(normalized.fileSize || normalized.size || normalized.blob?.size || 0) || 0;
+  return pid && fileName && size ? `file-size:${pid}:${fileName}:${size}` : "";
+}
+
+function projectPlanFileNameKey(plan = {}, projectId = state.currentProjectId) {
+  const normalized = normalizePlanMeta(plan);
+  const pid = normalized.projectId || projectId || "";
+  const fileName = String(normalized.fileName || normalized.filename || normalized.dropboxFileName || "").trim().toLowerCase();
+  return pid && fileName ? `file:${pid}:${fileName}` : "";
+}
+
+function projectPlanArchiveIdentityKeys(plan = {}, projectId = state.currentProjectId, options = {}) {
+  const keys = new Set(projectPlanStableIdentityKeys(plan));
+  const sizeKey = projectPlanFileSizeKey(plan, projectId);
+  const fileKey = projectPlanFileNameKey(plan, projectId);
+  if (options.includeFileSize !== false && sizeKey) keys.add(sizeKey);
+  if (options.includeFileNameFallback && fileKey) keys.add(fileKey);
+  return keys;
+}
+
+function addProjectPlanArchiveKeys(target, plan = {}, projectId = state.currentProjectId, options = {}) {
+  projectPlanArchiveIdentityKeys(plan, projectId, options).forEach((key) => target.add(key));
+}
+
+function projectPlanHasActiveRawTwin(plan = {}, activeRawStableKeys = new Set()) {
+  return [...projectPlanStableIdentityKeys(plan)].some((key) => activeRawStableKeys.has(key));
+}
+
+function projectPlanMatchesArchiveKeys(plan = {}, archiveKeys = new Set(), projectId = state.currentProjectId, options = {}) {
+  return [...projectPlanArchiveIdentityKeys(plan, projectId, options)].some((key) => archiveKeys.has(key));
+}
+
+function projectPlanMatchesArchivedCanonical(plan = {}, archiveKeys = new Set(), activeRawStableKeys = new Set(), projectId = state.currentProjectId, options = {}) {
+  if (projectPlanMatchesArchiveKeys(plan, archiveKeys, projectId, { includeFileSize: false, includeFileNameFallback: false })) return true;
+  if (projectPlanHasActiveRawTwin(plan, activeRawStableKeys)) return false;
+  const sizeKey = projectPlanFileSizeKey(plan, projectId);
+  if (sizeKey && archiveKeys.has(sizeKey)) return true;
+  const hasStableKey = projectPlanStableIdentityKeys(plan).size > 0;
+  const fileKey = projectPlanFileNameKey(plan, projectId);
+  return !!(options.allowLooseFileNameFallback && !hasStableKey && fileKey && archiveKeys.has(fileKey));
+}
+
+function addProjectPlanEntryOnce(entries, seen, protocol, plan, projectId = state.currentProjectId) {
+  const entryKey = projectPlanEntryKey({ plan }, projectId);
+  const metaKey = `meta:${projectPlanDedupeKey(plan, projectId)}`;
+  if (seen.has(entryKey) || seen.has(metaKey)) return false;
+  seen.add(entryKey);
+  seen.add(metaKey);
+  entries.push({ protocol, plan });
+  return true;
+}
+
+
 async function buildProjectPlanInventory(projectId = state.currentProjectId) {
   const project = projectById(projectId) || null;
   const rawRecords = await idbGetAll("plans");
   const rawDisplayable = rawRecords.filter(isDisplayablePlanRecord);
-  const entries = projectPlanEntries(projectId);
-  const archived = projectPlanEntries(projectId, { includeArchived: true }).filter(({ plan }) => isArchivedPlan(plan));
-  const seen = new Set(entries.map((entry) => projectPlanEntryKey(entry, projectId)));
+  const allProtocolEntries = projectPlanEntries(projectId, { includeArchived: true });
+  const archiveKeys = new Set();
+  const activeRawStableKeys = new Set();
+  rawDisplayable.forEach((record) => {
+    if (planRecordProjectId(record) !== projectId || isArchivedPlan(record)) return;
+    projectPlanStableIdentityKeys(record).forEach((key) => activeRawStableKeys.add(key));
+  });
+  const entries = [];
+  const archived = [];
+  const activeSeen = new Set();
+  const archivedSeen = new Set();
   let changed = false;
   const withoutProjectId = [];
   const otherProjectId = [];
   const invalid = rawRecords.filter((record) => !isDisplayablePlanRecord(record));
   const libraryProtocol = project ? ensureProjectPlanLibraryProtocol(project.id) : null;
 
+  const addArchivedEntry = (protocol, sourcePlan) => {
+    if (!sourcePlan) return;
+    const plan = normalizePlanMeta(sourcePlan);
+    plan.archived = true;
+    plan.documentStatus = "archiviert";
+    addProjectPlanArchiveKeys(archiveKeys, plan, projectId, { includeFileNameFallback: true });
+    const targetProtocol = protocol || libraryProtocol;
+    if (targetProtocol && isProjectPlanLibraryProtocol(targetProtocol)) {
+      targetProtocol.plans = targetProtocol.plans || [];
+      plan.projectId = plan.projectId || projectId;
+      plan.protocolId = plan.protocolId || targetProtocol.id;
+      if (!targetProtocol.plans.some((item) => item.id === plan.id)) {
+        targetProtocol.plans.push(plan);
+        changed = true;
+      }
+    }
+    const key = projectPlanEntryKey({ plan }, projectId);
+    if (archivedSeen.has(key)) return;
+    archivedSeen.add(key);
+    archived.push({ protocol: targetProtocol, plan });
+  };
+
+  rawDisplayable.forEach((record) => {
+    const recordProjectId = planRecordProjectId(record);
+    if (recordProjectId !== projectId) return;
+    if (isArchivedPlan(record)) addArchivedEntry(libraryProtocol, planFromStoreRecord(record));
+  });
+  allProtocolEntries.forEach(({ protocol, plan }) => {
+    if (isArchivedPlan(plan)) addArchivedEntry(protocol, plan);
+  });
+
+  allProtocolEntries.forEach(({ protocol, plan }) => {
+    normalizePlanMeta(plan);
+    if (isArchivedPlan(plan) || projectPlanMatchesArchivedCanonical(plan, archiveKeys, activeRawStableKeys, projectId, { allowLooseFileNameFallback: true })) {
+      addArchivedEntry(protocol, plan);
+      if (!plan.archived) {
+        plan.archived = true;
+        plan.documentStatus = "archiviert";
+        changed = true;
+      }
+      return;
+    }
+    addProjectPlanEntryOnce(entries, activeSeen, protocol, plan, projectId);
+  });
+
   rawDisplayable.forEach((record) => {
     const recordProjectId = planRecordProjectId(record);
     const plan = planFromStoreRecord(record);
-    const entryKey = projectPlanEntryKey({ plan }, projectId);
-    if (isArchivedPlan(record) || isArchivedPlan(plan)) {
-      archived.push({ protocol: libraryProtocol, plan });
-      return;
-    }
+    const allowLooseLegacyFallback = !(record.id || record.planId || record.plan_id || record.blobId);
     if (recordProjectId === projectId) {
-      if (!seen.has(entryKey) && libraryProtocol) {
+      if (isArchivedPlan(record) || isArchivedPlan(plan) || projectPlanMatchesArchivedCanonical(plan, archiveKeys, activeRawStableKeys, projectId, { allowLooseFileNameFallback: allowLooseLegacyFallback })) {
+        addArchivedEntry(libraryProtocol, plan);
+        return;
+      }
+      if (libraryProtocol && !activeSeen.has(projectPlanEntryKey({ plan }, projectId))) {
         libraryProtocol.plans = libraryProtocol.plans || [];
         plan.projectId = projectId;
         plan.protocolId = libraryProtocol.id;
@@ -2807,8 +2936,7 @@ async function buildProjectPlanInventory(projectId = state.currentProjectId) {
           libraryProtocol.plans.push(plan);
           changed = true;
         }
-        entries.push({ protocol: libraryProtocol, plan });
-        seen.add(entryKey);
+        addProjectPlanEntryOnce(entries, activeSeen, libraryProtocol, plan, projectId);
       }
       return;
     }
@@ -2819,6 +2947,7 @@ async function buildProjectPlanInventory(projectId = state.currentProjectId) {
     otherProjectId.push({ record, plan, projectId: recordProjectId });
   });
 
+  if (changed) schedulePersist();
   const upload = state.projectPlanUpload || {};
   const diagnostics = {
     rawCount: rawRecords.length,
@@ -5288,6 +5417,7 @@ function updateProjectPlanField(input) {
   if (!field || field === "pageCount") return;
   entry.plan[field] = input.value || "";
   if (["category", "floor", "component"].includes(field)) entry.plan[`${field}Manual`] = true;
+  if (field === "category") entry.plan.manualCategory = true;
   if (field === "source" && entry.plan.source !== "uploaded" && !entry.plan.syncStatus) entry.plan.syncStatus = "linked";
   entry.plan.updatedAt = new Date().toISOString();
   entry.protocol.updatedAt = entry.plan.updatedAt;
@@ -5496,14 +5626,16 @@ function projectPlanCard(protocol, plan, options = {}) {
   const file = plan.fileName || plan.dropboxFileName || "Datei offen";
   const link = validDropboxLink(plan);
   const pins = allPinsForPlan(plan).length;
+  const archivedAtText = archived && plan.archivedAt ? `Archiviert am ${formatDate(plan.archivedAt)}` : "";
   const summary = [
     plan.category || "Sonstiges",
     plan.floor || "ohne Geschoss",
     plan.component || "ohne Bauteil",
     plan.planDate ? `Stand ${plan.planDate}` : "ohne Stand",
     plan.planIndex ? `Index ${plan.planIndex}` : "ohne Index",
-    pins ? `${pins} Pin(s)` : "ohne Pins"
-  ].join(" - ");
+    pins ? `${pins} Pin(s)` : "ohne Pins",
+    archivedAtText
+  ].filter(Boolean).join(" - ");
   return `
     <details class="project-plan-card project-plan-accordion ${archived ? "archived-plan" : ""}" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
       <summary class="project-plan-summary-row">
@@ -5526,7 +5658,7 @@ function projectPlanCard(protocol, plan, options = {}) {
               <button class="secondary-btn" data-open-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan öffnen / Vorschau</button>
               ${state.current ? `<button class="secondary-btn" data-use-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan für Abnahme verwenden</button>` : ""}
               ${link ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox öffnen</button>` : ""}
-              ${archived ? `<span class="muted">Archiviert</span>` : `<button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan archivieren</button>`}
+              ${archived ? `<button class="secondary-btn" data-restore-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Wiederherstellen</button>` : `<button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan archivieren</button>`}
             </div>
           </div>
         </div>
@@ -8137,8 +8269,10 @@ function storedProjectPlanRecord(plan, file, project, protocol) {
     planIndex: plan.planIndex,
     documentStatus: plan.documentStatus,
     archived: !!plan.archived,
+    archivedAt: plan.archivedAt || "",
     deleted: !!plan.deleted,
     categoryManual: !!plan.categoryManual,
+    manualCategory: !!plan.manualCategory,
     floorManual: !!plan.floorManual,
     componentManual: !!plan.componentManual,
     source: plan.source,
@@ -8366,7 +8500,69 @@ Trotzdem zus?tzlich importieren?`)) {
   return { selected: fileList.length, imported: renderedCount, saved: savedCount, readBack: readBackCount, inInventory: inventoryCount, rendered: renderedCount };
 }
 
-function deleteProjectPlan(protocolId, planId) {
+async function setProjectPlanArchived(protocolId, planId, archived) {
+  const entry = findProjectPlanEntry(protocolId, planId);
+  if (!entry) {
+    showAppToast("Plan nicht gefunden.", { type: "error" });
+    return false;
+  }
+  const now = new Date().toISOString();
+  const touchedIds = new Set([planId, entry.plan.id, entry.plan.planId, entry.plan.blobId].filter(Boolean).map(String));
+  state.protocols.forEach((protocol) => {
+    (protocol.plans || []).forEach((plan) => {
+      const ids = [plan.id, plan.planId, plan.blobId].filter(Boolean).map(String);
+      if (!ids.some((id) => touchedIds.has(id))) return;
+      plan.archived = !!archived;
+      plan.documentStatus = archived ? "archiviert" : "verwendet";
+      if (archived) plan.archivedAt = now;
+      else delete plan.archivedAt;
+      plan.updatedAt = now;
+      protocol.updatedAt = now;
+    });
+  });
+  entry.plan.archived = !!archived;
+  entry.plan.documentStatus = archived ? "archiviert" : "verwendet";
+  if (archived) entry.plan.archivedAt = now;
+  else delete entry.plan.archivedAt;
+  entry.plan.updatedAt = now;
+
+  const rawRecords = await idbGetAll("plans");
+  const matchingRecords = rawRecords.filter((record) => [record.id, record.planId, record.plan_id, record.blobId].filter(Boolean).map(String).some((id) => touchedIds.has(id)));
+  for (const record of matchingRecords) {
+    await idbPut("plans", {
+      ...record,
+      archived: !!archived,
+      archivedAt: archived ? now : "",
+      documentStatus: archived ? "archiviert" : (record.documentStatus && record.documentStatus !== "archiviert" ? record.documentStatus : "verwendet"),
+      updatedAt: now
+    });
+  }
+  const readback = matchingRecords.length ? await Promise.all(matchingRecords.map((record) => idbGet("plans", record.id))) : [];
+  if (matchingRecords.length && readback.some((record) => !!record?.archived !== !!archived)) {
+    showAppToast(archived ? "Plan konnte nicht zuverl?ssig archiviert werden." : "Plan konnte nicht zuverl?ssig wiederhergestellt werden.", { type: "error", timeout: 8000 });
+    return false;
+  }
+
+  const inventory = await buildProjectPlanInventory(entry.protocol.projectId || state.currentProjectId);
+  const stillActive = inventory.entries.some(({ plan }) => touchedIds.has(String(plan.id || plan.planId || plan.blobId || "")));
+  if (archived && stillActive) {
+    showAppToast("Plan wurde archiviert, ist aber noch in der aktiven Inventur sichtbar. Bitte Diagnose pr?fen.", { type: "error", timeout: 9000 });
+    return false;
+  }
+  await persist();
+  const nextPlan = inventory.entries.find(({ plan }) => !touchedIds.has(String(plan.id || "")))?.plan || null;
+  if (archived && state.current?.activePlanId && touchedIds.has(String(state.current.activePlanId))) state.current.activePlanId = nextPlan?.id || "";
+  if (archived && state.selectedPlanId && touchedIds.has(String(state.selectedPlanId))) state.selectedPlanId = state.current?.activePlanId || nextPlan?.id || "";
+  await renderProjectPlansView();
+  if (state.current?.id === entry.protocol.id) {
+    renderPlanControls();
+    renderPlan();
+  }
+  showAppToast(archived ? "Plan archiviert." : "Plan wiederhergestellt.", { type: "success" });
+  return true;
+}
+
+async function deleteProjectPlan(protocolId, planId) {
   const entry = findProjectPlanEntry(protocolId, planId);
   if (!entry) return showAppToast("Plan nicht gefunden.", { type: "error" });
   const referencedPins = state.protocols.reduce((sum, protocol) => sum + (protocol.pins || []).filter((pin) => pinPlacements(pin).some((placement) => placement.planId === planId) || pin.planId === planId).length, 0);
@@ -8374,21 +8570,11 @@ function deleteProjectPlan(protocolId, planId) {
 
 Hinweis: ${referencedPins} Pin-/Planbezug(e) verweisen auf diesen Plan. Der Plan wird deshalb nur archiviert und bleibt technisch erhalten.` : "";
   if (!confirm(`Plan archivieren? Er wird in normalen Modullisten ausgeblendet, bleibt aber in der lokalen Projektablage erhalten.${warning}`)) return;
-  entry.plan.archived = true;
-  entry.plan.documentStatus = "archiviert";
-  entry.plan.updatedAt = new Date().toISOString();
-  entry.protocol.updatedAt = entry.plan.updatedAt;
-  syncPlanRecord(entry.plan);
-  const nextPlan = projectPlanEntries(entry.protocol.projectId || state.currentProjectId).find(({ plan }) => plan.id !== planId)?.plan || null;
-  if (state.current?.activePlanId === planId) state.current.activePlanId = nextPlan?.id || "";
-  if (state.selectedPlanId === planId) state.selectedPlanId = state.current?.activePlanId || "";
-  persist();
-  renderProjectPlansView();
-  if (state.current?.id === entry.protocol.id) {
-    renderPlanControls();
-    renderPlan();
-  }
-  showAppToast("Plan archiviert.", { type: "success" });
+  await setProjectPlanArchived(protocolId, planId, true);
+}
+
+async function restoreProjectPlan(protocolId, planId) {
+  await setProjectPlanArchived(protocolId, planId, false);
 }
 
 async function extractPdfPlanMetadata(plan) {
@@ -15531,6 +15717,8 @@ function bindEvents() {
     }
     const deleteProjectPlanButton = event.target.closest("[data-delete-project-plan]");
     if (deleteProjectPlanButton) deleteProjectPlan(deleteProjectPlanButton.dataset.protocolId, deleteProjectPlanButton.dataset.deleteProjectPlan);
+    const restoreProjectPlanButton = event.target.closest("[data-restore-project-plan]");
+    if (restoreProjectPlanButton) restoreProjectPlan(restoreProjectPlanButton.dataset.protocolId, restoreProjectPlanButton.dataset.restoreProjectPlan);
     const projectModule = event.target.closest("[data-project-module]");
     if (projectModule) {
       const action = projectModule.dataset.projectModule;
@@ -16673,8 +16861,10 @@ async function syncPlanRecord(plan) {
     planIndex: plan.planIndex || "",
     documentStatus: plan.documentStatus || "verwendet",
     archived: !!plan.archived,
+    archivedAt: plan.archivedAt || "",
     deleted: !!plan.deleted,
     categoryManual: !!plan.categoryManual,
+    manualCategory: !!plan.manualCategory,
     floorManual: !!plan.floorManual,
     componentManual: !!plan.componentManual,
     source: plan.source || "uploaded",
