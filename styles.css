@@ -4338,3 +4338,40 @@ dialog button {
   }
 }
 
+
+/* v193 project plan inventory */
+.project-plan-category {
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #f8fafc;
+  margin: 10px 0;
+  overflow: hidden;
+}
+.project-plan-category > summary {
+  cursor: pointer;
+  font-weight: 800;
+  padding: 12px 14px;
+  color: #17212b;
+  background: #eef3f8;
+}
+.project-plan-category-list {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+.project-plan-diagnostics {
+  margin-top: 10px;
+}
+.project-plan-diagnostics > summary {
+  cursor: pointer;
+  color: #42526b;
+  font-weight: 700;
+}
+.project-plan-card.archived-plan {
+  opacity: 0.72;
+  border-style: dashed;
+}
+.project-plan-archive > summary {
+  cursor: pointer;
+  font-weight: 800;
+}

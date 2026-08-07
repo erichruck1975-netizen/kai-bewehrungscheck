@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v192";
+const APP_VERSION = "v193";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -2537,9 +2537,9 @@ function shouldHideProtocolInModuleLists(protocol = {}) {
 }
 
 
-const PLAN_CATEGORIES = ["Bewehrungsplan", "Arbeitsplan", "Schalplan", "Baugesuch", "Sonstiges"];
-const PLAN_FLOOR_OPTIONS = ["UG", "EG", "OG", "DG", "Dach", "Sonstiges"];
-const PLAN_COMPONENT_OPTIONS = ["Bodenplatte", "Decke", "Wand", "Fundament", "Stütze", "Unterzug", "Treppe", "Gesamt", "Sonstiges"];
+const PLAN_CATEGORIES = ["Arbeitsplan", "Bewehrungsplan", "Schalplan", "Baugesuch", "Positionsplan", "Sonstiges"];
+const PLAN_FLOOR_OPTIONS = ["UG", "EG", "OG", "DG", "Dach", "Keller", "Bodenplatte", "Sonstiges"];
+const PLAN_COMPONENT_OPTIONS = ["Bodenplatte", "Decke", "Wand / Wände", "Fundament", "Stütze", "Unterzug", "Treppe", "Dach", "Ansicht", "Schnitt", "Gesamt", "Sonstiges"];
 const APP_PLAN_NAME_SUGGESTIONS = [
   "Bewehrung Bodenplatte untere Lage",
   "Bewehrung Bodenplatte obere Lage",
@@ -2564,35 +2564,50 @@ function cleanPlanTitleFromFileName(fileName = "") {
     .trim();
 }
 
+function planTextSource(plan = {}) {
+  return [plan.fileName, plan.dropboxFileName, plan.title, plan.appPlanName, plan.planName, plan.planNumber, plan.category, plan.floor, plan.component].join(" ");
+}
+
 function inferPlanCategory(plan = {}) {
-  const source = [plan.category, plan.planCategory, plan.fileName, plan.dropboxFileName, plan.title, plan.appPlanName, plan.planNumber].join(" ").toLowerCase();
-  if (/arbeitsplan/.test(source)) return "Arbeitsplan";
-  if (/schalplan|\bs[-\s]?\d{2,4}/i.test(source)) return "Schalplan";
-  if (/baugesuch/.test(source)) return "Baugesuch";
-  if (/bewehr|\bb[-\s]?\d{2,4}/i.test(source)) return "Bewehrungsplan";
+  const source = planTextSource(plan).toLowerCase();
+  if (/arbeitspl(?:a|\u00e4)ne?|arbeitsplan/.test(source)) return "Arbeitsplan";
+  if (/positionspl(?:a|\u00e4)ne?|positionsplan|\bpp\b/.test(source)) return "Positionsplan";
+  if (/schalplan|schalung|\bschal\b|\bs[-\s]?\d{2,4}/i.test(source)) return "Schalplan";
+  if (/baugesuch|eingabeplan|eingabeplanung|genehmigungsplan/.test(source)) return "Baugesuch";
+  if (/bewe\b|bewehr|bewehrungsplan|\bb[-\s]?\d{2,4}/i.test(source)) return "Bewehrungsplan";
   return "Sonstiges";
 }
 
 function inferPlanFloor(plan = {}) {
-  const source = [plan.floor, plan.fileName, plan.title, plan.appPlanName].join(" ").toLowerCase();
+  const source = planTextSource(plan).toLowerCase();
+  if (/bodenplatte/.test(source)) return "Bodenplatte";
   if (/\bug\b|untergeschoss|tiefgarage/.test(source)) return "UG";
   if (/\beg\b|erdgeschoss/.test(source)) return "EG";
-  if (/\bdg\b|dachgeschoss|dach/.test(source)) return "DG";
   if (/\bog\b|obergeschoss/.test(source)) return "OG";
+  if (/\bdg\b|dachgeschoss|\bdach\b/.test(source)) return "DG";
+  if (/keller/.test(source)) return "Keller";
   return plan.floor || "";
 }
 
 function inferPlanComponent(plan = {}) {
-  const source = [plan.component, plan.fileName, plan.title, plan.appPlanName].join(" ").toLowerCase();
+  const source = planTextSource(plan).toLowerCase();
   if (/bodenplatte/.test(source)) return "Bodenplatte";
   if (/decke/.test(source)) return "Decke";
-  if (/wand/.test(source)) return "Wand";
+  if (/w(?:a|\u00e4)nde|wand/.test(source)) return "Wand / W\u00e4nde";
   if (/fundament/.test(source)) return "Fundament";
-  if (/stütze|stuetze/.test(source)) return "Stütze";
+  if (/st(?:u|\u00fc)tze/.test(source)) return "St\u00fctze";
   if (/unterzug/.test(source)) return "Unterzug";
   if (/treppe/.test(source)) return "Treppe";
+  if (/\bdach\b/.test(source)) return "Dach";
+  if (/ansicht/.test(source)) return "Ansicht";
+  if (/schnitt/.test(source)) return "Schnitt";
   if (/gesamt/.test(source)) return "Gesamt";
   return plan.component || "";
+}
+
+function isArchivedPlan(plan = {}) {
+  const status = String(plan.documentStatus || plan.status || "").toLowerCase();
+  return !!(plan.archived || plan.isArchived || plan.deleted || plan.isDeleted || status.includes("archiv"));
 }
 
 function planPrimaryNumber(plan = {}) {
@@ -2621,7 +2636,7 @@ function planMetaLine(plan = {}) {
 
 function normalizePlanMeta(plan = {}) {
   plan.source = plan.source || (plan.dropboxPath || plan.dropboxSharedLink ? "dropbox_path" : "uploaded");
-  plan.documentStatus = normalizeDocumentStatus(plan.documentStatus || "verwendet");
+  plan.documentStatus = normalizeDocumentStatus(plan.documentStatus || (plan.archived ? "archiviert" : "verwendet"));
   plan.planNumber = planPrimaryNumber(plan);
   plan.planNo = plan.planNo || plan.planNumber || "";
   plan.appPlanName = planAppName(plan);
@@ -2629,6 +2644,11 @@ function normalizePlanMeta(plan = {}) {
   plan.category = plan.category || plan.plan_category || inferPlanCategory(plan);
   plan.floor = plan.floor || inferPlanFloor(plan);
   plan.component = plan.component || inferPlanComponent(plan);
+  plan.projectId = plan.projectId || plan.project_id || "";
+  plan.protocolId = plan.protocolId || plan.acceptanceId || plan.acceptance_id || "";
+  plan.archived = !!(plan.archived || plan.isArchived || String(plan.documentStatus || "").toLowerCase().includes("archiv"));
+  plan.deleted = !!(plan.deleted || plan.isDeleted);
+  if (plan.archived && !String(plan.documentStatus || "").toLowerCase().includes("archiv")) plan.documentStatus = "archiviert";
   plan.dropboxPath = plan.dropboxPath || "";
   plan.dropboxSharedLink = plan.dropboxSharedLink || plan.dropboxLink || "";
   plan.dropboxFileName = plan.dropboxFileName || "";
@@ -2659,12 +2679,16 @@ function projectPlanDedupeKey(plan = {}, projectId = "") {
   return parts.some(Boolean) ? parts.join("|") : normalized.id || uid("plan-key");
 }
 
-function projectPlanEntries(projectId = state.currentProjectId) {
+function projectPlanEntries(projectId = state.currentProjectId, options = {}) {
+  const includeArchived = !!options.includeArchived;
   const seen = new Set();
   const entries = [];
   protocolsForProject(projectId).forEach((protocol) => {
     (protocol.plans || []).forEach((sourcePlan) => {
       const plan = normalizePlanMeta(sourcePlan);
+      plan.projectId = plan.projectId || protocol.projectId || projectId || "";
+      plan.protocolId = plan.protocolId || protocol.id || "";
+      if (!includeArchived && isArchivedPlan(plan)) return;
       const idKey = plan.id ? `id:${plan.id}` : "";
       const metaKey = `meta:${projectPlanDedupeKey(plan, projectId)}`;
       if ((idKey && seen.has(idKey)) || seen.has(metaKey)) return;
@@ -2674,6 +2698,25 @@ function projectPlanEntries(projectId = state.currentProjectId) {
     });
   });
   return entries;
+}
+
+function projectPlanSearchText(protocol, plan = {}) {
+  return [plan.planNumber, plan.planNo, plan.appPlanName, plan.title, plan.category, plan.floor, plan.component, plan.fileName, plan.dropboxFileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase();
+}
+
+function projectPlanMatchesSearch(entry, normalizedSearch = "") {
+  if (!normalizedSearch) return true;
+  return projectPlanSearchText(entry.protocol, entry.plan).includes(normalizedSearch);
+}
+
+function groupedProjectPlanEntries(entries = []) {
+  const groups = new Map(PLAN_CATEGORIES.map((category) => [category, []]));
+  entries.forEach((entry) => {
+    const category = PLAN_CATEGORIES.includes(entry.plan?.category) ? entry.plan.category : "Sonstiges";
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(entry);
+  });
+  return [...groups.entries()].filter(([, items]) => items.length);
 }
 
 function isDisplayablePlanRecord(record = {}) {
@@ -2690,6 +2733,8 @@ function planRecordProjectId(record = {}) {
 function planFromStoreRecord(record = {}) {
   return normalizePlanMeta({
     id: record.id || record.planId || record.plan_id || record.blobId || uid("plan"),
+    projectId: record.projectId || record.project_id || "",
+    protocolId: record.protocolId || record.acceptanceId || record.acceptance_id || "",
     planId: record.planId || record.plan_id || record.id || "",
     number: record.number || 0,
     fileName: record.fileName || record.filename || record.dropboxFileName || record.name || record.title || record.planName || "Plan",
@@ -2721,7 +2766,9 @@ function planFromStoreRecord(record = {}) {
     currentPage: record.currentPage || 1,
     zoom: record.zoom || 1,
     renderStatus: record.renderStatus || "",
-    renderError: record.renderError || ""
+    renderError: record.renderError || "",
+    archived: !!(record.archived || record.isArchived),
+    deleted: !!(record.deleted || record.isDeleted)
   });
 }
 
@@ -2735,7 +2782,9 @@ async function buildProjectPlanInventory(projectId = state.currentProjectId) {
   const rawRecords = await idbGetAll("plans");
   const rawDisplayable = rawRecords.filter(isDisplayablePlanRecord);
   const entries = projectPlanEntries(projectId);
+  const archived = projectPlanEntries(projectId, { includeArchived: true }).filter(({ plan }) => isArchivedPlan(plan));
   const seen = new Set(entries.map((entry) => projectPlanEntryKey(entry, projectId)));
+  let changed = false;
   const withoutProjectId = [];
   const otherProjectId = [];
   const invalid = rawRecords.filter((record) => !isDisplayablePlanRecord(record));
@@ -2745,10 +2794,19 @@ async function buildProjectPlanInventory(projectId = state.currentProjectId) {
     const recordProjectId = planRecordProjectId(record);
     const plan = planFromStoreRecord(record);
     const entryKey = projectPlanEntryKey({ plan }, projectId);
+    if (isArchivedPlan(record) || isArchivedPlan(plan)) {
+      archived.push({ protocol: libraryProtocol, plan });
+      return;
+    }
     if (recordProjectId === projectId) {
       if (!seen.has(entryKey) && libraryProtocol) {
         libraryProtocol.plans = libraryProtocol.plans || [];
-        if (!libraryProtocol.plans.some((item) => item.id === plan.id)) libraryProtocol.plans.push(plan);
+        plan.projectId = projectId;
+        plan.protocolId = libraryProtocol.id;
+        if (!libraryProtocol.plans.some((item) => item.id === plan.id)) {
+          libraryProtocol.plans.push(plan);
+          changed = true;
+        }
         entries.push({ protocol: libraryProtocol, plan });
         seen.add(entryKey);
       }
@@ -2766,6 +2824,8 @@ async function buildProjectPlanInventory(projectId = state.currentProjectId) {
     rawCount: rawRecords.length,
     currentProjectId: projectId || "",
     visibleCount: entries.length,
+    finalInventoryCount: entries.length,
+    archivedCount: archived.length,
     withoutProjectId: withoutProjectId.length,
     otherProjectId: otherProjectId.length,
     invalidCount: invalid.length,
@@ -2775,12 +2835,15 @@ async function buildProjectPlanInventory(projectId = state.currentProjectId) {
     names: entries.map(({ plan }) => planCompactTitle(plan))
   };
   state.lastProjectPlanDebug = diagnostics;
-  return { project, entries, withoutProjectId, otherProjectId, invalid, diagnostics };
+  return { project, entries, archived, withoutProjectId, otherProjectId, invalid, diagnostics, changed };
 }
 
 function projectPlanDiagnosticsHtml(diagnostics = {}) {
   return `
-    <p class="muted project-plan-upload-diagnostics">Plan-Diagnose: Rohdaten ${Number(diagnostics.rawCount || 0)} - Aktuelles Projekt ${escapeHtml(diagnostics.currentProjectId || "keins")} - Für dieses Projekt sichtbar ${Number(diagnostics.visibleCount || 0)} - Ohne Projektzuordnung ${Number(diagnostics.withoutProjectId || 0)} - Andere Projektzuordnung ${Number(diagnostics.otherProjectId || 0)} - Ungültig/ohne Name ${Number(diagnostics.invalidCount || 0)} - Nach Upload übernommen ${Number(diagnostics.uploadedImported || 0)} - Gespeichert ${Number(diagnostics.uploadedSaved || 0)}</p>`;
+    <details class="project-plan-diagnostics">
+      <summary>Plan-Diagnose anzeigen</summary>
+      <p class="muted project-plan-upload-diagnostics">Rohdaten ${Number(diagnostics.rawCount || 0)} - Aktuelles Projekt ${escapeHtml(diagnostics.currentProjectId || "keins")} - Finale Inventur ${Number(diagnostics.finalInventoryCount || diagnostics.visibleCount || 0)} - Ohne Projektzuordnung ${Number(diagnostics.withoutProjectId || 0)} - Andere Projektzuordnung ${Number(diagnostics.otherProjectId || 0)} - Archiviert ${Number(diagnostics.archivedCount || 0)} - Ungültig/ohne Name ${Number(diagnostics.invalidCount || 0)} - Nach Upload übernommen ${Number(diagnostics.uploadedImported || 0)} - Gespeichert ${Number(diagnostics.uploadedSaved || 0)}</p>
+    </details>`;
 }
 
 function unassignedProjectPlanCard(item) {
@@ -5224,6 +5287,7 @@ function updateProjectPlanField(input) {
   const field = input.dataset.projectPlanField;
   if (!field || field === "pageCount") return;
   entry.plan[field] = input.value || "";
+  if (["category", "floor", "component"].includes(field)) entry.plan[`${field}Manual`] = true;
   if (field === "source" && entry.plan.source !== "uploaded" && !entry.plan.syncStatus) entry.plan.syncStatus = "linked";
   entry.plan.updatedAt = new Date().toISOString();
   entry.protocol.updatedAt = entry.plan.updatedAt;
@@ -5344,16 +5408,15 @@ async function renderProjectPlansView() {
   if (!container) return;
   const project = projectById(state.currentProjectId) || null;
   if (!project) {
-    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gewählt. Bitte zuerst ein Projekt öffnen.</p></section>`;
+    container.innerHTML = `<section class="panel"><p class="muted">Kein Projekt gew?hlt. Bitte zuerst ein Projekt ?ffnen.</p></section>`;
     return;
   }
   const searchValue = $("#projectPlanSearchInput")?.value || "";
   const inventory = await buildProjectPlanInventory(project.id);
   const entries = inventory.entries;
   const normalizedSearch = searchValue.trim().toLowerCase();
-  const visibleEntries = normalizedSearch
-    ? entries.filter(({ protocol, plan }) => [plan.planNumber, plan.appPlanName, plan.title, plan.category, plan.floor, plan.component, plan.fileName, plan.planDate, plan.planIndex, plan.documentStatus, acceptanceLabel(protocol)].join(" ").toLowerCase().includes(normalizedSearch))
-    : entries;
+  const visibleEntries = entries.filter((entry) => projectPlanMatchesSearch(entry, normalizedSearch));
+  const groupedEntries = groupedProjectPlanEntries(visibleEntries);
   const folderHint = project.dropboxFolder ? `${escapeHtml(project.dropboxFolder)}${escapeHtml(project.planFolder || state.settings.dropboxPlanFolder || "Pläne")}` : "Kein Dropbox-Projektordner hinterlegt.";
   const unassignedHtml = inventory.withoutProjectId.length ? `
     <section class="panel">
@@ -5366,6 +5429,19 @@ async function renderProjectPlansView() {
       </div>
       ${inventory.withoutProjectId.map(unassignedProjectPlanCard).join("")}
     </section>` : "";
+  const archiveHtml = inventory.archived?.length ? `
+    <details class="panel project-plan-archive">
+      <summary>Archivierte Pläne (${inventory.archived.length})</summary>
+      <p class="muted">Archivierte Pläne bleiben erhalten, werden aber in den Modulen nicht als aktive Projektpläne angeboten.</p>
+      ${inventory.archived.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan, { archived: true })).join("")}
+    </details>` : "";
+  const groupedHtml = groupedEntries.length
+    ? groupedEntries.map(([category, items]) => `
+      <details class="project-plan-category" open>
+        <summary>${escapeHtml(category)} (${items.length})</summary>
+        <div class="project-plan-category-list">${items.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("")}</div>
+      </details>`).join("")
+    : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. Über PDF-Pläne hochladen können PDF-Dateien direkt im Projekt gespeichert werden."}</div>`;
   container.innerHTML = `
     <section class="panel project-plan-summary">
       <div>
@@ -5379,14 +5455,14 @@ async function renderProjectPlansView() {
       <div class="section-head">
         <div>
           <h3>Projektpläne</h3>
-          <p class="muted">Pläne werden projektweise lokal in IndexedDB gespeichert und stehen Bewehrungsabnahme und Baustellenkontrolle zur Verfügung.</p>
+          <p class="muted">Ein Projekt, ein Planbestand: diese finale Planliste steht Bewehrungsabnahme und Baustellenkontrolle zur Verf?gung.</p>
         </div>
         <button class="primary-btn" id="projectPlanUploadBtn" type="button">PDF-Pläne hochladen</button>
       </div>
       <label>Plan suchen
-        <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Bezeichnung, Datei, Stand">
+        <input id="projectPlanSearchInput" type="search" value="${escapeAttr(searchValue)}" placeholder="Plan-Nr., Titel, Datei, Kategorie, Geschoss, Bauteil, Stand, Index">
       </label>
-      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird sp?ter über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Ger?t gespeichert.</p>
+      <p class="field-hint">Dropbox ist vorbereitet. Automatischer Abgleich wird später über eine Anbindung aktiviert; aktuell werden Dateien lokal auf diesem Gerät gespeichert.</p>
       ${renderProjectPlanUploadPanel()}
       ${projectPlanDiagnosticsHtml(inventory.diagnostics)}
       <datalist id="appPlanNameSuggestions">${APP_PLAN_NAME_SUGGESTIONS.map((value) => `<option value="${escapeAttr(value)}"></option>`).join("")}</datalist>
@@ -5398,23 +5474,25 @@ async function renderProjectPlansView() {
         <h3>Importierte Planunterlagen</h3>
         <span class="badge neutral">${visibleEntries.length} von ${entries.length}</span>
       </div>
-      ${visibleEntries.length ? visibleEntries.map(({ protocol, plan }) => safeProjectPlanCard(protocol, plan)).join("") : `<div class="empty-card muted">${entries.length ? "Keine passenden Planunterlagen gefunden. Bitte Suche/Filter prüfen." : "Keine Planunterlagen für dieses Projekt gefunden. über PDF-Pläne hochladen können PDF-Dateien direkt im Projekt gespeichert werden."}</div>`}
+      ${groupedHtml}
     </section>
-    ${unassignedHtml}`;
+    ${unassignedHtml}
+    ${archiveHtml}`;
 }
 
-function safeProjectPlanCard(protocol, plan) {
+function safeProjectPlanCard(protocol, plan, options = {}) {
   try {
-    return projectPlanCard(protocol, plan);
+    return projectPlanCard(protocol, plan, options);
   } catch (error) {
     console.error("Planliste konnte nicht geladen werden", { error, planId: plan?.id, protocolId: protocol?.id });
     return `<div class="empty-card warning"><strong>Planliste konnte nicht geladen werden</strong><br><span class="muted">Plan: ${escapeHtml(plan?.fileName || plan?.title || plan?.id || "unbekannt")}</span></div>`;
   }
 }
 
-function projectPlanCard(protocol, plan) {
+function projectPlanCard(protocol, plan, options = {}) {
   normalizePlanMeta(plan);
   const display = planCompactTitle(plan);
+  const archived = options.archived || isArchivedPlan(plan);
   const file = plan.fileName || plan.dropboxFileName || "Datei offen";
   const link = validDropboxLink(plan);
   const pins = allPinsForPlan(plan).length;
@@ -5427,14 +5505,14 @@ function projectPlanCard(protocol, plan) {
     pins ? `${pins} Pin(s)` : "ohne Pins"
   ].join(" - ");
   return `
-    <details class="project-plan-card project-plan-accordion" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
+    <details class="project-plan-card project-plan-accordion ${archived ? "archived-plan" : ""}" data-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}">
       <summary class="project-plan-summary-row">
         <span class="project-plan-summary-main">
           <strong>${escapeHtml(display)}</strong>
           <small>${escapeHtml(summary)}</small>
           <em>Datei: ${escapeHtml(file)}</em>
         </span>
-        <span class="badge neutral">${escapeHtml(plan.documentStatus || "verwendet")}</span>
+        <span class="badge neutral">${escapeHtml(archived ? "archiviert" : (plan.documentStatus || "verwendet"))}</span>
       </summary>
       <div class="project-plan-card-open">
         <div class="project-plan-card-head">
@@ -5448,7 +5526,7 @@ function projectPlanCard(protocol, plan) {
               <button class="secondary-btn" data-open-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan öffnen / Vorschau</button>
               ${state.current ? `<button class="secondary-btn" data-use-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan für Abnahme verwenden</button>` : ""}
               ${link ? `<button class="secondary-btn" data-open-dropbox-link="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">In Dropbox öffnen</button>` : ""}
-              <button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan löschen</button>
+              ${archived ? `<span class="muted">Archiviert</span>` : `<button class="project-delete-link" data-delete-project-plan="${escapeAttr(plan.id)}" data-protocol-id="${escapeAttr(protocol.id)}" type="button">Plan archivieren</button>`}
             </div>
           </div>
         </div>
@@ -8058,6 +8136,11 @@ function storedProjectPlanRecord(plan, file, project, protocol) {
     planDate: plan.planDate,
     planIndex: plan.planIndex,
     documentStatus: plan.documentStatus,
+    archived: !!plan.archived,
+    deleted: !!plan.deleted,
+    categoryManual: !!plan.categoryManual,
+    floorManual: !!plan.floorManual,
+    componentManual: !!plan.componentManual,
     source: plan.source,
     dropboxPath: plan.dropboxPath,
     dropboxSharedLink: plan.dropboxSharedLink,
@@ -8120,7 +8203,7 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
     return { selected: fileList.length, imported: 0, saved: 0, readBack: 0, inInventory: 0, rendered: 0 };
   }
 
-  setProjectPlanUploadState({ files: fileList, selected: fileList.length, imported: 0, saved: 0, message: "Planübernahme l?uft ...", error: "", busy: true });
+  setProjectPlanUploadState({ files: fileList, selected: fileList.length, imported: 0, saved: 0, message: "Planübernahme läuft ...", error: "", busy: true });
   await renderProjectPlansView();
 
   let created = 0;
@@ -8128,6 +8211,7 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
   let readBackCount = 0;
   let inventoryCount = 0;
   const importedIds = [];
+  const existingInventory = await buildProjectPlanInventory(project.id);
 
   for (const file of fileList) {
     if (!file || !file.size) {
@@ -8139,6 +8223,21 @@ async function importProjectPlanFiles(files, projectId = state.currentProjectId)
     try {
       const meta = derivePlanMeta(file.name, project.planDate || "");
       const type = file.type || guessFileType(file.name);
+      const duplicate = existingInventory.entries.find(({ plan: existing }) => {
+        const sameName = String(existing.fileName || existing.dropboxFileName || "").toLowerCase() === String(file.name || "").toLowerCase();
+        const sameNameAndSize = sameName && Number(existing.fileSize || existing.size || 0) === Number(file.size || 0);
+        const sameMeta = String(existing.appPlanName || existing.title || "").toLowerCase() === String(meta.appPlanName || meta.title || file.name).toLowerCase()
+          && String(existing.category || "") === String(meta.category || "")
+          && String(existing.floor || "") === String(meta.floor || "");
+        return sameName || sameNameAndSize || sameMeta;
+      });
+      if (duplicate && !confirm(`Dieser Plan scheint bereits vorhanden zu sein:
+${file.name}
+
+Trotzdem zus?tzlich importieren?`)) {
+        pushProjectPlanUploadError("duplicate-skip", "Plan wegen möglicher Dublette übersprungen.", { fileName: file.name, duplicatePlanId: duplicate.plan?.id || "" });
+        continue;
+      }
       const now = new Date().toISOString();
       plan = normalizePlanMeta({
         id: uid("plan"),
@@ -8271,12 +8370,17 @@ function deleteProjectPlan(protocolId, planId) {
   const entry = findProjectPlanEntry(protocolId, planId);
   if (!entry) return showAppToast("Plan nicht gefunden.", { type: "error" });
   const referencedPins = state.protocols.reduce((sum, protocol) => sum + (protocol.pins || []).filter((pin) => pinPlacements(pin).some((placement) => placement.planId === planId) || pin.planId === planId).length, 0);
-  const warning = referencedPins ? `\n\nAchtung: ${referencedPins} Pin-/Planbezug(e) verweisen auf diesen Plan.` : "";
-  if (!confirm(`Plan wirklich löschen? Die gespeicherte Plan-Datei wird aus der lokalen Projektablage entfernt.${warning}`)) return;
-  entry.protocol.plans = (entry.protocol.plans || []).filter((plan) => plan.id !== planId);
-  entry.protocol.updatedAt = new Date().toISOString();
-  idbDelete("plans", planId);
-  if (state.current?.activePlanId === planId) state.current.activePlanId = state.current.plans?.[0]?.id || "";
+  const warning = referencedPins ? `
+
+Hinweis: ${referencedPins} Pin-/Planbezug(e) verweisen auf diesen Plan. Der Plan wird deshalb nur archiviert und bleibt technisch erhalten.` : "";
+  if (!confirm(`Plan archivieren? Er wird in normalen Modullisten ausgeblendet, bleibt aber in der lokalen Projektablage erhalten.${warning}`)) return;
+  entry.plan.archived = true;
+  entry.plan.documentStatus = "archiviert";
+  entry.plan.updatedAt = new Date().toISOString();
+  entry.protocol.updatedAt = entry.plan.updatedAt;
+  syncPlanRecord(entry.plan);
+  const nextPlan = projectPlanEntries(entry.protocol.projectId || state.currentProjectId).find(({ plan }) => plan.id !== planId)?.plan || null;
+  if (state.current?.activePlanId === planId) state.current.activePlanId = nextPlan?.id || "";
   if (state.selectedPlanId === planId) state.selectedPlanId = state.current?.activePlanId || "";
   persist();
   renderProjectPlansView();
@@ -8284,7 +8388,7 @@ function deleteProjectPlan(protocolId, planId) {
     renderPlanControls();
     renderPlan();
   }
-  showAppToast("Plan gelöscht.", { type: "success" });
+  showAppToast("Plan archiviert.", { type: "success" });
 }
 
 async function extractPdfPlanMetadata(plan) {
@@ -16552,9 +16656,9 @@ async function syncPlanRecord(plan) {
   if (!record) return;
   await idbPut("plans", {
     ...record,
-    projectId: state.current?.projectId || record.projectId || "",
-    acceptanceId: state.current?.id || record.acceptanceId || record.protocolId || "",
-    protocolId: state.current?.id || record.protocolId || "",
+    projectId: plan.projectId || record.projectId || state.currentProjectId || state.current?.projectId || "",
+    acceptanceId: plan.protocolId || record.acceptanceId || record.protocolId || state.current?.id || "",
+    protocolId: plan.protocolId || record.protocolId || record.acceptanceId || state.current?.id || "",
     fileName: plan.fileName,
     fileType: plan.type,
     fileSize: plan.fileSize || record.fileSize || 0,
@@ -16568,6 +16672,11 @@ async function syncPlanRecord(plan) {
     planDate: plan.planDate,
     planIndex: plan.planIndex || "",
     documentStatus: plan.documentStatus || "verwendet",
+    archived: !!plan.archived,
+    deleted: !!plan.deleted,
+    categoryManual: !!plan.categoryManual,
+    floorManual: !!plan.floorManual,
+    componentManual: !!plan.componentManual,
     source: plan.source || "uploaded",
     dropboxPath: plan.dropboxPath || "",
     dropboxSharedLink: plan.dropboxSharedLink || "",
