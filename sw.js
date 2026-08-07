@@ -1,5 +1,5 @@
-﻿const CACHE = "kai-bewehrungscheck-v198";
-const ASSETS = ["./", "./index.html", "./styles.css?v=198", "./app.js?v=198", "./manifest.webmanifest?v=198", "./icon.svg", "./vendor/pdfjs/pdf.min.js?v=198", "./vendor/pdfjs/pdf.worker.min.js?v=198"];
+﻿const CACHE = "kai-bewehrungscheck-v199";
+const ASSETS = ["./", "./index.html", "./styles.css?v=199", "./app.js?v=199", "./manifest.webmanifest?v=199", "./icon.svg", "./vendor/pdfjs/pdf.min.js?v=199", "./vendor/pdfjs/pdf.worker.min.js?v=199"];
 const RUNTIME_ASSETS = [];
 
 self.addEventListener("install", (event) => {
@@ -41,6 +41,7 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
 
 
 

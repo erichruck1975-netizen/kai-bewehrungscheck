@@ -3,7 +3,7 @@ const SETTINGS_KEY = "kai-bewehrungscheck-settings-v01";
 const DB_NAME = "kai-bewehrungscheck-db";
 const DB_VERSION = 4;
 const PDFJS_VERSION = "3.11.174";
-const APP_VERSION = "v198";
+const APP_VERSION = "v199";
 const APP_CACHE = `kai-bewehrungscheck-${APP_VERSION}`;
 const MASTER_DATA_SNAPSHOT_KEY = "kaiMasterDataSnapshots";
 const MASTER_DATA_LAST_VERSION_KEY = "kaiMasterDataLastAppVersion";
@@ -1294,6 +1294,17 @@ function ownPersonSelection(value = "") {
   const text = String(value || "").trim();
   const person = resolveOwnPerson(text);
   return { text: person?.name || text, id: person?.id || "", snapshot: snapshotOwnPerson(person) };
+}
+function lookupSelection(key, value = "") {
+  const text = String(value || "").trim();
+  const values = uniqueValues(state.masterData?.[key] || DEFAULT_MASTER_DATA[key] || []);
+  const match = values.find((entry) => normalizeLookupText(entry) === normalizeLookupText(text));
+  const label = match || text;
+  return {
+    text: label,
+    id: label,
+    snapshot: label ? { value: label, label } : null
+  };
 }
 
 function ensureProjectStructure() {
@@ -16743,6 +16754,7 @@ async function boot() {
 }
 
 boot();
+
 
 
 
